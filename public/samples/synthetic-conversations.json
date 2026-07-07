@@ -1,0 +1,125 @@
+[
+  {
+    "id": "conv_strategy_001",
+    "title": "Roadmap prodotto e priorita MVP",
+    "create_time": 1719835200,
+    "update_time": 1719838800,
+    "mapping": {
+      "a": {
+        "id": "a",
+        "message": {
+          "id": "msg_1",
+          "author": { "role": "user" },
+          "create_time": 1719835200,
+          "content": {
+            "parts": [
+              "Sto definendo la strategia per un MVP B2B. Il problema e' che abbiamo troppe feature: dashboard, onboarding, report, API e gestione ruoli. Aiutami a ridurre il perimetro, identificare dipendenze, rischio e prossimi passi operativi."
+            ]
+          }
+        }
+      },
+      "b": {
+        "id": "b",
+        "message": {
+          "id": "msg_2",
+          "author": { "role": "assistant" },
+          "create_time": 1719835400,
+          "content": { "parts": ["Partirei da utenti, valore critico e rischio di delivery."] }
+        }
+      }
+    }
+  },
+  {
+    "id": "conv_comm_002",
+    "title": "Email delicata a un cliente",
+    "create_time": 1735722000,
+    "update_time": 1735725600,
+    "mapping": {
+      "a": {
+        "id": "a",
+        "message": {
+          "id": "msg_3",
+          "author": { "role": "user" },
+          "create_time": 1735722000,
+          "content": {
+            "parts": [
+              "Devo scrivere un messaggio a un cliente per spiegare un ritardo senza sembrare difensivo. Voglio un tono chiaro, responsabile e orientato al follow-up. Il cliente e' Acme Srl e il referente e' Mario Rossi, mario.rossi@example.com."
+            ]
+          }
+        }
+      },
+      "b": {
+        "id": "b",
+        "message": {
+          "id": "msg_4",
+          "author": { "role": "assistant" },
+          "create_time": 1735722300,
+          "content": { "parts": ["Ecco una bozza professionale e sintetica."] }
+        }
+      }
+    }
+  },
+  {
+    "id": "conv_team_003",
+    "title": "Ruoli del team e conflitto sulle priorita",
+    "create_time": 1751360400,
+    "update_time": 1751364000,
+    "mapping": {
+      "a": {
+        "id": "a",
+        "message": {
+          "id": "msg_5",
+          "author": { "role": "user" },
+          "create_time": 1751360400,
+          "content": {
+            "parts": [
+              "Nel team ci sono responsabilita poco chiare. Vorrei impostare ruoli, delega e allineamento: una persona vuole accelerare, un'altra teme il rischio tecnico. Mi serve una struttura per decidere senza cercare consenso infinito."
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "conv_personal_004",
+    "title": "Viaggio con famiglia",
+    "create_time": 1751965200,
+    "update_time": 1751968800,
+    "mapping": {
+      "a": {
+        "id": "a",
+        "message": {
+          "id": "msg_6",
+          "author": { "role": "user" },
+          "create_time": 1751965200,
+          "content": {
+            "parts": [
+              "Sto organizzando una vacanza con la famiglia e i figli. Vorrei evitare stress e scegliere una casa vicino al mare."
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "conv_code_005",
+    "title": "Bug API e test",
+    "create_time": 1751803200,
+    "update_time": 1751806800,
+    "mapping": {
+      "a": {
+        "id": "a",
+        "message": {
+          "id": "msg_7",
+          "author": { "role": "user" },
+          "create_time": 1751803200,
+          "content": {
+            "parts": [
+              "Questo codice fallisce nei test quando il database non risponde. Voglio capire la causa, gestire il rischio e definire prossimi passi.\n```js\nasync function loadUser(id) { return db.user.find(id) }\n```"
+            ]
+          }
+        }
+      }
+    }
+  }
+]

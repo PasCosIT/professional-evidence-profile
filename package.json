@@ -1,0 +1,13 @@
+{
+  "name": "professional-evidence-profile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local MVP for a professional evidence profile based on ChatGPT exports.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/run-tests.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
