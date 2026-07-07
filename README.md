@@ -1,6 +1,6 @@
-# Professional Evidence Profile
+# AI Work Passport
 
-Local MVP to import a ChatGPT export, classify work-related conversations, redact sensitive data, review the selection manually, and generate a private/public professional evidence profile.
+Local MVP to import a ChatGPT export, classify work-related conversations, redact sensitive data, review the selection manually, and generate an evidence-backed AI Work Passport.
 
 ## What this MVP does
 
@@ -10,7 +10,7 @@ Local MVP to import a ChatGPT export, classify work-related conversations, redac
 - Detects pasted external content heuristically.
 - Redacts names, emails, phones, API keys, credentials, addresses, and sensitive terms.
 - Lets the user include, exclude, or reclassify conversations.
-- Generates a normalized JSON, methodology KPIs, private report, public report, and up to 8 evidence-backed insights.
+- Generates a normalized JSON, methodology KPIs, a private AI Work Passport, a shareable public version, and evidence-backed observed skills.
 - Deletes all in-memory session data with one action.
 
 ## What it intentionally does not do
@@ -63,6 +63,14 @@ node tests/run-tests.js
 ## Sample data
 
 Use `samples/synthetic-conversations.json` to try the flow without real data.
+
+## Positioning in this prototype
+
+This prototype is designed as an evidence-backed professional profile for the user, not as an automated hiring decision system.
+
+- It summarizes observable work patterns from approved conversations.
+- It can highlight supported skills, examples, limitations, and areas with insufficient evidence.
+- It does not produce candidate rankings or replace human evaluation.
 
 ## Privacy model in this prototype
 

@@ -301,6 +301,61 @@ h1 {
   font-weight: 750;
 }
 
+.skill-group-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.skill-group-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  background: #fcfdfb;
+  display: grid;
+  gap: 10px;
+}
+
+.skill-group-head,
+.skill-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.skill-group-card p,
+.skill-list li p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.skill-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.skill-list li {
+  display: grid;
+  gap: 5px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.skill-list li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.skill-list em {
+  color: #24413c;
+  font-size: 12px;
+}
+
 .steps {
   display: flex;
   gap: 8px;
@@ -1327,6 +1382,22 @@ input[type="file"] {
   justify-content: flex-end;
 }
 
+.report-language-control {
+  display: inline-grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.report-language-control select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #fff;
+}
+
 .snapshot-preview-host {
   margin-top: 18px;
   padding: 22px;
@@ -1351,8 +1422,9 @@ input[type="file"] {
 }
 
 .snapshot-page-shell {
-  display: flex;
+  display: grid;
   justify-content: center;
+  gap: 24px;
   min-width: calc(min(1120px, 100%) * var(--snapshot-zoom));
 }
 
@@ -1374,6 +1446,63 @@ input[type="file"] {
   box-shadow: 0 18px 34px rgba(15, 33, 32, 0.22);
   color: #1e2a29;
   font-family: Inter, Arial, sans-serif;
+}
+
+.snapshot-page-evidence {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto auto 1fr auto;
+}
+
+.snapshot-header-light {
+  background: #f0f6f4;
+  color: #1e2a29;
+  border: 1px solid #d6e2df;
+}
+
+.snapshot-header-light dt {
+  color: #60706c;
+}
+
+.snapshot-header-light dd {
+  color: #1e2a29;
+}
+
+.evidence-page-section {
+  padding: 18px 22px;
+}
+
+.appendix-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.appendix-item {
+  border: 1px solid #d6e2df;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fcfdfc;
+  display: grid;
+  gap: 6px;
+}
+
+.appendix-item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.appendix-item p,
+.appendix-item em {
+  margin: 0;
+  color: #5f6d69;
+  line-height: 1.4;
+}
+
+.appendix-item em {
+  color: #22302f;
+  font-size: 12px;
 }
 
 .snapshot-header {
@@ -1466,6 +1595,31 @@ input[type="file"] {
   padding: 16px 18px;
 }
 
+.snapshot-kpi.with-meter {
+  display: grid;
+  gap: 10px;
+}
+
+.kpi-meter {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(#16877f 0 var(--meter), #dce9e6 var(--meter) 100%);
+}
+
+.kpi-meter strong {
+  width: 42px;
+  height: 42px;
+  margin: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  font-size: 16px;
+}
+
 .snapshot-kpi strong {
   display: block;
   margin-bottom: 8px;
@@ -1498,9 +1652,171 @@ input[type="file"] {
   background: #dff0ed;
 }
 
+.mini-visual-card {
+  padding: 16px 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.identity-card {
+  padding: 16px 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.identity-block {
+  display: grid;
+  gap: 6px;
+}
+
+.identity-block h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.identity-block p:last-child {
+  margin: 0;
+  color: #22302f;
+  line-height: 1.45;
+}
+
+.identity-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.identity-chip-row span {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #eef5f2;
+  color: #24413c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.mini-visual-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mini-visual-head span {
+  color: #0f6f68;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.evidence-mix-bar,
+.skill-group-track,
+.skill-mini-track,
+.conversation-spark {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dce9e6;
+}
+
+.evidence-mix-bar {
+  display: flex;
+}
+
+.evidence-mix-bar i,
+.skill-group-track i,
+.skill-mini-track i,
+.conversation-spark i {
+  display: block;
+  height: 100%;
+}
+
+.skill-group-track i,
+.skill-mini-track i,
+.conversation-spark i {
+  background: linear-gradient(90deg, #16877f, #0f6f68);
+}
+
+.evidence-mix-bar .direct,
+.evidence-mix-legend .direct {
+  background: #16877f;
+}
+
+.evidence-mix-bar .mixed,
+.evidence-mix-legend .mixed {
+  background: #2aa79e;
+}
+
+.evidence-mix-bar .external,
+.evidence-mix-legend .external {
+  background: #7c8d89;
+}
+
+.evidence-mix-bar .ai,
+.evidence-mix-legend .ai {
+  background: #c48d2f;
+}
+
+.evidence-mix-bar .unknown,
+.evidence-mix-legend .unknown {
+  background: #a1b1ad;
+}
+
+.evidence-mix-legend,
+.axis-pill-row,
+.category-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.evidence-mix-legend span,
+.axis-pill-row span,
+.category-chip-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #eef5f2;
+  color: #24413c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.evidence-mix-legend b {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
 .profile-card {
   padding: 22px 26px;
   min-width: 0;
+}
+
+.snapshot-radar-panel .radar-wrap {
+  grid-template-columns: minmax(280px, 1.2fr) minmax(140px, 0.7fr);
+  gap: 10px;
+}
+
+.snapshot-radar-panel .radar-chart {
+  max-width: 420px;
+}
+
+.snapshot-radar-panel .radar-legend {
+  gap: 6px;
+}
+
+.snapshot-radar-panel .radar-legend li {
+  padding-bottom: 6px;
+}
+
+.snapshot-radar-panel .radar-legend strong {
+  font-size: 11px;
 }
 
 .profile-card-head {
@@ -1525,6 +1841,13 @@ input[type="file"] {
   color: #0f6f68;
   font-size: 12px;
   font-weight: 900;
+}
+
+.profile-subtitle {
+  margin: 0 0 14px;
+  color: #5f6d69;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .capability-bars {
@@ -1631,23 +1954,64 @@ input[type="file"] {
 }
 
 @media print {
+  html,
+  body {
+    width: 297mm;
+    margin: 0;
+    padding: 0;
+    background: #f4f8f6;
+  }
+
   body {
     background: #f4f8f6;
   }
 
-  body * {
-    visibility: hidden;
+  body.print-mode .topbar,
+  body.print-mode .hero,
+  body.print-mode .explain,
+  body.print-mode .steps,
+  body.print-mode #upload,
+  body.print-mode #scan,
+  body.print-mode #review,
+  body.print-mode #report > :not(.snapshot-actions):not(#snapshotPreviewHost),
+  body.print-mode .snapshot-actions,
+  body.print-mode .snapshot-zoom-row,
+  body.print-mode .legacy-hidden {
+    display: none !important;
   }
 
-  #snapshotPage,
-  #snapshotPage * {
-    visibility: visible;
+  body.print-mode .shell,
+  body.print-mode #report,
+  body.print-mode #snapshotPreviewHost,
+  body.print-mode .snapshot-page-shell,
+  body.print-mode .snapshot-page {
+    display: block !important;
+    visibility: visible !important;
   }
 
-  #snapshotPage {
-    position: fixed;
-    inset: 0;
+  body.print-mode .shell,
+  body.print-mode #report,
+  body.print-mode #snapshotPreviewHost {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  body.print-mode .snapshot-preview-host {
+    overflow: visible;
+  }
+
+  body.print-mode .snapshot-page-shell {
+    display: block;
+    min-width: 0;
+    gap: 0;
+  }
+
+  body.print-mode .snapshot-page {
+    position: relative;
     width: 297mm;
+    min-height: 210mm;
     height: 210mm;
     max-width: none;
     margin: 0;
@@ -1656,13 +2020,126 @@ input[type="file"] {
     border: 0;
     border-radius: 0;
     box-shadow: none;
+    overflow: hidden;
+    break-after: page;
+    page-break-after: always;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
 
-  .snapshot-page-shell,
-  .snapshot-preview-host {
-    overflow: visible;
+  body.print-mode .snapshot-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  body.print-mode .snapshot-page {
+    font-size: 0.96em;
+  }
+
+  body.print-mode .snapshot-header {
+    padding: 18px 22px;
+  }
+
+  body.print-mode .snapshot-header h1 {
+    font-size: 26px;
+  }
+
+  body.print-mode .executive-card {
+    min-height: 0;
+    padding: 18px;
+  }
+
+  body.print-mode .profile-card,
+  body.print-mode .evidence-page-section {
+    padding: 16px 18px;
+  }
+
+  body.print-mode .snapshot-radar-panel .radar-wrap {
+    grid-template-columns: minmax(240px, 1.15fr) minmax(125px, 0.75fr);
+    gap: 8px;
+  }
+
+  body.print-mode .snapshot-radar-panel .radar-chart {
+    max-width: 330px;
+  }
+
+  body.print-mode .snapshot-radar-panel .radar-label {
+    font-size: 9px;
+  }
+
+  body.print-mode .snapshot-radar-panel .radar-legend {
+    gap: 4px;
+  }
+
+  body.print-mode .snapshot-radar-panel .radar-legend li {
+    gap: 1px;
+    padding-bottom: 5px;
+  }
+
+  body.print-mode .mini-visual-card {
+    padding: 14px 16px;
+  }
+
+  body.print-mode .snapshot-kpi {
+    min-height: 0;
+    padding: 12px 14px;
+  }
+
+  body.print-mode .snapshot-kpi > strong {
+    font-size: 22px;
+  }
+
+  body.print-mode .kpi-meter {
+    width: 50px;
+    height: 50px;
+  }
+
+  body.print-mode .kpi-meter strong {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  body.print-mode .capability-bars {
+    gap: 10px;
+  }
+
+  body.print-mode .capability-row {
+    grid-template-columns: minmax(165px, 0.9fr) minmax(160px, 1.3fr) 30px;
+    gap: 10px;
+  }
+
+  body.print-mode .profile-card-head {
+    margin-bottom: 12px;
+  }
+
+  body.print-mode .skill-group-grid,
+  body.print-mode .appendix-list {
+    gap: 8px;
+  }
+
+  body.print-mode .axis-pill-row,
+  body.print-mode .category-chip-row,
+  body.print-mode .evidence-mix-legend {
+    gap: 6px;
+  }
+
+  body.print-mode .skill-group-card,
+  body.print-mode .appendix-item {
+    padding: 10px;
+  }
+
+  body.print-mode .skill-list {
+    gap: 8px;
+  }
+
+  body.print-mode .skill-list li {
+    gap: 4px;
+    padding-top: 8px;
+  }
+
+  body.print-mode .snapshot-footer {
+    font-size: 9px;
   }
 
   .snapshot-zoom-row,
@@ -1717,7 +2194,9 @@ input[type="file"] {
 
   .review-summary-panel,
   .review-summary-metrics,
-  .export-config {
+  .export-config,
+  .appendix-list,
+  .skill-group-grid {
     grid-template-columns: 1fr;
   }
 }

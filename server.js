@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const zlib = require("zlib");
+const PDFDocument = require("pdfkit");
 
 const PORT = process.env.PORT || 4173;
 const MAX_UPLOAD_BYTES = 40 * 1024 * 1024;
@@ -75,6 +76,170 @@ const technologyReasoningSignals = [
   }
 ];
 
+const skillPassportGroups = [
+  {
+    id: "technical_skills",
+    title: "Competenze tecniche",
+    summary: "Strumenti, tecnologie, metodologie e conoscenze specifiche osservabili nelle conversazioni approvate.",
+    skills: [
+      {
+        id: "tools_used",
+        label: "Strumenti utilizzati",
+        evidence_label: "tool usage",
+        action_terms: ["uso", "utilizzo", "configuro", "gestisco", "debuggo", "automatizzo", "monitoro", "integro", "setup", "deploy"],
+        context_terms: ["tool", "strumento", "dashboard", "workflow", "pipeline", "repo", "editor", "terminal", "monitoring", "ci/cd"]
+      },
+      {
+        id: "technologies",
+        label: "Tecnologie",
+        evidence_label: "technology reasoning",
+        action_terms: ["definisco", "progetto", "valuto", "scelgo", "gestisco", "analizzo", "integro", "ottimizzo"],
+        context_terms: ["api", "database", "server", "cloud", "javascript", "typescript", "python", "sql", "architecture", "architettura"]
+      },
+      {
+        id: "methodologies",
+        label: "Metodologie",
+        evidence_label: "methodological execution",
+        action_terms: ["prioritizzo", "pianifico", "definisco", "valido", "misuro", "itero", "retrospettiva", "review", "testo"],
+        context_terms: ["mvp", "roadmap", "backlog", "milestone", "qa", "test", "acceptance criteria", "discovery", "retro", "validation"]
+      },
+      {
+        id: "specific_knowledge",
+        label: "Conoscenze specifiche",
+        evidence_label: "domain-specific knowledge",
+        action_terms: ["spiego", "applico", "definisco", "valuto", "conosco", "traduco", "governo"],
+        context_terms: ["schema", "payload", "endpoint", "metric", "kpi", "pricing", "stakeholder", "compliance", "security", "governance"]
+      }
+    ]
+  },
+  {
+    id: "business_skills",
+    title: "Competenze business",
+    summary: "Ragionamento su strategia, clienti, analisi, negoziazione e risultato osservabile nelle conversazioni.",
+    skills: [
+      {
+        id: "strategy",
+        label: "Strategia",
+        evidence_label: "strategic framing",
+        action_terms: ["definisco", "prioritizzo", "valuto", "scelgo", "allineo", "riduco", "indirizzo"],
+        context_terms: ["strategia", "roadmap", "obiettivo", "trade-off", "dipendenze", "mvp", "scope", "priorita"]
+      },
+      {
+        id: "client_management",
+        label: "Gestione clienti",
+        evidence_label: "client communication",
+        action_terms: ["scrivo", "spiego", "gestisco", "allineo", "rispondo", "preparo", "negozio"],
+        context_terms: ["cliente", "email", "messaggio", "tono", "follow-up", "referente", "presentazione"]
+      },
+      {
+        id: "analysis",
+        label: "Analisi",
+        evidence_label: "business analysis",
+        action_terms: ["analizzo", "scompongo", "misuro", "confronto", "identifico", "valuto", "diagnostico"],
+        context_terms: ["rischio", "vincolo", "kpi", "metric", "impatto", "dataset", "scenario", "cause"]
+      },
+      {
+        id: "negotiation",
+        label: "Negoziazione",
+        evidence_label: "negotiation pattern",
+        action_terms: ["negozio", "propongo", "allineo", "media", "chiudo", "convergo"],
+        context_terms: ["offerta", "contratto", "partnership", "accordo", "obiezione", "stakeholder"]
+      },
+      {
+        id: "result_orientation",
+        label: "Orientamento al risultato",
+        evidence_label: "result orientation",
+        action_terms: ["consegno", "chiudo", "porto", "sblocco", "risolvo", "fisso", "metto a terra"],
+        context_terms: ["delivery", "risultato", "prossimi passi", "deadline", "azione", "operativo", "follow-up"]
+      }
+    ]
+  },
+  {
+    id: "execution_capabilities",
+    title: "Capacita di execution",
+    summary: "Evidenze di problem solving, gestione delle priorita, pianificazione, autonomia e decisione osservabili nel lavoro descritto.",
+    skills: [
+      {
+        id: "problem_solving",
+        label: "Problem solving",
+        evidence_label: "problem decomposition",
+        action_terms: ["capire", "analizzo", "scompongo", "risolvo", "debuggo", "diagnostico", "identifico"],
+        context_terms: ["problema", "causa", "bug", "errore", "vincolo", "soluzione", "root cause"]
+      },
+      {
+        id: "priority_management",
+        label: "Gestione priorita",
+        evidence_label: "priority setting",
+        action_terms: ["prioritizzo", "riduco", "sequenzio", "decido", "focalizzo", "scelgo"],
+        context_terms: ["priorita", "perimetro", "scope", "mvp", "dipendenze", "milestone"]
+      },
+      {
+        id: "planning",
+        label: "Pianificazione",
+        evidence_label: "planning discipline",
+        action_terms: ["pianifico", "organizzo", "strutturo", "definisco", "scandisco", "preparo"],
+        context_terms: ["timeline", "roadmap", "milestone", "passi", "sequenza", "risorse", "deadline"]
+      },
+      {
+        id: "autonomy",
+        label: "Autonomia",
+        evidence_label: "autonomous ownership",
+        action_terms: ["decido", "imposto", "porto", "guido", "definisco", "mi assumo", "coordino"],
+        context_terms: ["ownership", "responsabilita", "direzione", "decisione", "governance", "next step"]
+      },
+      {
+        id: "decision_making",
+        label: "Capacita decisionale",
+        evidence_label: "decision-making",
+        action_terms: ["decido", "scelgo", "valuto", "raccomando", "indirizzo", "convergo"],
+        context_terms: ["trade-off", "decisione", "opzioni", "go/no-go", "rischio", "priorita"]
+      }
+    ]
+  },
+  {
+    id: "leadership_collaboration",
+    title: "Leadership e collaborazione",
+    summary: "Segnali di ownership, coordinamento, mentoring, gestione stakeholder e comunicazione professionale.",
+    skills: [
+      {
+        id: "ownership",
+        label: "Ownership",
+        evidence_label: "ownership signal",
+        action_terms: ["mi assumo", "guido", "definisco", "decido", "governo", "indirizzo"],
+        context_terms: ["ownership", "responsabilita", "governance", "decisione", "allineamento"]
+      },
+      {
+        id: "coordination",
+        label: "Coordinamento",
+        evidence_label: "coordination pattern",
+        action_terms: ["coordino", "allineo", "organizzo", "coinvolgo", "strutturo"],
+        context_terms: ["team", "ruoli", "delega", "coordinamento", "conflitto", "dipendenze"]
+      },
+      {
+        id: "mentoring",
+        label: "Mentoring",
+        evidence_label: "mentoring pattern",
+        action_terms: ["spiego", "faccio crescere", "supporto", "formo", "guido"],
+        context_terms: ["mentoring", "coach", "feedback", "sviluppo", "team", "junior"]
+      },
+      {
+        id: "stakeholder_management",
+        label: "Gestione stakeholder",
+        evidence_label: "stakeholder management",
+        action_terms: ["allineo", "gestisco", "presento", "negozio", "spiego", "coinvolgo"],
+        context_terms: ["stakeholder", "cliente", "manager", "team", "referente", "partner"]
+      },
+      {
+        id: "communication",
+        label: "Comunicazione",
+        evidence_label: "professional communication",
+        action_terms: ["scrivo", "spiego", "adatto", "presento", "chiarisco", "rispondo"],
+        context_terms: ["email", "messaggio", "tono", "chiarezza", "feedback", "presentazione", "cliente"]
+      }
+    ]
+  }
+];
+
 function sanitizeProfileName(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 120);
 }
@@ -97,6 +262,9 @@ function isIsoDate(value) {
 function normalizeReportConfig(input = {}) {
   const profileName = sanitizeProfileName(input.profile_name);
   const selectedMonths = Number(input.selected_months);
+  const reportLanguage = ["it", "en"].includes(String(input.report_language || "").toLowerCase())
+    ? String(input.report_language).toLowerCase()
+    : "en";
   const generatedAt = isIsoDate(input.generated_at) ? input.generated_at : new Date().toISOString().slice(0, 10);
   const periodTo = isIsoDate(input.period_to) ? input.period_to : generatedAt;
   const periodFrom = isIsoDate(input.period_from) ? input.period_from : null;
@@ -109,7 +277,8 @@ function normalizeReportConfig(input = {}) {
     period_from: periodFrom,
     period_to: periodTo,
     generated_at: generatedAt,
-    generated_for: `Professional Evidence Profile - ${profileName}`,
+    report_language: reportLanguage,
+    generated_for: `AI Work Passport - ${profileName}`,
     sanitized_profile_name: sanitizedFilenameName(profileName)
   };
 }
@@ -829,6 +998,131 @@ function generateInsights(conversations) {
   }
 
   return insights.slice(0, 8);
+}
+
+function skillMatchScore(messageText, skill) {
+  const normalizedText = messageText.toLowerCase();
+  const actionMatches = matchedTerms(normalizedText, skill.action_terms || []);
+  const contextMatches = matchedTerms(normalizedText, skill.context_terms || []);
+  const uniqueMatches = new Set([...actionMatches, ...contextMatches]);
+  const hasPattern = (actionMatches.length >= 1 && contextMatches.length >= 1) || contextMatches.length >= 2;
+  const score = hasPattern ? uniqueMatches.size + 1 : uniqueMatches.size;
+  return {
+    score,
+    hasPattern,
+    actionMatches,
+    contextMatches,
+    uniqueMatches: Array.from(uniqueMatches)
+  };
+}
+
+function buildSkillEvidence(message, conversation, skill) {
+  const matches = skillMatchScore(message.text, skill);
+  if (!matches.hasPattern || matches.score < 3 || !canCreateCapabilityClaim(message)) return null;
+  return {
+    conversation_id: conversation.id,
+    conversation_title: conversation.title,
+    date: message.created_at || conversation.created_at,
+    excerpt: message.text.slice(0, 280),
+    matched_terms: matches.uniqueMatches.slice(0, 6),
+    score: matches.score,
+    source: sourceValue(message),
+    source_weight: sourceWeight(message)
+  };
+}
+
+function confidenceScoreFromEvidence(evidence) {
+  if (!evidence.length) return 0;
+  const uniqueConversationCount = new Set(evidence.map(item => item.conversation_id)).size;
+  const averageSourceWeight = evidence.reduce((sum, item) => sum + (item.source_weight || 0), 0) / evidence.length;
+  const breadthBonus = Math.min(18, uniqueConversationCount * 6);
+  const depthBonus = Math.min(16, evidence.length * 4);
+  return Math.max(18, Math.min(96, Math.round(averageSourceWeight * 55 + breadthBonus + depthBonus)));
+}
+
+function confidenceLabelFromScore(score) {
+  if (score >= 78) return "high";
+  if (score >= 55) return "medium";
+  return "low";
+}
+
+function joinHuman(items) {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return "observable work signals";
+  if (list.length === 1) return list[0];
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+}
+
+function buildSkillReason(skill, evidence, confidenceScore) {
+  const topTerms = Array.from(new Set(evidence.flatMap(item => item.matched_terms || []))).slice(0, 4);
+  const conversations = new Set(evidence.map(item => item.conversation_id)).size;
+  const sourceCoverage = evidence.every(item => item.source === "original_user_input")
+    ? "supported by direct user-authored evidence"
+    : "supported by attributable but mixed-origin evidence";
+  return `${skill.label} emerges across ${conversations} conversation${conversations === 1 ? "" : "s"} through ${joinHuman(topTerms)}; ${sourceCoverage}; confidence ${confidenceScore}/100.`;
+}
+
+function buildSkillPassport(normalized) {
+  const userMessages = normalized.flatMap(conversation =>
+    conversation.messages
+      .filter(message => message.author === "user")
+      .map(message => ({ message, conversation }))
+  );
+
+  const groups = skillPassportGroups.map(group => {
+    const skills = group.skills.map(skill => {
+      const evidence = userMessages
+        .map(({ message, conversation }) => buildSkillEvidence(message, conversation, skill))
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 4);
+      if (!evidence.length) return null;
+      const confidence_score = confidenceScoreFromEvidence(evidence);
+      return {
+        id: skill.id,
+        label: skill.label,
+        evidence_label: skill.evidence_label,
+        confidence_score,
+        confidence: confidenceLabelFromScore(confidence_score),
+        evidence_count: evidence.length,
+        examples: evidence.slice(0, 3).map(item => ({
+          conversation_id: item.conversation_id,
+          conversation_title: item.conversation_title,
+          date: item.date,
+          excerpt: item.excerpt
+        })),
+        ranking_reason: buildSkillReason(skill, evidence, confidence_score)
+      };
+    }).filter(Boolean).sort((a, b) => b.confidence_score - a.confidence_score);
+
+    const groupScore = skills.length
+      ? Math.round(skills.reduce((sum, skill) => sum + skill.confidence_score, 0) / skills.length)
+      : 0;
+    return {
+      id: group.id,
+      title: group.title,
+      summary: group.summary,
+      confidence_score: groupScore,
+      confidence: confidenceLabelFromScore(groupScore),
+      skills,
+      observed_skills: skills.length
+    };
+  }).filter(group => group.skills.length);
+
+  return {
+    title: "AI Work Passport",
+    subtitle: "Evidence-backed professional profile built from approved conversations.",
+    groups,
+    strengths: groups
+      .flatMap(group => group.skills.map(skill => ({ group: group.title, ...skill })))
+      .sort((a, b) => b.confidence_score - a.confidence_score)
+      .slice(0, 5),
+    development_areas: groups
+      .flatMap(group => group.skills.map(skill => ({ group: group.title, ...skill })))
+      .filter(skill => skill.confidence_score < 60)
+      .slice(0, 5)
+  };
 }
 
 function buildTechnologyReasoning(normalized, insights, publicOnly = false) {
@@ -1560,6 +1854,7 @@ function buildReports(normalized, userInsights, reportConfig) {
     return acc;
   }, {});
   const insights = userInsights && userInsights.length ? userInsights : generateInsights(normalized);
+  const skill_passport = buildSkillPassport(normalized);
   const privateVisualProfile = buildVisualProfile(normalized, insights, false);
   const publicVisualProfile = buildVisualProfile(normalized, insights, true);
   const privateTechnologyReasoning = buildTechnologyReasoning(normalized, insights, false);
@@ -1582,6 +1877,7 @@ function buildReports(normalized, userInsights, reportConfig) {
   return {
     normalized,
     insights,
+    skill_passport,
     kpis,
     report_config: config,
     analysis_notes: normalized.length
@@ -1592,7 +1888,7 @@ function buildReports(normalized, userInsights, reportConfig) {
     temporal_maturity: privateTemporalMaturity,
     evidence_coverage_detail: privateEvidenceCoverage,
     private_report: {
-      title: config ? `Professional Evidence Snapshot - ${config.profile_name}` : "Private Professional Mirror",
+      title: config ? `AI Work Passport - ${config.profile_name}` : "Private AI Work Passport",
       report_config: config,
       generated_at: kpis.generated_at,
       period: config ? { from: config.period_from, to: config.period_to, selected_months: config.selected_months } : { first_data: range.first, last_data: range.last },
@@ -1602,6 +1898,7 @@ function buildReports(normalized, userInsights, reportConfig) {
         "Il profilo non e' una diagnosi psicologica e non deve essere usato come unico criterio di selezione."
       ],
       insights,
+      skill_passport,
       kpis,
       visual_profile: privateVisualProfile,
       technology_reasoning: privateTechnologyReasoning,
@@ -1609,11 +1906,12 @@ function buildReports(normalized, userInsights, reportConfig) {
       evidence_coverage_detail: privateEvidenceCoverage
     },
     public_report: {
-      title: config ? `Professional Evidence Snapshot - ${config.profile_name}` : "Professional Evidence Passport",
+      title: config ? `AI Work Passport - ${config.profile_name}` : "Shareable AI Work Passport",
       report_config: config,
       generated_at: kpis.generated_at,
       period: config ? { from: config.period_from, to: config.period_to, selected_months: config.selected_months } : { first_data: range.first, last_data: range.last },
       kpis,
+      skill_passport,
       visual_profile: publicVisualProfile,
       technology_reasoning: publicTechnologyReasoning,
       temporal_maturity: publicTemporalMaturity,
@@ -1627,6 +1925,499 @@ function buildReports(normalized, userInsights, reportConfig) {
       }))
     }
   };
+}
+
+function pdfBuffer(render) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ autoFirstPage: false, compress: false, info: { Producer: "AI Work Passport" } });
+    const chunks = [];
+    doc.on("data", chunk => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+    render(doc);
+    doc.end();
+  });
+}
+
+function drawRoundedPanel(doc, x, y, width, height, options = {}) {
+  const radius = options.radius || 10;
+  doc.save();
+  doc.roundedRect(x, y, width, height, radius);
+  doc.fillAndStroke(options.fill || "#ffffff", options.stroke || "#d7e1de");
+  doc.restore();
+}
+
+function drawChipRow(doc, items, x, y, maxWidth, options = {}) {
+  let cursorX = x;
+  let cursorY = y;
+  const gap = options.gap || 6;
+  const fontSize = options.fontSize || 9;
+  const chipHeight = options.chipHeight || 16;
+  const maxRows = options.maxRows || Number.POSITIVE_INFINITY;
+  let rowsUsed = 1;
+  for (const item of items) {
+    const label = String(item || "");
+    const width = Math.min(maxWidth, doc.widthOfString(label, { size: fontSize }) + 18);
+    if (cursorX + width > x + maxWidth) {
+      if (rowsUsed >= maxRows) break;
+      cursorX = x;
+      cursorY += chipHeight + 4;
+      rowsUsed += 1;
+    }
+    doc.save();
+    doc.roundedRect(cursorX, cursorY, width, chipHeight, 8).fill("#e8f1ef");
+    doc.fillColor("#21423d").font("Helvetica-Bold").fontSize(fontSize).text(label, cursorX + 9, cursorY + 4, { width: width - 12, lineBreak: false });
+    doc.restore();
+    cursorX += width + gap;
+  }
+  return cursorY + chipHeight + 2;
+}
+
+function drawSegmentBar(doc, segments, x, y, width, height) {
+  const palette = { direct: "#16877f", mixed: "#2aa79e", external: "#7c8d89", ai: "#c48d2f", unknown: "#a1b1ad" };
+  const total = segments.reduce((sum, segment) => sum + Number(segment.value || 0), 0) || 1;
+  let cursorX = x;
+  for (const segment of segments) {
+    const segmentWidth = width * (Number(segment.value || 0) / total);
+    doc.save();
+    doc.rect(cursorX, y, segmentWidth, height).fill(palette[segment.tone] || "#cfd8d0");
+    doc.restore();
+    cursorX += segmentWidth;
+  }
+}
+
+function measureTextHeight(doc, text, width, style = {}) {
+  doc.save();
+  doc.font(style.font || "Helvetica").fontSize(style.fontSize || 10);
+  const height = doc.heightOfString(String(text || ""), {
+    width,
+    lineGap: style.lineGap ?? 1,
+    align: style.align || "left"
+  });
+  doc.restore();
+  return height;
+}
+
+function truncateTextToHeight(doc, text, width, maxHeight, style = {}) {
+  const source = String(text || "").trim();
+  if (!source) return "";
+  const words = source.split(/\s+/).filter(Boolean);
+  let candidate = source;
+  while (candidate && measureTextHeight(doc, candidate, width, style) > maxHeight && words.length > 1) {
+    words.pop();
+    const base = words.join(" ").trim();
+    candidate = /[.,;:!?]$/.test(base) ? base : `${base}.`;
+  }
+  return candidate || source;
+}
+
+function drawFittedText(doc, text, x, y, width, height, style = {}) {
+  const minSize = style.minFontSize || 8;
+  let fontSize = style.maxFontSize || 12;
+  const content = String(text || "").trim();
+  while (fontSize >= minSize) {
+    const measureStyle = { ...style, fontSize };
+    const fitted = truncateTextToHeight(doc, content, width, height, measureStyle);
+    if (measureTextHeight(doc, fitted, width, measureStyle) <= height) {
+      doc.save();
+      doc.font(style.font || "Helvetica").fontSize(fontSize).fillColor(style.color || "#1f2726");
+      doc.text(fitted, x, y, { width, height, lineGap: style.lineGap ?? 1, align: style.align || "left", ellipsis: true });
+      doc.restore();
+      return;
+    }
+    fontSize -= 0.5;
+  }
+  doc.save();
+  doc.font(style.font || "Helvetica").fontSize(minSize).fillColor(style.color || "#1f2726");
+  doc.text(truncateTextToHeight(doc, content, width, height, { ...style, fontSize: minSize }), x, y, { width, height, lineGap: style.lineGap ?? 1, align: style.align || "left", ellipsis: true });
+  doc.restore();
+}
+
+function compactPdfLabel(label) {
+  const words = String(label || "").split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return [String(label || "")];
+  if (String(label || "").length <= 16) return [String(label || "")];
+  let firstLine = [];
+  let secondLine = [];
+  for (const word of words) {
+    if (!firstLine.length || `${firstLine.join(" ")} ${word}`.trim().length <= 16) firstLine.push(word);
+    else secondLine.push(word);
+  }
+  if (!secondLine.length) {
+    const middle = Math.ceil(words.length / 2);
+    return [words.slice(0, middle).join(" "), words.slice(middle).join(" ")];
+  }
+  return [firstLine.join(" "), secondLine.join(" ")];
+}
+
+function pdfStatusLabel(status, language = "en") {
+  const map = language === "it"
+    ? {
+        insufficient_evidence: "Non valutata",
+        counter_evidence_only: "Solo contro-evidenze",
+        mixed_evidence: "Evidenza mista",
+        emerging: "Emergente",
+        observed: "Osservata",
+        recurring: "Ricorrente",
+        strongly_supported: "Fortemente supportata"
+      }
+    : {
+        insufficient_evidence: "Not assessed",
+        counter_evidence_only: "Counter-evidence only",
+        mixed_evidence: "Mixed evidence",
+        emerging: "Emerging",
+        observed: "Observed",
+        recurring: "Recurring",
+        strongly_supported: "Strongly supported"
+      };
+  return map[status] || String(status || "Not assessed").replace(/_/g, " ");
+}
+
+function pdfConfidenceLabel(confidence, language = "en") {
+  const map = language === "it" ? { high: "Alta", medium: "Media", low: "Bassa" } : { high: "High", medium: "Medium", low: "Low" };
+  return map[String(confidence || "").toLowerCase()] || String(confidence || "Low");
+}
+
+function pdfCoverageMeta(value, language = "en") {
+  const score = Number(value || 0);
+  if (score >= 75) return { label: language === "it" ? "Alta copertura" : "High coverage", color: "#136f63" };
+  if (score >= 45) return { label: language === "it" ? "Copertura media" : "Medium coverage", color: "#8d6a1b" };
+  return { label: language === "it" ? "Copertura limitata" : "Limited coverage", color: "#b64f35" };
+}
+
+function pdfSegmentValue(mix, tone) {
+  return Number(((mix && mix.segments) || []).find(segment => segment.tone === tone)?.value || 0);
+}
+
+function buildCapabilityRows(axes, language = "en") {
+  return (axes || []).slice(0, 5).map(axis => {
+    const coverage = Number(axis.coverage || 0);
+    return {
+      label: axis.label,
+      maturity: axis.statusLabel || pdfStatusLabel(axis.level, language),
+      confidence: axis.confidenceLabel || pdfConfidenceLabel(axis.confidence, language),
+      coverage,
+      coverageMeta: pdfCoverageMeta(coverage, language)
+    };
+  });
+}
+
+function buildAttributionSummary(evidenceMix, language = "en") {
+  const direct = pdfSegmentValue(evidenceMix, "direct");
+  const mixed = pdfSegmentValue(evidenceMix, "mixed");
+  const external = pdfSegmentValue(evidenceMix, "external") + pdfSegmentValue(evidenceMix, "ai") + pdfSegmentValue(evidenceMix, "unknown");
+  return {
+    weightedAttribution: Number(evidenceMix && evidenceMix.attributable || 0),
+    lines: language === "it"
+      ? [
+          `Direttamente attribuibile: ${direct}%`,
+          `Mista o parzialmente attribuibile: ${mixed}%`,
+          `Contesto esterno o generato da AI: ${external}%`
+        ]
+      : [
+          `Directly attributable: ${direct}%`,
+          `Mixed or partially attributable: ${mixed}%`,
+          `External or AI-generated context: ${external}%`
+        ]
+  };
+}
+
+function drawRadarPdf(doc, axes, x, y, size, texts) {
+  const assessed = (axes || []).filter(axis => axis && axis.assessed && typeof axis.strength === "number");
+  if (!assessed.length) {
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#1f2726").text(texts.notAssessed, x, y, { width: size });
+    return;
+  }
+  const centerX = x + size / 2;
+  const centerY = y + size / 2;
+  const maxRadius = size * 0.31;
+  const levels = [0.25, 0.5, 0.75, 1];
+  const points = assessed.map((axis, index) => {
+    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / assessed.length;
+    const radius = maxRadius * ((axis.strength || 0) / 100);
+    const labelDistance = maxRadius + 22;
+    return {
+      axis,
+      angle,
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+      axisX: centerX + Math.cos(angle) * maxRadius,
+      axisY: centerY + Math.sin(angle) * maxRadius,
+      labelX: centerX + Math.cos(angle) * labelDistance,
+      labelY: centerY + Math.sin(angle) * labelDistance
+    };
+  });
+
+  doc.save();
+  for (const level of levels) {
+    doc.moveTo(centerX + Math.cos(points[0].angle) * maxRadius * level, centerY + Math.sin(points[0].angle) * maxRadius * level);
+    for (let index = 1; index < points.length; index += 1) {
+      doc.lineTo(centerX + Math.cos(points[index].angle) * maxRadius * level, centerY + Math.sin(points[index].angle) * maxRadius * level);
+    }
+    doc.closePath().strokeColor("#cfd8d0").lineWidth(1).stroke();
+  }
+  for (const point of points) {
+    doc.moveTo(centerX, centerY).lineTo(point.axisX, point.axisY).strokeColor("#d7ddd5").lineWidth(1).stroke();
+  }
+  doc.moveTo(points[0].x, points[0].y);
+  for (let index = 1; index < points.length; index += 1) doc.lineTo(points[index].x, points[index].y);
+  doc.closePath().fillOpacity(0.22).fillAndStroke("#16877f", "#136f63");
+  doc.fillOpacity(1);
+  for (const point of points) {
+    doc.circle(point.x, point.y, 3.5).fill("#b64f35");
+    const lines = compactPdfLabel(point.axis.label);
+    doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(8);
+    lines.forEach((line, idx) => {
+      doc.text(line, point.labelX - 36, point.labelY - 7 + idx * 9, { width: 72, align: "center", lineBreak: false });
+    });
+  }
+  doc.restore();
+}
+
+function validateSnapshotPayload(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") throw new Error("Snapshot payload is required.");
+  if (!Array.isArray(snapshot.kpis) || !Array.isArray(snapshot.axes)) throw new Error("Snapshot payload is invalid.");
+  return snapshot;
+}
+
+async function renderSnapshotPdf(snapshot, reportConfig) {
+  const config = normalizeReportConfig(reportConfig || snapshot.config || {});
+  const model = validateSnapshotPayload(snapshot);
+  return pdfBuffer(doc => {
+    doc.addPage({ size: "A4", layout: "landscape", margins: { top: 24, bottom: 24, left: 24, right: 24 } });
+    const language = config.report_language || "en";
+    const pageWidth = doc.page.width;
+    const margin = 24;
+    const gap = 12;
+    const contentWidth = pageWidth - margin * 2;
+    const safeAxes = (model.axes || []).slice(0, 5).map(axis => ({
+      ...axis,
+      statusLabel: axis.statusLabel || pdfStatusLabel(axis.level, language),
+      confidenceLabel: axis.confidenceLabel || pdfConfidenceLabel(axis.confidence, language),
+      assessed: axis.assessed !== false && typeof axis.strength === "number"
+    }));
+    const capabilityRows = buildCapabilityRows(safeAxes, language);
+    const attribution = buildAttributionSummary(model.evidenceMix || { attributable: 0, segments: [] }, language);
+    const weightedLabel = language === "it" ? "Attribuzione pesata" : "Weighted attribution";
+    const methodologyTitle = language === "it" ? "Nota metodologica" : "Methodology note";
+    const disclaimerTitle = language === "it" ? "Verifica e limiti" : "Verification and limits";
+    const methodologyNote = language === "it"
+      ? "La coverage misura disponibilita, ricorrenza e attribuzione dell'evidenza. Non e' un punteggio di abilita."
+      : "Coverage measures evidence availability, recurrence and attribution. It is not a skill score.";
+    const footerDisclaimer = language === "it"
+      ? `Report assistito da AI · Contenuti forniti dall'utente · Non verificato in modo indipendente · Estrazione ${model.extractedDate} · ${APP_VERSION}`
+      : `AI-assisted report · User-provided content · Not independently verified · Extracted ${model.extractedDate} · ${APP_VERSION}`;
+    const headerY = 24;
+    const headerH = 78;
+    const identityY = headerY + headerH + gap;
+    const identityH = 92;
+    const kpiY = identityY + identityH + gap;
+    const kpiH = 64;
+    const capabilityY = kpiY + kpiH + gap;
+    const capabilityH = 194;
+    const footerY = capabilityY + capabilityH + gap;
+    const footerH = 58;
+
+    drawRoundedPanel(doc, margin, headerY, contentWidth, headerH, { fill: "#142322", stroke: "#142322", radius: 16 });
+    doc.fillColor("#14a69a").font("Helvetica-Bold").fontSize(11).text(model.texts.snapshotTitle, margin + 18, headerY + 16);
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(24).text(model.personName, margin + 18, headerY + 32, { width: 360, lineBreak: false });
+    drawFittedText(doc, model.professionalSignature, margin + 18, headerY + 54, 390, 18, {
+      font: "Helvetica",
+      maxFontSize: 9,
+      minFontSize: 8,
+      color: "#d8e4e1",
+      lineGap: 0
+    });
+    const metaX = pageWidth - 230;
+    doc.fillColor("#c8d3d0").font("Helvetica-Bold").fontSize(9)
+      .text(String(model.texts.extractedLabel || "EXTRACTED").toUpperCase(), metaX, headerY + 16, { width: 82 })
+      .text(String(model.texts.dataAnalyzedLabel || "DATA ANALYZED").toUpperCase(), metaX, headerY + 37, { width: 100 })
+      .text(String(model.texts.observationPeriodLabel || "OBSERVATION PERIOD").toUpperCase(), metaX, headerY + 58, { width: 120 });
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(10)
+      .text(String(model.extractedDate), metaX + 92, headerY + 16, { width: 116, align: "right", lineBreak: false })
+      .text(String(model.observationPeriod), metaX + 92, headerY + 58, { width: 116, align: "right", lineBreak: false });
+    drawFittedText(doc, String(model.dataRange), metaX + 70, headerY + 36, 138, 18, {
+      font: "Helvetica-Bold",
+      maxFontSize: 9,
+      minFontSize: 7.5,
+      color: "#ffffff",
+      align: "right",
+      lineGap: 0
+    });
+
+    const identityColA = 352;
+    const identityColB = 176;
+    const identityColC = contentWidth - identityColA - identityColB - gap * 2;
+    const signatureX = margin;
+    const domainsX = signatureX + identityColA + gap;
+    const contributionX = domainsX + identityColB + gap;
+
+    drawRoundedPanel(doc, signatureX, identityY, identityColA, identityH);
+    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(String(model.texts.signatureLabel).toUpperCase(), signatureX + 14, identityY + 12);
+    drawFittedText(doc, model.professionalSignature, signatureX + 14, identityY + 28, identityColA - 28, 48, {
+      font: "Helvetica-Bold",
+      maxFontSize: 13,
+      minFontSize: 10,
+      color: "#1f2726",
+      lineGap: 1
+    });
+
+    drawRoundedPanel(doc, domainsX, identityY, identityColB, identityH);
+    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(String(model.texts.domainsLabel).toUpperCase(), domainsX + 14, identityY + 12);
+    drawChipRow(doc, (model.observedDomains || []).slice(0, 4), domainsX + 14, identityY + 34, identityColB - 28, {
+      fontSize: 8,
+      chipHeight: 15,
+      gap: 4,
+      maxRows: 3
+    });
+
+    drawRoundedPanel(doc, contributionX, identityY, identityColC, identityH);
+    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(String(model.texts.contributionLabel).toUpperCase(), contributionX + 14, identityY + 12);
+    drawFittedText(doc, model.typicalContribution, contributionX + 14, identityY + 30, identityColC - 28, 48, {
+      font: "Helvetica",
+      maxFontSize: 11,
+      minFontSize: 9,
+      color: "#1f2726",
+      lineGap: 1
+    });
+
+    const kpiWidth = (contentWidth - gap * 3) / 4;
+    model.kpis.slice(0, 4).forEach((kpi, index) => {
+      const x = margin + index * (kpiWidth + gap);
+      drawRoundedPanel(doc, x, kpiY, kpiWidth, kpiH, { fill: "#f7faf9", stroke: "#d7e1de", radius: 12 });
+      doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(18).text(String(kpi.value), x + 12, kpiY + 12, { width: kpiWidth - 24, lineBreak: false });
+      drawFittedText(doc, String(kpi.label).toUpperCase(), x + 12, kpiY + 35, kpiWidth - 24, 14, {
+        font: "Helvetica-Bold",
+        maxFontSize: 7.4,
+        minFontSize: 6.8,
+        color: "#1f2726",
+        lineGap: 0
+      });
+      drawFittedText(doc, String(kpi.note), x + 12, kpiY + 47, kpiWidth - 24, 12, {
+        font: "Helvetica",
+        maxFontSize: 7.2,
+        minFontSize: 7,
+        color: "#5f6d69",
+        lineGap: 0
+      });
+    });
+
+    drawRoundedPanel(doc, margin, capabilityY, contentWidth, capabilityH, { radius: 14 });
+    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(String(model.texts.capabilityTitle).toUpperCase(), margin + 16, capabilityY + 14);
+    doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(18).text(model.texts.radarQuestion, margin + 16, capabilityY + 28, { width: 290 });
+    const chartX = margin + 20;
+    const chartY = capabilityY + 62;
+    drawRadarPdf(doc, safeAxes, chartX, chartY, 154, model.texts);
+    drawFittedText(doc, methodologyNote, chartX, capabilityY + 174, 238, 18, {
+      font: "Helvetica",
+      maxFontSize: 7.5,
+      minFontSize: 7,
+      color: "#5f6d69",
+      lineGap: 0
+    });
+
+    const listX = margin + 290;
+    const listWidth = contentWidth - 308;
+    capabilityRows.forEach((row, index) => {
+      const rowY = capabilityY + 52 + index * 30;
+      drawRoundedPanel(doc, listX, rowY, listWidth, 26, { fill: "#f7faf9", stroke: "#d7e1de", radius: 10 });
+      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(9.5).text(row.label, listX + 12, rowY + 7, { width: 150, lineBreak: false });
+      doc.fillColor("#5f6d69").font("Helvetica").fontSize(8)
+        .text(`${language === "it" ? "Maturita evidenza" : "Evidence maturity"}: ${row.maturity}`, listX + 176, rowY + 6, { width: 145, lineBreak: false })
+        .text(`${language === "it" ? "Confidenza AI" : "AI confidence"}: ${row.confidence}`, listX + 176, rowY + 16, { width: 145, lineBreak: false });
+      doc.fillColor(row.coverageMeta.color).font("Helvetica-Bold").fontSize(8.5).text(row.coverageMeta.label, listX + listWidth - 132, rowY + 8, { width: 120, align: "right", lineBreak: false });
+      doc.fillColor("#5f6d69").font("Helvetica").fontSize(7.5).text(`${language === "it" ? "Copertura evidenza" : "Evidence coverage"}: ${row.coverage}/100`, listX + listWidth - 152, rowY + 18, { width: 140, align: "right", lineBreak: false });
+    });
+
+    drawRoundedPanel(doc, margin, footerY, contentWidth, footerH, { fill: "#f7faf9", stroke: "#d7e1de", radius: 12 });
+    const footerColA = 262;
+    const footerColB = 238;
+    const footerColC = contentWidth - footerColA - footerColB - gap * 2;
+    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(8.5).text(String(model.texts.provenancePanelTitle || (language === "it" ? "Sintesi attribuzione" : "Attribution summary")).toUpperCase(), margin + 14, footerY + 10);
+    doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(8).text(`${weightedLabel}: ${attribution.weightedAttribution}%`, margin + footerColA - 118, footerY + 10, { width: 104, align: "right", lineBreak: false });
+    drawSegmentBar(doc, model.evidenceMix.segments || [], margin + 14, footerY + 23, footerColA - 28, 8);
+    attribution.lines.forEach((line, index) => {
+      doc.fillColor("#5f6d69").font("Helvetica").fontSize(7.5).text(line, margin + 14, footerY + 35 + index * 8, { width: footerColA - 28, lineBreak: false });
+    });
+
+    const methodX = margin + footerColA + gap;
+    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(8.5).text(methodologyTitle.toUpperCase(), methodX, footerY + 10);
+    drawFittedText(doc, methodologyNote, methodX, footerY + 24, footerColB, 24, {
+      font: "Helvetica",
+      maxFontSize: 7.5,
+      minFontSize: 7,
+      color: "#5f6d69",
+      lineGap: 0
+    });
+    doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(7.5).text(language === "it" ? "Evidence items analizzati" : "Evidence items analyzed", methodX, footerY + 49, { width: 94, lineBreak: false });
+    doc.text(String(model.totalEvidenceItemCount || 0), methodX + 98, footerY + 49, { width: 22, lineBreak: false });
+    doc.text(language === "it" ? "Conversazioni considerate" : "Conversations analyzed", methodX + 126, footerY + 49, { width: 96, lineBreak: false });
+    doc.text(String(model.analyzedConversationCount || 0), methodX + 226, footerY + 49, { width: 20, lineBreak: false });
+
+    const disclaimerX = methodX + footerColB + gap;
+    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(8.5).text(disclaimerTitle.toUpperCase(), disclaimerX, footerY + 10);
+    drawFittedText(doc, footerDisclaimer, disclaimerX, footerY + 24, footerColC, 30, {
+      font: "Helvetica",
+      maxFontSize: 7.5,
+      minFontSize: 7,
+      color: "#5f6d69",
+      lineGap: 0
+    });
+  });
+}
+
+async function renderAppendixPdf(snapshot, reportConfig) {
+  const config = normalizeReportConfig(reportConfig || snapshot.config || {});
+  const model = validateSnapshotPayload(snapshot);
+  return pdfBuffer(doc => {
+    doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
+    const addHeader = () => {
+      doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(12).text(model.texts.appendixTitle, 34, 34);
+      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(20).text(model.personName, 34, 52);
+      doc.fillColor("#5f6d69").font("Helvetica").fontSize(10).text(`${model.selectedConversationCount} ${model.texts.selectedConversations} ${model.texts.outOfAnalyzed} ${model.analyzedConversationCount} ${model.texts.analyzedLabel}`, 34, 78)
+        .text(`${model.selectedExcerptCount} ${model.texts.selectedExcerpts} ${model.texts.outOfEvidence} ${model.totalEvidenceItemCount} ${model.texts.evidenceLabel}`, 34, 92);
+      return 122;
+    };
+    const drawCard = (title, meta, body, badge) => {
+      const width = doc.page.width - 68;
+      const height = 82;
+      if (cursorY + height > doc.page.height - 50) {
+        doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
+        cursorY = addHeader();
+      }
+      drawRoundedPanel(doc, 34, cursorY, width, height);
+      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(12).text(title, 48, cursorY + 14, { width: width - 140 });
+      if (badge) {
+        doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(badge, doc.page.width - 130, cursorY + 16, { width: 82, align: "right" });
+      }
+      doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(9).text(meta, 48, cursorY + 32, { width: width - 28 });
+      doc.fillColor("#1f2726").font("Helvetica").fontSize(10).text(body, 48, cursorY + 48, { width: width - 28, height: 24 });
+      cursorY += height + 10;
+    };
+
+    let cursorY = addHeader();
+    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(11).text(model.texts.analyzedConversations, 34, cursorY);
+    cursorY += 18;
+    (model.analyzedConversations || []).forEach(item => {
+      drawCard(item.title, `${item.date} · ${item.category}`, item.excerpt, null);
+    });
+    cursorY += 8;
+    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(11).text(model.texts.evidenceItems, 34, cursorY);
+    cursorY += 18;
+    (model.evidenceHighlights || []).forEach(item => {
+      drawCard(item.skill, `${item.group} · ${item.title}`, item.excerpt, item.confidence || "");
+    });
+  });
+}
+
+function sendPdf(res, fileName, buffer) {
+  res.writeHead(200, {
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `attachment; filename="${fileName}"`,
+    "Content-Length": buffer.length,
+    "Cache-Control": "no-store"
+  });
+  res.end(buffer);
 }
 
 function scanSummary(conversations) {
@@ -1688,6 +2479,20 @@ async function handleApi(req, res) {
       sendJson(res, 200, reports);
       return;
     }
+    if (req.method === "POST" && req.url === "/api/export/snapshot-pdf") {
+      const payload = JSON.parse((await readBody(req)).toString("utf8"));
+      const buffer = await renderSnapshotPdf(payload.snapshot, payload.reportConfig);
+      const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
+      sendPdf(res, `professional-evidence-snapshot-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/export/appendix-pdf") {
+      const payload = JSON.parse((await readBody(req)).toString("utf8"));
+      const buffer = await renderAppendixPdf(payload.snapshot, payload.reportConfig);
+      const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
+      sendPdf(res, `detailed-evidence-appendix-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/delete") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       sessions.delete(payload.sessionId);
@@ -1710,7 +2515,7 @@ const server = http.createServer((req, res) => {
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    console.log(`Professional Evidence Profile running at http://localhost:${PORT}`);
+    console.log(`AI Work Passport running at http://localhost:${PORT}`);
   });
 }
 
@@ -1720,6 +2525,8 @@ module.exports = {
   buildNormalized,
   generateInsights,
   buildReports,
+  renderSnapshotPdf,
+  renderAppendixPdf,
   scanSummary,
   redactText,
   classifyConversation

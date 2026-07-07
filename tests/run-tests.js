@@ -1,10 +1,13 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const { PDFParse } = require("pdf-parse");
 const {
   normalizeChatGptExport,
   buildNormalized,
   buildReports,
+  renderSnapshotPdf,
+  renderAppendixPdf,
   scanSummary,
   redactText
 } = require("../server");
@@ -13,6 +16,23 @@ const root = path.join(__dirname, "..");
 const serverPath = path.join(root, "server.js");
 const samplePath = path.join(root, "public", "samples", "synthetic-conversations.json");
 const evidencePackPath = path.join(root, "public", "samples", "sample-evidence-pack.json");
+
+function pdfText(buffer) {
+  return buffer.toString("latin1").replace(/\0/g, "");
+}
+
+function pdfPageCount(buffer) {
+  return (pdfText(buffer).match(/\/Type \/Page\b/g) || []).length;
+}
+
+async function parsedPdf(buffer) {
+  const parser = new PDFParse({ data: buffer });
+  try {
+    return await parser.getText();
+  } finally {
+    if (typeof parser.destroy === "function") await parser.destroy();
+  }
+}
 
 async function main() {
   assert.ok(fs.existsSync(serverPath), "server.js exists");
@@ -38,9 +58,98 @@ async function main() {
   const report = buildReports(normalized);
   assert.ok(report.private_report, "private report returned");
   assert.ok(report.public_report, "public report returned");
+  assert.ok(report.skill_passport, "skill passport returned");
+  assert.ok(report.skill_passport.groups.some(group => group.id === "technical_skills"), "technical skills group returned");
+  assert.ok(report.skill_passport.groups.some(group => group.id === "business_skills"), "business skills group returned");
+  assert.ok(report.skill_passport.groups.some(group => group.id === "execution_capabilities"), "execution group returned");
+  assert.ok(report.skill_passport.groups.some(group => group.id === "leadership_collaboration"), "leadership group returned");
+  assert.ok(report.skill_passport.groups.every(group => group.skills.every(skill => Number.isInteger(skill.confidence_score))), "skill confidence scores are integers");
+  assert.ok(report.skill_passport.groups.every(group => group.skills.every(skill => skill.examples.length >= 1)), "skills include concrete examples");
   assert.ok(report.normalized.every(c => c.classification === "professional"), "only professional selected");
   assert.ok(JSON.stringify(report).includes("[EMAIL_REDACTED]"), "email redacted");
   assert.ok(redactText("Mario Rossi usa mario.rossi@example.com").text.includes("[EMAIL_REDACTED]"), "direct redaction works");
+
+  const pdfSnapshot = {
+    personName: "Pas Test",
+    extractedDate: "7 July 2026",
+    dataRange: "1 January 2026 - 7 July 2026",
+    observationPeriod: "6 months",
+    professionalSignature: "Cross-functional professional operating across program management and technology integrations, with recurring patterns in collaboration, communication and data reasoning.",
+    observedDomains: ["program management", "technology integrations", "data and reporting"],
+    typicalContribution: "Typically turns priorities into coordinated actions, clearer requirements and shared delivery across program management and technology integrations.",
+    texts: {
+      snapshotTitle: "Professional Evidence Snapshot",
+      signatureLabel: "Professional signature",
+      domainsLabel: "Professional domains observed",
+      contributionLabel: "Typical professional contribution",
+      capabilityTitle: "Observed capabilities",
+      capabilitySubtitle: "Coverage reflects evidence availability, recurrence and attribution. It is not a skill score.",
+      radarQuestion: "How does this person work?",
+      domainPanelTitle: "Evidence by professional domain",
+      provenancePanelTitle: "Attribution summary",
+      attributableLabel: "directly attributable",
+      snapshotFooterA: "Coverage means evidence availability, not a skill score.",
+      snapshotFooterB: "Profile built from approved conversations and not independently verified.",
+      notAssessed: "Not assessed — insufficient evidence",
+      confidence: { high: "High", medium: "Medium", low: "Low" },
+      analyzedConversations: "Professional conversations analyzed",
+      evidenceItems: "Evidence items",
+      selectedConversations: "selected conversations",
+      outOfAnalyzed: "out of",
+      analyzedLabel: "analyzed",
+      selectedExcerpts: "selected excerpts",
+      outOfEvidence: "out of",
+      evidenceLabel: "evidence items",
+      appendixTitle: "Detailed Evidence Appendix"
+    },
+    kpis: [
+      { value: "10", label: "Professional conversations analyzed", note: "Retained for this snapshot" },
+      { value: "28", label: "Evidence items", note: "Supporting, counter and uncertain" },
+      { value: "5", label: "Capabilities assessed", note: "Minimum evidence threshold reached" },
+      { value: "70%", label: "Weighted attribution", note: "Direct plus partial attribution from mixed-source evidence" }
+    ],
+    axes: [
+      { label: "Collaboration", level: "recurring", strength: 84, coverage: 78, confidence: "high", assessed: true },
+      { label: "Data reasoning", level: "observed", strength: 72, coverage: 68, confidence: "high", assessed: true },
+      { label: "Communication", level: "observed", strength: 70, coverage: 64, confidence: "medium", assessed: true },
+      { label: "Quality improvement", level: "emerging", strength: 54, coverage: 42, confidence: "high", assessed: true },
+      { label: "Leadership", level: "emerging", strength: 48, coverage: 42, confidence: "high", assessed: true }
+    ],
+    categoryBreakdown: [{ label: "program management", count: 4 }, { label: "technology integrations", count: 3 }],
+    evidenceMix: { attributable: 70, segments: [{ tone: "direct", value: 50 }, { tone: "mixed", value: 20 }, { tone: "external", value: 20 }, { tone: "ai", value: 10 }] },
+    analyzedConversations: [{ title: "Roadmap", date: "2026-01-10", category: "program management", excerpt: "Defines roadmap and dependencies." }],
+    evidenceHighlights: [{ skill: "Collaboration", group: "Collaboration", title: "Roadmap", excerpt: "Coordinates stakeholders across delivery.", confidence: "High" }],
+    selectedConversationCount: 1,
+    analyzedConversationCount: 10,
+    selectedExcerptCount: 1,
+    totalEvidenceItemCount: 28
+  };
+  const pdfConfig = {
+    profile_name: "Pas Test",
+    selected_months: 6,
+    period_from: "2026-01-07",
+    period_to: "2026-07-07",
+    generated_at: "2026-07-07",
+    report_language: "en"
+  };
+  const snapshotPdf = await renderSnapshotPdf(pdfSnapshot, pdfConfig);
+  const appendixPdf = await renderAppendixPdf(pdfSnapshot, pdfConfig);
+  assert.ok(snapshotPdf.length > 1000, "snapshot pdf buffer returned");
+  assert.ok(appendixPdf.length > 1000, "appendix pdf buffer returned");
+  assert.strictEqual(pdfPageCount(snapshotPdf), 1, "snapshot pdf stays on exactly one page");
+  const parsedSnapshot = await parsedPdf(snapshotPdf);
+  const snapshotText = parsedSnapshot.text;
+  const normalizedSnapshotText = snapshotText.replace(/\s+/g, " ").trim();
+  assert.strictEqual(parsedSnapshot.total, 1, "snapshot pdf reports exactly one page via parser");
+  assert.ok(normalizedSnapshotText.includes("Professional Evidence Snapshot"), "snapshot pdf includes title");
+  assert.ok(normalizedSnapshotText.includes("Directly attributable: 50%"), "snapshot pdf includes direct attribution line");
+  assert.ok(normalizedSnapshotText.includes("Mixed or partially attributable: 20%"), "snapshot pdf includes mixed attribution line");
+  assert.ok(normalizedSnapshotText.includes("External or AI-generated context: 30%"), "snapshot pdf includes external/ai attribution line");
+  assert.ok(normalizedSnapshotText.includes("Coverage measures evidence availability, recurrence and attribution. It is not a skill score."), "snapshot pdf keeps methodology note near the chart");
+  assert.ok(normalizedSnapshotText.includes("AI-assisted report"), "snapshot pdf includes verification footer");
+  assert.ok(!normalizedSnapshotText.includes("Collaboratio n"), "snapshot pdf never splits Collaboration mid-word");
+  assert.ok(!normalizedSnapshotText.includes("Communica tion"), "snapshot pdf never splits Communication mid-word");
+  assert.ok(!normalizedSnapshotText.includes("impr ovement"), "snapshot pdf never splits Quality improvement mid-word");
 
   const evidencePack = JSON.parse(fs.readFileSync(evidencePackPath, "utf8"));
   const packConversations = normalizeChatGptExport(evidencePack);

@@ -54,6 +54,7 @@ function sanitizedFilenameName(value) {
 function buildCurrentReportConfig() {
   const profileName = sanitizeProfileName($("#profileNameInput") ? $("#profileNameInput").value : "");
   const selectedMonths = Number($("#analysisPeriodSelect") ? $("#analysisPeriodSelect").value : 6);
+  const reportLanguage = $("#reportLanguageSelect") ? $("#reportLanguageSelect").value : (state.reportConfig && state.reportConfig.report_language) || "en";
   if (state.reportConfig &&
       sanitizeProfileName(state.reportConfig.profile_name) === profileName &&
       Number(state.reportConfig.selected_months) === selectedMonths &&
@@ -63,6 +64,7 @@ function buildCurrentReportConfig() {
     return {
       ...state.reportConfig,
       valid: Boolean(profileName) && selectedMonths >= 1 && selectedMonths <= 12,
+      report_language: reportLanguage,
       sanitized_profile_name: sanitizedFilenameName(profileName)
     };
   }
@@ -76,6 +78,7 @@ function buildCurrentReportConfig() {
     period_from: periodFrom,
     period_to: periodTo,
     generated_at: generatedAt,
+    report_language: reportLanguage,
     valid,
     sanitized_profile_name: sanitizedFilenameName(profileName)
   };
@@ -89,8 +92,13 @@ function applyReportConfig(config) {
     period_from: config.period_from,
     period_to: config.period_to,
     generated_at: config.generated_at || todayIso(),
+    report_language: config.report_language || "en",
     sanitized_profile_name: sanitizedFilenameName(config.profile_name)
   };
+}
+
+function getReportLanguage() {
+  return (state.reportConfig && state.reportConfig.report_language) || ($("#reportLanguageSelect") && $("#reportLanguageSelect").value) || "en";
 }
 
 function updateExportPrompt() {
@@ -111,7 +119,7 @@ function updateExportPrompt() {
     return;
   }
   summary.innerHTML = `
-    <strong>Profile: Professional Evidence Profile - ${escapeHtml(config.profile_name)}</strong>
+    <strong>Profile: AI Work Passport - ${escapeHtml(config.profile_name)}</strong>
     <span>Data analyzed: ${escapeHtml(config.period_from)} - ${escapeHtml(config.period_to)}</span>
     <span>Observation window: ${config.selected_months} months</span>
   `;
@@ -120,7 +128,7 @@ function updateExportPrompt() {
 }
 
 function buildEvidencePrompt(config) {
-  const generatedFor = `Professional Evidence Profile - ${config.profile_name}`;
+  const generatedFor = `AI Work Passport - ${config.profile_name}`;
   return `Generate a Professional Evidence Pack for:
 
 ${generatedFor}
@@ -389,6 +397,7 @@ function renderReports() {
   if (!state.reports) return;
   renderSnapshotPreview();
   $("#downloadSnapshotPdf").disabled = false;
+  if ($("#downloadAppendixPdf")) $("#downloadAppendixPdf").disabled = false;
   $("#regenerateReport").disabled = false;
 }
 
@@ -406,6 +415,7 @@ function renderEmptySnapshot() {
     </article>
   `;
   $("#downloadSnapshotPdf").disabled = true;
+  if ($("#downloadAppendixPdf")) $("#downloadAppendixPdf").disabled = true;
   $("#regenerateReport").disabled = true;
   const action = $("#emptySnapshotAction");
   if (action) action.addEventListener("click", () => setView(hasConversations ? "review" : "upload"));
@@ -423,55 +433,61 @@ function renderSnapshotPreview() {
       <article id="snapshotPage" class="snapshot-page">
         <header class="snapshot-header">
           <div>
-            <p>Professional Evidence Snapshot</p>
+            <p>${escapeHtml(snapshot.texts.snapshotTitle)}</p>
             <h1>${escapeHtml(snapshot.personName)}</h1>
           </div>
           <dl>
-            <div><dt>Extracted</dt><dd>${escapeHtml(snapshot.extractedDate)}</dd></div>
-            <div><dt>Data analyzed</dt><dd>${escapeHtml(snapshot.dataRange)}</dd></div>
-            <div><dt>Observation period</dt><dd>${escapeHtml(snapshot.observationPeriod)}</dd></div>
+            <div><dt>${escapeHtml(snapshot.texts.extractedLabel)}</dt><dd>${escapeHtml(snapshot.extractedDate)}</dd></div>
+            <div><dt>${escapeHtml(snapshot.texts.dataAnalyzedLabel)}</dt><dd>${escapeHtml(snapshot.dataRange)}</dd></div>
+            <div><dt>${escapeHtml(snapshot.texts.observationPeriodLabel)}</dt><dd>${escapeHtml(snapshot.observationPeriod)}</dd></div>
           </dl>
         </header>
         <section class="snapshot-summary">
+          ${renderIdentityCard(snapshot)}
           <article class="snapshot-card executive-card">
-            <p class="snapshot-eyebrow">Executive summary</p>
+            <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.executiveSummary)}</p>
             <p>${escapeHtml(snapshot.summary)}</p>
           </article>
           <div class="snapshot-kpis">
-            ${snapshot.kpis.map(kpi => `
-              <article class="snapshot-kpi">
-                <strong>${escapeHtml(kpi.value)}</strong>
-                <span>${escapeHtml(kpi.label)}</span>
-                <p>${escapeHtml(kpi.note)}</p>
-              </article>
-            `).join("")}
+            ${snapshot.kpis.map(kpi => renderSnapshotKpi(kpi)).join("")}
           </div>
-          <article class="snapshot-note">
-            <p class="snapshot-eyebrow">How to read this</p>
-            <p>Coverage measures available evidence, not personal ability. Missing evidence is shown as not assessed, never as a low score.</p>
+          <article class="snapshot-card mini-visual-card">
+            <div class="mini-visual-head">
+              <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.domainPanelTitle)}</p>
+              <span>${escapeHtml(String(snapshot.selectedConversationCount))} / ${escapeHtml(String(snapshot.analyzedConversationCount))}</span>
+            </div>
+            <div class="category-chip-row">
+              <span>${escapeHtml(snapshot.texts.domainsLabel)}</span>
+            </div>
+            <div class="category-chip-row">
+              ${snapshot.categoryBreakdown.map(item => `<span>${escapeHtml(item.label)} ${escapeHtml(String(item.count))}</span>`).join("")}
+            </div>
+            <div class="mini-visual-head">
+              <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.provenancePanelTitle)}</p>
+              <span>${escapeHtml(String(snapshot.evidenceMix.attributable || 0))}% ${escapeHtml(snapshot.texts.attributableLabel)}</span>
+            </div>
+            ${renderEvidenceMix(snapshot.evidenceMix, snapshot.texts)}
           </article>
         </section>
         <section class="snapshot-card profile-card">
           <div class="profile-card-head">
             <div>
-              <p class="snapshot-eyebrow">Observed capability profile</p>
-              <h2>Evidence status and coverage</h2>
+              <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.capabilityTitle)}</p>
+              <h2>${escapeHtml(snapshot.texts.radarQuestion)}</h2>
             </div>
-            <span>${snapshot.axes.length} areas</span>
+            <span>${snapshot.axes.length} ${escapeHtml(snapshot.texts.areasLabel)}</span>
           </div>
-          <div class="capability-bars">
-            ${snapshot.axes.length ? snapshot.axes.map(axis => renderSnapshotAxis(axis)).join("") : `
-              <div class="snapshot-empty">No capability area has enough attributable evidence for this snapshot.</div>
-            `}
+          <p class="profile-subtitle">${escapeHtml(snapshot.texts.capabilitySubtitle)}</p>
+          <div class="snapshot-radar-panel">
+            ${renderRadar(snapshot.axes, snapshot.texts)}
           </div>
-          <div class="interpretation-box">
-            <p class="snapshot-eyebrow">Key interpretation</p>
-            <p>${escapeHtml(snapshot.interpretation)}</p>
+          <div class="axis-pill-row">
+            ${snapshot.axes.slice(0, 4).map(axis => `<span>${escapeHtml(axis.label)} ${escapeHtml(String(axis.coverage))}</span>`).join("")}
           </div>
         </section>
         <footer class="snapshot-footer">
-          <span>Private AI-assisted report - user-provided data, not independently verified</span>
-          <span>Six-month evidence snapshot, not a permanent profile or hiring score</span>
+          <span>${escapeHtml(snapshot.texts.snapshotFooterA)}</span>
+          <span>${escapeHtml(snapshot.texts.snapshotFooterB)}</span>
         </footer>
       </article>
     </div>
@@ -495,38 +511,737 @@ function renderSnapshotAxis(axis) {
   `;
 }
 
+function renderSnapshotKpi(kpi) {
+  const meter = Math.max(0, Math.min(100, Number(kpi.meter || 0)));
+  return `
+    <article class="snapshot-kpi with-meter">
+      <div class="kpi-meter" style="--meter:${meter}%">
+        <strong>${escapeHtml(kpi.value)}</strong>
+      </div>
+      <span>${escapeHtml(kpi.label)}</span>
+      <p>${escapeHtml(kpi.note)}</p>
+    </article>
+  `;
+}
+
+const MIN_RADAR_EVIDENCE_COVERAGE = 40;
+
+function reportText(language) {
+  if (language === "it") {
+    return {
+      snapshotTitle: "Professional Evidence Snapshot",
+      extractedLabel: "Estratto",
+      dataAnalyzedLabel: "Dati analizzati",
+      observationPeriodLabel: "Periodo di osservazione",
+      executiveSummary: "Sintesi esecutiva",
+      signatureLabel: "Firma professionale",
+      domainsLabel: "Domini professionali osservati",
+      contributionLabel: "Contributo professionale tipico",
+      domainPanelTitle: "Evidenze per dominio professionale",
+      provenancePanelTitle: "Sintesi attribuzione",
+      attributableLabel: "attribuibile direttamente",
+      capabilityTitle: "Capacita osservate",
+      capabilitySubtitle: "Il radar descrive come lavora questa persona. Coverage indica disponibilita, ricorrenza e attribuzione dell'evidenza: non e' un punteggio di skill.",
+      areasLabel: "aree",
+      analyzedConversations: "Conversazioni professionali analizzate",
+      evidenceItems: "Elementi di evidenza",
+      supportedAreas: "Capacita valutate",
+      attributableEvidence: "Attribuzione pesata",
+      retainedNote: "Incluse nello snapshot",
+      evidenceNote: "Supporting, counter e uncertain",
+      supportedNote: "Soglia minima di evidenza raggiunta",
+      attributableNote: "Diretta o parzialmente attribuibile anche in contenuti misti",
+      notAssessed: "Non valutata — evidenza insufficiente",
+      snapshotFooterA: "Disponibilita di evidenze, non punteggio di skill.",
+      snapshotFooterB: "Profilo basato su conversazioni approvate, non verificato in modo indipendente.",
+      appendixTitle: "Appendice dettagliata delle evidenze",
+      appendixIntro: "Conversazioni ed estratti selezionati per supportare lo snapshot.",
+      selectedConversations: "conversazioni selezionate",
+      outOfAnalyzed: "su",
+      analyzedLabel: "analizzate",
+      selectedExcerpts: "estratti selezionati",
+      outOfEvidence: "su",
+      evidenceLabel: "evidence items",
+      confidence: { high: "Alta", medium: "Media", low: "Bassa" },
+      provenance: { direct: "Diretta", mixed: "Mista", external: "Esterna", ai: "AI", unknown: "Sconosciuta" },
+      observedDomainsQuestion: "In quali ambiti opera?",
+      signatureQuestion: "Chi emerge essere professionalmente?",
+      radarQuestion: "Come lavora questa persona?"
+    };
+  }
+  return {
+    snapshotTitle: "Professional Evidence Snapshot",
+    extractedLabel: "Extracted",
+    dataAnalyzedLabel: "Data analyzed",
+    observationPeriodLabel: "Observation period",
+    executiveSummary: "Executive summary",
+    signatureLabel: "Professional signature",
+    domainsLabel: "Professional domains observed",
+    contributionLabel: "Typical professional contribution",
+    domainPanelTitle: "Evidence by professional domain",
+    provenancePanelTitle: "Attribution summary",
+    attributableLabel: "directly attributable",
+    capabilityTitle: "Observed capabilities",
+    capabilitySubtitle: "The radar answers how this person works. Coverage reflects evidence availability, recurrence and attribution. It is not a skill score.",
+    areasLabel: "areas",
+    analyzedConversations: "Professional conversations analyzed",
+    evidenceItems: "Evidence items",
+    supportedAreas: "Capabilities assessed",
+    attributableEvidence: "Weighted attribution",
+    retainedNote: "Retained for this snapshot",
+    evidenceNote: "Supporting, counter and uncertain",
+    supportedNote: "Minimum evidence threshold reached",
+    attributableNote: "Direct plus partial attribution from mixed-source evidence",
+    notAssessed: "Not assessed — insufficient evidence",
+    snapshotFooterA: "Coverage means evidence availability, not a skill score.",
+    snapshotFooterB: "Profile built from approved conversations and not independently verified.",
+    appendixTitle: "Detailed Evidence Appendix",
+    appendixIntro: "Selected conversations and excerpts supporting the snapshot.",
+    selectedConversations: "selected conversations",
+    outOfAnalyzed: "out of",
+    analyzedLabel: "analyzed",
+    selectedExcerpts: "selected excerpts",
+    outOfEvidence: "out of",
+    evidenceLabel: "evidence items",
+    confidence: { high: "High", medium: "Medium", low: "Low" },
+    provenance: { direct: "Direct", mixed: "Mixed", external: "External", ai: "AI", unknown: "Unknown" },
+    observedDomainsQuestion: "In which domains does this person operate?",
+    signatureQuestion: "Who emerges professionally?",
+    radarQuestion: "How does this person work?"
+  };
+}
+
+function professionalCategoryLabel(category, language = getReportLanguage()) {
+  const labels = {
+    strategy: language === "it" ? "strategia e prioritizzazione" : "strategy and prioritization",
+    project_management: language === "it" ? "program management" : "program management",
+    product_management: language === "it" ? "prodotto e delivery" : "product and delivery",
+    technology: language === "it" ? "integrazioni tecnologiche" : "technology integrations",
+    programming: language === "it" ? "execution ingegneristica" : "engineering execution",
+    data_analytics: language === "it" ? "dati e reporting" : "data and reporting",
+    professional_communication: language === "it" ? "comunicazione con stakeholder" : "stakeholder communication",
+    leadership: language === "it" ? "coordinamento cross-funzionale" : "cross-functional coordination",
+    recruiting: language === "it" ? "valutazione talenti" : "talent evaluation",
+    negotiation: language === "it" ? "gestione partner" : "partner management",
+    execution: language === "it" ? "execution operativa" : "operational execution",
+    learning: language === "it" ? "miglioramento continuo" : "continuous improvement",
+    other: language === "it" ? "operazioni professionali" : "professional operations",
+    uncategorized: language === "it" ? "operazioni professionali" : "professional operations"
+  };
+  return labels[category] || String(category || (language === "it" ? "operazioni professionali" : "professional operations")).replace(/_/g, " ");
+}
+
+function canonicalDimensionLabel(idOrLabel, language = getReportLanguage()) {
+  const key = String(idOrLabel || "").toLowerCase().replace(/\s+/g, "_");
+  const labels = {
+    decision_making: language === "it" ? "Capacita decisionale" : "Decision making",
+    problem_solving: language === "it" ? "Problem solving" : "Problem solving",
+    communication: language === "it" ? "Comunicazione" : "Communication",
+    execution: language === "it" ? "Execution" : "Execution",
+    leadership: language === "it" ? "Leadership" : "Leadership",
+    collaboration: language === "it" ? "Collaborazione" : "Collaboration",
+    planning: language === "it" ? "Pianificazione" : "Planning",
+    learning: language === "it" ? "Apprendimento" : "Learning",
+    domain_knowledge: language === "it" ? "Conoscenza del dominio" : "Domain knowledge",
+    data_reasoning: language === "it" ? "Ragionamento sui dati" : "Data reasoning",
+    risk_awareness: language === "it" ? "Consapevolezza del rischio" : "Risk awareness",
+    quality_improvement: language === "it" ? "Miglioramento continuo" : "Quality improvement"
+  };
+  return labels[key] || String(idOrLabel || "");
+}
+
+function joinHumanLocalized(items, language = getReportLanguage()) {
+  const clean = items.filter(Boolean);
+  if (clean.length <= 1) return clean[0] || "";
+  if (clean.length === 2) return `${clean[0]} ${language === "it" ? "e" : "and"} ${clean[1]}`;
+  return `${clean.slice(0, -1).join(", ")} ${language === "it" ? "e" : "and"} ${clean[clean.length - 1]}`;
+}
+
+function buildProfessionalIdentity(axes, categoryBreakdown, language) {
+  const topAxes = axes.slice(0, 3).map(axis => axis.label.toLowerCase());
+  const topDomain = categoryBreakdown[0] ? professionalCategoryLabel(categoryBreakdown[0].raw || categoryBreakdown[0].label, language) : (language === "it" ? "lavoro cross-funzionale" : "cross-functional work");
+  const secondDomain = categoryBreakdown[1] ? professionalCategoryLabel(categoryBreakdown[1].raw || categoryBreakdown[1].label, language) : null;
+  if (language === "it") {
+    return limitWords(`Professionista cross-funzionale attivo tra ${topDomain}${secondDomain ? ` e ${secondDomain}` : ""}, con pattern ricorrenti in ${joinHumanLocalized(topAxes, language)}.`, 24);
+  }
+  return limitWords(`Cross-functional professional operating across ${topDomain}${secondDomain ? ` and ${secondDomain}` : ""}, with recurring patterns in ${joinHumanLocalized(topAxes, language)}.`, 24);
+}
+
+function buildTypicalContribution(axes, categoryBreakdown, language) {
+  const domainA = categoryBreakdown[0] ? professionalCategoryLabel(categoryBreakdown[0].raw || categoryBreakdown[0].label, language) : (language === "it" ? "esigenze di business" : "business needs");
+  const domainB = categoryBreakdown[1] ? professionalCategoryLabel(categoryBreakdown[1].raw || categoryBreakdown[1].label, language) : (language === "it" ? "execution operativa" : "operational execution");
+  if (language === "it") {
+    return limitWords(`Trasforma priorita e bisogni in azioni coordinate, requisiti chiari e delivery condivisa tra ${domainA} e ${domainB}.`, 22);
+  }
+  return limitWords(`Typically turns priorities into coordinated actions, clearer requirements and shared delivery across ${domainA} and ${domainB}.`, 22);
+}
+
+function renderIdentityCard(snapshot) {
+  return `
+    <article class="snapshot-card identity-card">
+      <div class="identity-block">
+        <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.signatureLabel)}</p>
+        <h3>${escapeHtml(snapshot.professionalSignature)}</h3>
+      </div>
+      <div class="identity-block">
+        <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.domainsLabel)}</p>
+        <div class="identity-chip-row">
+          ${snapshot.observedDomains.map(domain => `<span>${escapeHtml(domain)}</span>`).join("")}
+        </div>
+      </div>
+      <div class="identity-block">
+        <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.contributionLabel)}</p>
+        <p>${escapeHtml(snapshot.typicalContribution)}</p>
+      </div>
+    </article>
+  `;
+}
+
 function buildSnapshotData() {
   const reports = state.reports || {};
   const kpis = reports.kpis || {};
   const coverage = reports.evidence_coverage_detail || {};
   const temporal = reports.temporal_maturity || {};
-  const config = reports.report_config || state.reportConfig || buildCurrentReportConfig();
-  const axes = buildRadarAxesFromTemporal(temporal)
-    .filter(axis => axis.assessed && axis.radar_eligible && !isMetadataLikeLabel(axis.label))
-    .slice(0, 8);
-  const allDimensions = (temporal.dimensions || []).filter(dimension => !isMetadataLikeLabel(dimension.label));
+  const currentConfig = buildCurrentReportConfig();
+  const config = {
+    ...(reports.report_config || {}),
+    ...(state.reportConfig || {}),
+    report_language: currentConfig.report_language || (state.reportConfig && state.reportConfig.report_language) || (reports.report_config && reports.report_config.report_language) || "en"
+  };
+  const language = config.report_language || getReportLanguage();
+  const texts = reportText(language);
+  const canonicalAxes = buildRadarAxesFromTemporal(temporal)
+    .filter(axis => axis.derivation === "canonical_ontology_dimension" && !isMetadataLikeLabel(axis.label));
+  const axes = canonicalAxes
+    .filter(axis => axis.assessed && axis.radar_eligible && !["insufficient_evidence", "counter_evidence_only"].includes(axis.level) && Number(axis.coverage || 0) >= MIN_RADAR_EVIDENCE_COVERAGE)
+    .map(axis => ({
+      ...axis,
+      label: canonicalDimensionLabel(axis.canonical_dimension || axis.dimension || axis.label, language),
+      statusLabel: displayStatus(axis.level, language),
+      confidenceLabel: texts.confidence[axis.confidence] || axis.confidence
+    }))
+    .slice(0, 5);
+  const allDimensions = (temporal.dimensions || [])
+    .filter(dimension => dimension.derivation === "canonical_ontology_dimension" && !isMetadataLikeLabel(dimension.label));
   const notAssessed = allDimensions
-    .filter(dimension => isNotAssessedStatus(dimension.status) || dimension.capability_score == null)
+    .filter(dimension => isNotAssessedStatus(dimension.status) || dimension.capability_score == null || Number(dimension.evidence_coverage || 0) < MIN_RADAR_EVIDENCE_COVERAGE)
     .slice(0, 3)
-    .map(dimension => dimension.label);
+    .map(dimension => canonicalDimensionLabel(dimension.canonical_dimension || dimension.id || dimension.label, language));
   const evidenceItems = Number(coverage.total_evidence_items || 0);
   const professionalConversations = Number(coverage.total_professional_conversations || kpis.evidence_coverage || 0);
   const attributablePercentage = computeAttributablePercentage(coverage, evidenceItems);
+  const evidenceMix = buildEvidenceMix(coverage, evidenceItems, attributablePercentage);
+  const categoryBreakdown = Object.entries((reports.normalized || []).reduce((acc, conversation) => {
+    const key = conversation.professional_category || "other";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {}))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([label, count]) => ({ label: professionalCategoryLabel(label, language), raw: label, count }));
+  const analyzedConversations = (reports.normalized || []).slice(0, 4).map(conversation => {
+    const firstUser = (conversation.messages || []).find(message => message.author === "user");
+    return {
+      id: conversation.id,
+      title: conversation.title,
+      category: professionalCategoryLabel(conversation.professional_category || "uncategorized", language),
+      date: (conversation.created_at || conversation.updated_at || "").slice(0, 10) || "-",
+      excerpt: limitWords((firstUser && firstUser.text) || "No user excerpt available.", 22)
+    };
+  });
+  const evidenceHighlights = allDimensions
+    .filter(dimension => Array.isArray(dimension.supporting_evidence) && dimension.supporting_evidence.length)
+    .flatMap(dimension => [
+      ...dimension.supporting_evidence.slice(0, 1).map(item => ({ type: "supporting", dimension, item })),
+      ...dimension.counter_evidence.slice(0, 1).map(item => ({ type: "counter", dimension, item })),
+      ...dimension.uncertain_evidence.slice(0, 1).map(item => ({ type: "uncertain", dimension, item }))
+    ])
+    .sort((a, b) => (b.dimension.evidence_coverage || 0) - (a.dimension.evidence_coverage || 0))
+    .slice(0, 4)
+    .map(entry => ({
+      group: canonicalDimensionLabel(entry.dimension.canonical_dimension || entry.dimension.id || entry.dimension.label, language),
+      skill: canonicalDimensionLabel(entry.dimension.canonical_dimension || entry.dimension.id || entry.dimension.label, language),
+      confidence: texts.confidence[entry.dimension.confidence] || entry.dimension.confidence,
+      evidenceType: entry.type,
+      excerpt: limitWords(entry.item.excerpt || "", 24),
+      title: entry.item.conversation_title || "Conversation",
+      date: entry.item.date || ""
+    }));
+  const professionalSignature = buildProfessionalIdentity(axes, categoryBreakdown, language);
+  const observedDomains = categoryBreakdown.slice(0, 4).map(item => item.label);
+  const typicalContribution = buildTypicalContribution(axes, categoryBreakdown, language);
   return {
+    language,
+    texts,
     personName: config.profile_name || "Professional profile",
-    extractedDate: formatSnapshotDate(config.generated_at || kpis.generated_at || new Date().toISOString()),
-    dataRange: formatDataRange(config.period_from || kpis.first_data, config.period_to || kpis.last_data),
-    observationPeriod: `${config.selected_months || 6} month${Number(config.selected_months || 6) === 1 ? "" : "s"}`,
+    extractedDate: formatSnapshotDate(config.generated_at || kpis.generated_at || new Date().toISOString(), language),
+    dataRange: formatDataRange(config.period_from || kpis.first_data, config.period_to || kpis.last_data, language),
+    observationPeriod: language === "it"
+      ? `${config.selected_months || 6} ${Number(config.selected_months || 6) === 1 ? "mese" : "mesi"}`
+      : `${config.selected_months || 6} month${Number(config.selected_months || 6) === 1 ? "" : "s"}`,
     axes,
-    summary: buildSnapshotSummary(axes, notAssessed),
+    summary: buildSnapshotSummary(axes, notAssessed, language),
     kpis: [
-      { value: String(professionalConversations || "-"), label: "Professional conversations analyzed", note: "Retained for this snapshot" },
-      { value: String(evidenceItems || "-"), label: "Evidence items", note: "Supporting, counter and uncertain" },
-      { value: String(axes.length), label: "Supported capability areas", note: "Enough attributable evidence" },
-      { value: `${attributablePercentage}%`, label: "Attributable evidence percentage", note: "Clearly linked to user contribution" }
+      { value: String(professionalConversations || "-"), label: texts.analyzedConversations, note: texts.retainedNote, meter: Math.min(100, professionalConversations * 10) },
+      { value: String(evidenceItems || "-"), label: texts.evidenceItems, note: texts.evidenceNote, meter: Math.min(100, evidenceItems * 3) },
+      { value: String(axes.length), label: texts.supportedAreas, note: texts.supportedNote, meter: Math.min(100, axes.length * 16) },
+      { value: `${attributablePercentage}%`, label: texts.attributableEvidence, note: texts.attributableNote, meter: attributablePercentage }
     ],
-    interpretation: buildSnapshotInterpretation(axes, notAssessed)
+    interpretation: buildSnapshotInterpretation(axes, notAssessed, language),
+    professionalSignature,
+    observedDomains,
+    typicalContribution,
+    evidenceMix,
+    categoryBreakdown,
+    analyzedConversations,
+    evidenceHighlights,
+    selectedConversationCount: analyzedConversations.length,
+    analyzedConversationCount: professionalConversations,
+    selectedExcerptCount: evidenceHighlights.length,
+    totalEvidenceItemCount: evidenceItems
   };
+}
+
+function buildEvidenceMix(source, evidenceItems, attributablePercentage) {
+  const direct = Number(source.original_user_input || source.user_provided || source.direct_user_inputs || 0);
+  const mixed = Number(source.mixed_content || source.mixed_content_items || 0);
+  const external = Number(source.external_content || source.external_documents || 0);
+  const ai = Number(source.ai_generated_text || source.ai_generated_items || 0);
+  const unknown = Number(source.unknown || source.unknown_items || 0);
+  const total = direct + mixed + external + ai + unknown || evidenceItems || 1;
+  return {
+    attributable: attributablePercentage,
+    segments: [
+      { label: "Direct", value: Math.round((direct / total) * 100), tone: "direct" },
+      { label: "Mixed", value: Math.round((mixed / total) * 100), tone: "mixed" },
+      { label: "External", value: Math.round((external / total) * 100), tone: "external" },
+      { label: "AI", value: Math.round((ai / total) * 100), tone: "ai" },
+      { label: "Unknown", value: Math.round((unknown / total) * 100), tone: "unknown" }
+    ].filter(segment => segment.value > 0)
+  };
+}
+
+function renderEvidenceMix(mix, texts = reportText(getReportLanguage())) {
+  const total = mix.segments.reduce((sum, segment) => sum + segment.value, 0) || 100;
+  return `
+    <div class="evidence-mix-bar" aria-label="Evidence mix">
+      ${mix.segments.map(segment => `<i class="${escapeHtml(segment.tone)}" style="width:${(segment.value / total) * 100}%"></i>`).join("")}
+    </div>
+    <div class="evidence-mix-legend">
+      ${mix.segments.map(segment => `<span><b class="${escapeHtml(segment.tone)}"></b>${escapeHtml(texts.provenance[segment.tone] || segment.label)} ${escapeHtml(String(segment.value))}%</span>`).join("")}
+    </div>
+  `;
+}
+
+function renderPrintableKpiCards(kpis) {
+  return `
+    <section class="pdf-kpi-grid">
+      ${kpis.map(kpi => `
+        <article class="pdf-kpi-card">
+          <strong>${escapeHtml(kpi.value)}</strong>
+          <span>${escapeHtml(kpi.label)}</span>
+          <p>${escapeHtml(kpi.note)}</p>
+        </article>
+      `).join("")}
+    </section>
+  `;
+}
+
+function renderPrintableSkillTable(groups) {
+  if (!groups.length) {
+    return `<p class="pdf-empty">No observed skill group has enough attributable evidence for this report.</p>`;
+  }
+  return `
+    <table class="pdf-table">
+      <thead>
+        <tr>
+          <th>Group</th>
+          <th>Observed skills</th>
+          <th>Confidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${groups.map(group => `
+          <tr>
+            <td>${escapeHtml(group.title)}</td>
+            <td>${escapeHtml((group.skills || []).slice(0, 3).map(skill => skill.label).join(", "))}</td>
+            <td>${escapeHtml(String(group.confidence_score || 0))}/100</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderPrintableEvidenceTable(items) {
+  if (!items.length) {
+    return `<p class="pdf-empty">No attributable excerpts are available for this report.</p>`;
+  }
+  return `
+    <table class="pdf-table pdf-table-compact">
+      <thead>
+        <tr>
+          <th>Skill</th>
+          <th>Context</th>
+          <th>Excerpt</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map(item => `
+          <tr>
+            <td>${escapeHtml(item.skill)}</td>
+            <td>${escapeHtml(item.group)}<br>${escapeHtml(item.title)}</td>
+            <td>${escapeHtml(item.excerpt)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderPrintableConversationTable(items) {
+  if (!items.length) {
+    return `<p class="pdf-empty">No approved conversation is available for this report.</p>`;
+  }
+  return `
+    <table class="pdf-table pdf-table-compact">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Conversation</th>
+          <th>Category</th>
+          <th>Sample</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map(item => `
+          <tr>
+            <td>${escapeHtml(item.date)}</td>
+            <td>${escapeHtml(item.title)}</td>
+            <td>${escapeHtml(item.category)}</td>
+            <td>${escapeHtml(item.excerpt)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function buildPrintableReportHtml(snapshot, config) {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ai-work-passport-${escapeHtml(config.sanitized_profile_name || sanitizedFilenameName(config.profile_name))}</title>
+    <style>
+      :root {
+        --ink: #1f2726;
+        --muted: #5f6d69;
+        --line: #d7e1de;
+        --accent: #136f63;
+        --accent-soft: #e8f1ef;
+        --panel: #ffffff;
+        --paper: #f7f8f6;
+      }
+      * { box-sizing: border-box; }
+      @page { size: A4 portrait; margin: 12mm; }
+      html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: "Segoe UI", Arial, sans-serif; }
+      body { counter-reset: page; }
+      .pdf-root { width: 100%; }
+      .pdf-page {
+        width: 186mm;
+        min-height: 273mm;
+        margin: 0 auto 10mm;
+        padding: 0;
+        background: var(--panel);
+        page-break-after: always;
+        break-after: page;
+        display: grid;
+        gap: 8mm;
+      }
+      .pdf-page:last-child { page-break-after: auto; break-after: auto; }
+      .pdf-header {
+        padding: 8mm 9mm 0;
+        display: flex;
+        justify-content: space-between;
+        gap: 8mm;
+        align-items: flex-start;
+      }
+      .pdf-header h1 { margin: 0 0 3mm; font-size: 24px; line-height: 1.05; }
+      .pdf-header p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+      .pdf-meta { display: grid; gap: 2mm; text-align: right; font-size: 10px; color: var(--muted); text-transform: uppercase; }
+      .pdf-meta strong { color: var(--ink); font-size: 12px; }
+      .pdf-section { padding: 0 9mm; }
+      .pdf-panel { border: 1px solid var(--line); border-radius: 4mm; padding: 5mm; background: #fff; }
+      .pdf-panel h2, .pdf-panel h3 { margin: 0 0 3mm; }
+      .pdf-panel p { margin: 0; line-height: 1.5; font-size: 11px; }
+      .pdf-kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+      .pdf-kpi-card { border: 1px solid var(--line); border-radius: 4mm; padding: 4mm; background: #fff; }
+      .pdf-kpi-card strong { display: block; color: var(--accent); font-size: 22px; line-height: 1; margin-bottom: 2mm; }
+      .pdf-kpi-card span { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; line-height: 1.3; }
+      .pdf-kpi-card p { margin-top: 2mm; font-size: 10px; color: var(--muted); }
+      .pdf-grid-two { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 5mm; align-items: start; }
+      .pdf-grid-two-equal { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; align-items: start; }
+      .pdf-chip-row { display: flex; flex-wrap: wrap; gap: 2mm; margin-top: 3mm; }
+      .pdf-chip-row span { padding: 1.5mm 2.5mm; border-radius: 999px; background: var(--accent-soft); color: #21423d; font-size: 9px; font-weight: 700; }
+      .pdf-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+      .pdf-table th, .pdf-table td { border-bottom: 1px solid var(--line); padding: 2.5mm 2mm; text-align: left; vertical-align: top; }
+      .pdf-table th { font-size: 9px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.03em; }
+      .pdf-table-compact td { font-size: 9.5px; line-height: 1.35; }
+      .pdf-empty { margin: 0; color: var(--muted); font-size: 10px; }
+      .pdf-footer {
+        margin-top: auto;
+        padding: 0 9mm 7mm;
+        display: flex;
+        justify-content: space-between;
+        gap: 4mm;
+        color: var(--muted);
+        font-size: 9px;
+      }
+      .pdf-radar .radar-wrap { display: grid; grid-template-columns: minmax(250px, 1fr) minmax(130px, 0.7fr); gap: 4mm; align-items: center; }
+      .pdf-radar .radar-chart { width: 100%; max-width: 320px; aspect-ratio: 1; }
+      .pdf-radar .radar-grid { fill: none; stroke: #cfd8d0; stroke-width: 1; }
+      .pdf-radar .radar-axis { stroke: #d7ddd5; stroke-width: 1; }
+      .pdf-radar .radar-shape { fill: rgba(19, 111, 99, 0.22); stroke: var(--accent); stroke-width: 3; }
+      .pdf-radar .radar-dot { fill: #b64f35; stroke: #fff; stroke-width: 2; }
+      .pdf-radar .radar-label { fill: var(--ink); font-size: 10px; font-weight: 700; }
+      .pdf-radar .radar-side { display: grid; gap: 3mm; }
+      .pdf-radar .radar-legend { display: grid; gap: 2mm; padding: 0; margin: 0; list-style: none; }
+      .pdf-radar .radar-legend li { display: grid; gap: 1mm; padding-bottom: 2mm; border-bottom: 1px solid var(--line); }
+      .pdf-radar .radar-legend span { font-size: 10px; font-weight: 700; }
+      .pdf-radar .radar-legend strong { color: var(--muted); font-size: 9px; font-weight: 600; }
+      .pdf-radar .not-assessed-list { border: 1px dashed var(--line); border-radius: 3mm; padding: 3mm; }
+      .pdf-radar .not-assessed-list strong { display: block; margin-bottom: 2mm; font-size: 10px; }
+      .pdf-radar .not-assessed-list p { margin: 0 0 2mm; font-size: 9px; }
+      .pdf-radar .not-assessed-list em { display: block; color: var(--muted); font-style: normal; }
+      .pdf-evidence-mix { display: grid; gap: 3mm; }
+      .pdf-evidence-bar { display: flex; height: 10px; overflow: hidden; border-radius: 999px; background: #dce9e6; }
+      .pdf-evidence-bar i { display: block; height: 100%; }
+      .pdf-evidence-bar .direct { background: #16877f; }
+      .pdf-evidence-bar .mixed { background: #2aa79e; }
+      .pdf-evidence-bar .external { background: #7c8d89; }
+      .pdf-evidence-bar .ai { background: #c48d2f; }
+      .pdf-evidence-bar .unknown { background: #a1b1ad; }
+      .pdf-legend { display: flex; flex-wrap: wrap; gap: 2mm; }
+      .pdf-legend span { display: inline-flex; align-items: center; gap: 1.5mm; padding: 1.5mm 2.5mm; background: var(--accent-soft); border-radius: 999px; font-size: 9px; }
+      .pdf-legend b { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+      .pdf-legend .direct { background: #16877f; }
+      .pdf-legend .mixed { background: #2aa79e; }
+      .pdf-legend .external { background: #7c8d89; }
+      .pdf-legend .ai { background: #c48d2f; }
+      .pdf-legend .unknown { background: #a1b1ad; }
+    </style>
+  </head>
+  <body>
+    <main class="pdf-root">
+      <section class="pdf-page">
+        <header class="pdf-header">
+          <div>
+            <p>AI Work Passport</p>
+            <h1>${escapeHtml(snapshot.personName)}</h1>
+            <p>${escapeHtml(snapshot.summary)}</p>
+          </div>
+          <div class="pdf-meta">
+            <span>Extracted <strong>${escapeHtml(snapshot.extractedDate)}</strong></span>
+            <span>Data analyzed <strong>${escapeHtml(snapshot.dataRange)}</strong></span>
+            <span>Observation period <strong>${escapeHtml(snapshot.observationPeriod)}</strong></span>
+          </div>
+        </header>
+        <section class="pdf-section">
+          <article class="pdf-panel">
+            <h2>Professional signature</h2>
+            <p>${escapeHtml(snapshot.professionalSignature)}</p>
+            <div class="pdf-chip-row">
+              ${snapshot.observedDomains.map(domain => `<span>${escapeHtml(domain)}</span>`).join("")}
+            </div>
+            <p style="margin-top:3mm"><strong>Typical contribution:</strong> ${escapeHtml(snapshot.typicalContribution)}</p>
+          </article>
+        </section>
+        <section class="pdf-section">
+          ${renderPrintableKpiCards(snapshot.kpis)}
+        </section>
+        <section class="pdf-section pdf-grid-two">
+          <article class="pdf-panel pdf-radar">
+            <h2>Observed capability profile</h2>
+            ${renderRadar(snapshot.axes)}
+          </article>
+          <article class="pdf-panel pdf-evidence-mix">
+            <h3>Evidence mix</h3>
+            <div class="pdf-evidence-bar">
+              ${snapshot.evidenceMix.segments.map(segment => `<i class="${escapeHtml(segment.tone)}" style="width:${escapeHtml(String(segment.value))}%"></i>`).join("")}
+            </div>
+            <div class="pdf-legend">
+              ${snapshot.evidenceMix.segments.map(segment => `<span><b class="${escapeHtml(segment.tone)}"></b>${escapeHtml(segment.label)} ${escapeHtml(String(segment.value))}%</span>`).join("")}
+            </div>
+            <div class="pdf-chip-row">
+              ${snapshot.categoryBreakdown.map(item => `<span>${escapeHtml(item.label)} ${escapeHtml(String(item.count))}</span>`).join("")}
+            </div>
+          </article>
+        </section>
+        <footer class="pdf-footer">
+          <span>Evidence-backed profile from approved professional conversations.</span>
+          <span>Not a hiring score and not independently verified.</span>
+        </footer>
+      </section>
+      <section class="pdf-page">
+        <header class="pdf-header">
+          <div>
+            <p>Observed skill groups</p>
+            <h1>What was analyzed</h1>
+            <p>Observed skills, approved conversations and attributable excerpts included in this report.</p>
+          </div>
+          <div class="pdf-meta">
+            <span>Skill groups <strong>${escapeHtml(String(snapshot.skillGroups.length))}</strong></span>
+            <span>Conversations <strong>${escapeHtml(String(snapshot.analyzedConversations.length))}</strong></span>
+            <span>Evidence excerpts <strong>${escapeHtml(String(snapshot.evidenceHighlights.length))}</strong></span>
+          </div>
+        </header>
+        <section class="pdf-section">
+          <article class="pdf-panel">
+            <h2>Observed skill groups</h2>
+            ${renderPrintableSkillTable(snapshot.skillGroups)}
+          </article>
+        </section>
+        <section class="pdf-section pdf-grid-two-equal">
+          <article class="pdf-panel">
+            <h3>Approved conversations</h3>
+            ${renderPrintableConversationTable(snapshot.analyzedConversations)}
+          </article>
+          <article class="pdf-panel">
+            <h3>Evidence highlights</h3>
+            ${renderPrintableEvidenceTable(snapshot.evidenceHighlights)}
+          </article>
+        </section>
+        <footer class="pdf-footer">
+          <span>Excerpts are shortened and redacted for readability.</span>
+          <span>Missing evidence is treated as not assessed.</span>
+        </footer>
+      </section>
+    </main>
+  </body>
+</html>`;
+}
+
+function openPrintableReport(snapshot, config) {
+  const previousFrame = document.getElementById("printFrame");
+  if (previousFrame) previousFrame.remove();
+
+  const frame = document.createElement("iframe");
+  frame.id = "printFrame";
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "0";
+  frame.style.height = "0";
+  frame.style.border = "0";
+  frame.style.opacity = "0";
+  document.body.appendChild(frame);
+
+  frame.onload = () => {
+    const printWindow = frame.contentWindow;
+    if (!printWindow) {
+      frame.remove();
+      alert("Impossibile inizializzare la stampa del PDF.");
+      return;
+    }
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      window.setTimeout(() => frame.remove(), 300);
+    };
+
+    printWindow.onafterprint = cleanup;
+    window.setTimeout(cleanup, 2000);
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+  if (!doc) {
+    frame.remove();
+    alert("Impossibile preparare il documento PDF.");
+    return;
+  }
+  doc.open();
+  doc.write(buildPrintableReportHtml(snapshot, config));
+  doc.close();
+}
+
+function renderSnapshotSkillGroups(groups) {
+  if (!groups.length) {
+    return `<div class="snapshot-empty">No skill group has enough attributable evidence for this period.</div>`;
+  }
+  return `
+    <div class="skill-group-grid">
+      ${groups.map(group => `
+        <article class="skill-group-card">
+          <div class="skill-group-head">
+            <strong>${escapeHtml(group.title)}</strong>
+            <span>${escapeHtml(String(group.confidence_score || 0))}/100</span>
+          </div>
+          <div class="skill-group-track"><i style="width:${Math.max(0, Math.min(100, group.confidence_score || 0))}%"></i></div>
+          <ul class="skill-list">
+            ${group.skills.slice(0, 2).map(skill => `
+              <li>
+                <div class="skill-list-head">
+                  <strong>${escapeHtml(skill.label)}</strong>
+                  <span>${escapeHtml(String(skill.confidence_score || 0))}/100</span>
+                </div>
+                <div class="skill-mini-track"><i style="width:${Math.max(0, Math.min(100, skill.confidence_score || 0))}%"></i></div>
+                ${(skill.examples || []).length ? `<em>${escapeHtml(limitWords(skill.examples[0].excerpt || "", 10))}</em>` : ""}
+              </li>
+            `).join("")}
+          </ul>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderAnalyzedConversations(items) {
+  if (!items.length) {
+    return `<div class="snapshot-empty">No approved conversation is available for this appendix.</div>`;
+  }
+  return `
+    <div class="appendix-list">
+      ${items.map(item => `
+        <article class="appendix-item">
+          <div class="appendix-item-head">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span>${escapeHtml(item.date)}</span>
+          </div>
+          <p>${escapeHtml(item.category)}</p>
+          <div class="conversation-spark"><i style="width:${Math.min(100, 35 + item.excerpt.length / 2)}%"></i></div>
+          <em>${escapeHtml(limitWords(item.excerpt, 10))}</em>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderEvidenceHighlights(items) {
+  if (!items.length) {
+    return `<div class="snapshot-empty">No attributable excerpt is available for this appendix.</div>`;
+  }
+  return `
+    <div class="appendix-list">
+      ${items.map(item => `
+        <article class="appendix-item">
+          <div class="appendix-item-head">
+            <strong>${escapeHtml(item.skill)}</strong>
+            <span>${escapeHtml(String(item.confidenceScore))}/100</span>
+          </div>
+          <p>${escapeHtml(item.group)} · ${escapeHtml(item.title)}${item.date ? ` · ${escapeHtml(String(item.date).slice(0, 10))}` : ""}</p>
+          <div class="conversation-spark"><i style="width:${Math.max(12, Math.min(100, item.confidenceScore || 0))}%"></i></div>
+          <em>${escapeHtml(limitWords(item.excerpt, 10))}</em>
+        </article>
+      `).join("")}
+    </div>
+  `;
 }
 
 function computeAttributablePercentage(coverage, evidenceItems) {
@@ -541,18 +1256,32 @@ function computeAttributablePercentage(coverage, evidenceItems) {
   return Math.round(((direct + mixed * 0.5) / total) * 100);
 }
 
-function buildSnapshotSummary(axes, notAssessed) {
+function buildSnapshotSummary(axes, notAssessed, language = getReportLanguage()) {
   if (!axes.length) {
-    return "The analyzed professional conversations do not contain enough attributable evidence to support a visual capability profile for the selected period.";
+    return language === "it"
+      ? "Le conversazioni professionali analizzate non contengono abbastanza evidenza attribuibile per sostenere un profilo di capacita nel periodo selezionato."
+      : "The analyzed professional conversations do not contain enough attributable evidence to support a visual capability profile for the selected period.";
   }
   const top = axes.slice(0, 3).map(axis => axis.label);
+  if (language === "it") {
+    const limitation = notAssessed.length ? "Le dimensioni con evidenza insufficiente restano non valutate." : "Nessuna area non supportata viene letta come bassa capacita.";
+    return `Le conversazioni professionali analizzate mostrano evidenze ricorrenti in ${joinHuman(top)}. Il pattern osservabile piu forte e ${axes[0].label}. ${limitation}`;
+  }
   const limitation = notAssessed.length ? "Dimensions without enough evidence remain not assessed." : "No unsupported areas are scored as low ability.";
-  return limitWords(`The analyzed professional conversations show recurring evidence around ${joinHuman(top)}. The strongest observable pattern is ${axes[0].label}. ${limitation}`, 70);
+  return `The analyzed professional conversations show recurring evidence around ${joinHuman(top)}. The strongest observable pattern is ${axes[0].label}. ${limitation}`;
 }
 
-function buildSnapshotInterpretation(axes, notAssessed) {
+function buildSnapshotInterpretation(axes, notAssessed, language = getReportLanguage()) {
   if (!axes.length) {
-    return "The most important limitation is evidence availability: the available conversations are not sufficient to assess professional capability areas.";
+    return language === "it"
+      ? "Il limite principale e la disponibilita di evidenze: le conversazioni disponibili non sono sufficienti per valutare le capacita professionali."
+      : "The most important limitation is evidence availability: the available conversations are not sufficient to assess professional capability areas.";
+  }
+  if (language === "it") {
+    const limitation = notAssessed.length
+      ? `${joinHuman(notAssessed)} ${notAssessed.length === 1 ? "resta" : "restano"} non valutate per evidenza insufficiente.`
+      : "Nessuna dimensione con evidenza mancante viene convertita in bassa capacita.";
+    return `Il pattern ricorrente piu forte e ${axes[0].label}. Il limite principale riguarda la copertura delle fonti: ${limitation}`;
   }
   const limitation = notAssessed.length
     ? `${joinHuman(notAssessed)} ${notAssessed.length === 1 ? "is" : "are"} not assessed because evidence is insufficient.`
@@ -560,16 +1289,16 @@ function buildSnapshotInterpretation(axes, notAssessed) {
   return `The strongest recurring pattern is ${axes[0].label}. The most important limitation is source coverage: ${limitation}`;
 }
 
-function formatSnapshotDate(value) {
+function formatSnapshotDate(value, language = getReportLanguage()) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value || "-");
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat(language === "it" ? "it-IT" : "en-GB", { day: "numeric", month: "long", year: "numeric" }).format(date);
 }
 
-function formatDataRange(first, last) {
+function formatDataRange(first, last, language = getReportLanguage()) {
   if (!first && !last) return "-";
-  if (first && last) return `${formatSnapshotDate(first)} - ${formatSnapshotDate(last)}`;
-  return formatSnapshotDate(first || last);
+  if (first && last) return `${formatSnapshotDate(first, language)} - ${formatSnapshotDate(last, language)}`;
+  return formatSnapshotDate(first || last, language);
 }
 
 function joinHuman(items) {
@@ -628,6 +1357,7 @@ function restoreState() {
     if (state.reportConfig) {
       if ($("#profileNameInput")) $("#profileNameInput").value = state.reportConfig.profile_name || "";
       if ($("#analysisPeriodSelect")) $("#analysisPeriodSelect").value = String(state.reportConfig.selected_months || 6);
+      if ($("#reportLanguageSelect")) $("#reportLanguageSelect").value = state.reportConfig.report_language || "en";
     }
     updateExportPrompt();
     $("#deleteBtn").disabled = !state.sessionId;
@@ -856,9 +1586,30 @@ function isNotAssessedStatus(status) {
   return status === "insufficient_evidence" || status === "not assessed";
 }
 
-function displayStatus(status) {
-  if (isNotAssessedStatus(status)) return "not assessed";
-  return String(status || "not assessed").replace(/_/g, " ");
+function displayStatus(status, language = getReportLanguage()) {
+  const map = language === "it"
+    ? {
+        insufficient_evidence: "non valutata",
+        "not assessed": "non valutata",
+        counter_evidence_only: "solo contro-evidenze",
+        mixed_evidence: "evidenza mista",
+        emerging: "emergente",
+        observed: "osservata",
+        recurring: "ricorrente",
+        strongly_supported: "fortemente supportata"
+      }
+    : {
+        insufficient_evidence: "not assessed",
+        "not assessed": "not assessed",
+        counter_evidence_only: "counter evidence only",
+        mixed_evidence: "mixed evidence",
+        emerging: "emerging",
+        observed: "observed",
+        recurring: "recurring",
+        strongly_supported: "strongly supported"
+      };
+  if (isNotAssessedStatus(status)) return map["not assessed"];
+  return map[status] || String(status || map["not assessed"]).replace(/_/g, " ");
 }
 
 function displayDirection(direction) {
@@ -915,15 +1666,15 @@ function dimensionLabel(dimension) {
   return labels[dimension] || String(dimension || "").replace(/_/g, " ");
 }
 
-function renderRadar(axes) {
-  if (!axes.length) return `<div class="empty-visual">Nessun insight visibile per questa vista.</div>`;
+function renderRadar(axes, texts = reportText(getReportLanguage())) {
+  if (!axes.length) return `<div class="empty-visual">${escapeHtml(texts.notAssessed)}</div>`;
   const assessedAxes = axes.filter(axis => axis.assessed && typeof axis.strength === "number");
   const notAssessedAxes = axes.filter(axis => !axis.assessed || typeof axis.strength !== "number");
   if (!assessedAxes.length) {
     return `
       <div class="radar-wrap">
-        <div class="empty-visual">Nessuna dimensione valutabile: le evidenze disponibili non bastano per stimare una forza osservata.</div>
-        ${renderNotAssessedAxes(notAssessedAxes)}
+        <div class="empty-visual">${escapeHtml(texts.notAssessed)}</div>
+        ${renderNotAssessedAxes(notAssessedAxes, texts)}
       </div>
     `;
   }
@@ -962,7 +1713,7 @@ function renderRadar(axes) {
     </circle>
   `).join("");
   const legend = assessedAxes.map(axis => `
-    <li><span>${escapeHtml(axis.label)}</span><strong>${escapeHtml(axis.level)} · coverage ${axis.coverage || 0}/100</strong></li>
+    <li><span>${escapeHtml(axis.label)}</span><strong>${escapeHtml(displayStatus(axis.level))} · ${escapeHtml(texts.confidence[axis.confidence] || axis.confidence)} · coverage ${axis.coverage || 0}/100</strong></li>
   `).join("");
   return `
     <div class="radar-wrap">
@@ -974,17 +1725,17 @@ function renderRadar(axes) {
       </svg>
       <div class="radar-side">
         <ul class="radar-legend">${legend}</ul>
-        ${renderNotAssessedAxes(notAssessedAxes)}
+        ${renderNotAssessedAxes(notAssessedAxes, texts)}
       </div>
     </div>
   `;
 }
 
-function renderNotAssessedAxes(axes) {
+function renderNotAssessedAxes(axes, texts = reportText(getReportLanguage())) {
   if (!axes.length) return "";
   return `
     <div class="not-assessed-list">
-      <strong>Not assessed</strong>
+      <strong>${escapeHtml(texts.notAssessed)}</strong>
       ${axes.map(axis => `
         <p>
           <span>${escapeHtml(axis.label)}</span>
@@ -1278,6 +2029,37 @@ function downloadJson(name, payload) {
   URL.revokeObjectURL(url);
 }
 
+function downloadBlob(name, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 300);
+}
+
+async function exportPdf(endpoint, snapshot, reportConfig, fallbackName) {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ snapshot, reportConfig })
+  });
+  if (!response.ok) {
+    let error = "PDF export failed";
+    try {
+      const payload = await response.json();
+      error = payload.error || error;
+    } catch {
+      // ignore parse failure
+    }
+    throw new Error(error);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = /filename="([^"]+)"/.exec(disposition);
+  downloadBlob(match ? match[1] : fallbackName, blob);
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -1326,6 +2108,14 @@ $("#copyPromptBtn").addEventListener("click", async () => {
 
 $("#profileNameInput").addEventListener("input", updateExportPrompt);
 $("#analysisPeriodSelect").addEventListener("change", updateExportPrompt);
+if ($("#reportLanguageSelect")) {
+  $("#reportLanguageSelect").addEventListener("change", () => {
+    const config = buildCurrentReportConfig();
+    applyReportConfig(config);
+    persistState();
+    if (state.reports) renderReports();
+  });
+}
 
 $("#selectProfessional").addEventListener("click", () => {
   $$(".conversation").forEach(card => {
@@ -1342,7 +2132,8 @@ $("#excludeSensitive").addEventListener("click", () => {
 });
 
 $("#analyzeBtn").addEventListener("click", async () => {
-  const config = state.reportConfig || buildCurrentReportConfig();
+  const config = buildCurrentReportConfig();
+  applyReportConfig(config);
   const response = await fetch("/api/analyze", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1360,21 +2151,31 @@ $("#analyzeBtn").addEventListener("click", async () => {
 });
 
 $("#downloadSnapshotPdf").addEventListener("click", () => {
-  const config = state.reportConfig || buildCurrentReportConfig();
-  const previousTitle = document.title;
-  document.title = `professional-evidence-snapshot-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at || todayIso()}`;
-  window.print();
-  window.setTimeout(() => {
-    document.title = previousTitle;
-  }, 800);
+  const config = buildCurrentReportConfig();
+  applyReportConfig(config);
+  const snapshot = buildSnapshotData();
+  exportPdf("/api/export/snapshot-pdf", snapshot, config, `professional-evidence-snapshot-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}.pdf`)
+    .catch(error => alert(error.message));
 });
+
+if ($("#downloadAppendixPdf")) {
+  $("#downloadAppendixPdf").addEventListener("click", () => {
+    const config = buildCurrentReportConfig();
+    applyReportConfig(config);
+    const snapshot = buildSnapshotData();
+    exportPdf("/api/export/appendix-pdf", snapshot, config, `detailed-evidence-appendix-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}.pdf`)
+      .catch(error => alert(error.message));
+  });
+}
 
 $("#regenerateReport").addEventListener("click", async () => {
   if (!state.sessionId || !state.reports) return;
+  const config = buildCurrentReportConfig();
+  applyReportConfig(config);
   const response = await fetch("/api/report", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ sessionId: state.sessionId, insights: collectInsights(), reportConfig: state.reportConfig || buildCurrentReportConfig() })
+    body: JSON.stringify({ sessionId: state.sessionId, insights: collectInsights(), reportConfig: config })
   });
   const payload = await response.json();
   if (!response.ok) {
@@ -1446,6 +2247,7 @@ $("#deleteBtn").addEventListener("click", async () => {
   $("#insights").innerHTML = "";
   $("#snapshotPreviewHost").innerHTML = "";
   $("#downloadSnapshotPdf").disabled = true;
+  if ($("#downloadAppendixPdf")) $("#downloadAppendixPdf").disabled = true;
   $("#regenerateReport").disabled = true;
   $("#uploadStatus").textContent = "Sessione cancellata.";
   setView("upload");
