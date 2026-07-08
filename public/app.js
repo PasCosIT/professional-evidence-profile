@@ -2352,7 +2352,7 @@ async function uploadFile(file) {
   form.append("reportConfig", JSON.stringify(state.reportConfig));
   $("#uploadStatus").textContent = "Parsing e classificazione in corso...";
   const response = await fetch("/api/import", { method: "POST", body: form });
-  const payload = await response.json();
+  const payload = await readJsonResponse(response, "Import failed");
   if (!response.ok) throw new Error(payload.error || "Import failed");
   state.sessionId = payload.sessionId;
   state.conversations = payload.conversations;
@@ -2385,6 +2385,19 @@ function downloadBlob(name, blob) {
   window.setTimeout(() => URL.revokeObjectURL(url), 300);
 }
 
+async function readJsonResponse(response, fallbackMessage) {
+  const text = await response.text();
+  if (!text) {
+    throw new Error(`${fallbackMessage} (empty response, status ${response.status})`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    const snippet = text.slice(0, 180).replace(/\s+/g, " ").trim();
+    throw new Error(`${fallbackMessage} (status ${response.status}): ${snippet || "invalid response body"}`);
+  }
+}
+
 async function exportPdf(endpoint, snapshot, reportConfig, fallbackName) {
   const response = await fetch(endpoint, {
     method: "POST",
@@ -2394,7 +2407,7 @@ async function exportPdf(endpoint, snapshot, reportConfig, fallbackName) {
   if (!response.ok) {
     let error = "PDF export failed";
     try {
-      const payload = await response.json();
+      const payload = await readJsonResponse(response, error);
       error = payload.error || error;
     } catch {
       // ignore parse failure
@@ -2486,7 +2499,7 @@ $("#analyzeBtn").addEventListener("click", async () => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ sessionId: state.sessionId, decisions: collectDecisions(), reportConfig: config })
   });
-  const payload = await response.json();
+  const payload = await readJsonResponse(response, "Analysis failed");
   if (!response.ok) {
     alert(payload.error || "Analysis failed");
     return;
@@ -2524,7 +2537,7 @@ $("#regenerateReport").addEventListener("click", async () => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ sessionId: state.sessionId, insights: collectInsights(), reportConfig: config })
   });
-  const payload = await response.json();
+  const payload = await readJsonResponse(response, "Report regeneration failed");
   if (!response.ok) {
     alert(payload.error || "Report regeneration failed");
     return;
@@ -2546,7 +2559,7 @@ if ($("#downloadPrivate")) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionId: state.sessionId, insights })
     });
-    state.reports = await response.json();
+    state.reports = await readJsonResponse(response, "Private report export failed");
     downloadJson("private-professional-mirror.json", state.reports.private_report);
   });
 }
@@ -2559,7 +2572,7 @@ if ($("#downloadPublic")) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionId: state.sessionId, insights })
     });
-    state.reports = await response.json();
+    state.reports = await readJsonResponse(response, "Public report export failed");
     downloadJson("professional-evidence-passport.json", state.reports.public_report);
   });
 }
