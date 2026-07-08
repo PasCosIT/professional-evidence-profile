@@ -4,7 +4,7 @@
   "private": true,
   "description": "Local MVP for a professional evidence profile based on ChatGPT exports.",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server.cjs",
     "test": "node tests/run-tests.js"
   },
   "engines": {

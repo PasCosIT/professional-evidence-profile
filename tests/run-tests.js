@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { PDFParse } = require("pdf-parse");
 const {
+  handleRequest,
   normalizeChatGptExport,
   buildNormalized,
   buildReports,
@@ -10,12 +11,57 @@ const {
   renderAppendixPdf,
   scanSummary,
   redactText
-} = require("../server");
+} = require("../server.cjs");
 
 const root = path.join(__dirname, "..");
-const serverPath = path.join(root, "server.js");
+const serverPath = path.join(root, "server.cjs");
 const samplePath = path.join(root, "public", "samples", "synthetic-conversations.json");
 const evidencePackPath = path.join(root, "public", "samples", "sample-evidence-pack.json");
+
+function runRequest({ method, url, headers, body }) {
+  return new Promise((resolve, reject) => {
+    const listeners = { data: [], end: [], error: [] };
+    const req = {
+      method,
+      url,
+      headers: headers || {},
+      on(event, handler) {
+        if (!listeners[event]) listeners[event] = [];
+        listeners[event].push(handler);
+      }
+    };
+    const responseChunks = [];
+    const res = {
+      headersSent: false,
+      statusCode: null,
+      headers: null,
+      writeHead(status, responseHeaders) {
+        this.statusCode = status;
+        this.headers = responseHeaders;
+        this.headersSent = true;
+      },
+      end(chunk) {
+        if (chunk) responseChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+        resolve({
+          statusCode: this.statusCode,
+          headers: this.headers || {},
+          body: Buffer.concat(responseChunks).toString("utf8")
+        });
+      }
+    };
+
+    try {
+      handleRequest(req, res);
+      const payload = body ? (Buffer.isBuffer(body) ? body : Buffer.from(String(body))) : null;
+      if (payload) {
+        listeners.data.forEach(handler => handler(payload));
+      }
+      listeners.end.forEach(handler => handler());
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
 
 function pdfText(buffer) {
   return buffer.toString("latin1").replace(/\0/g, "");
@@ -68,6 +114,13 @@ async function main() {
   assert.ok(report.normalized.every(c => c.classification === "professional"), "only professional selected");
   assert.ok(JSON.stringify(report).includes("[EMAIL_REDACTED]"), "email redacted");
   assert.ok(redactText("Mario Rossi usa mario.rossi@example.com").text.includes("[EMAIL_REDACTED]"), "direct redaction works");
+
+  const healthResponse = await runRequest({ method: "GET", url: "/api/health" });
+  assert.strictEqual(healthResponse.statusCode, 200, "health route returns 200");
+  const healthPayload = JSON.parse(healthResponse.body);
+  assert.strictEqual(healthPayload.ok, true, "health route reports ok");
+  assert.ok(["local", "vercel"].includes(healthPayload.runtime), "health route reports runtime");
+  assert.ok(healthPayload.timestamp, "health route reports timestamp");
 
   const pdfSnapshot = {
     personName: "Pas Test",
@@ -245,6 +298,145 @@ async function main() {
   assert.ok(semantic.every(dimension => dimension.radar_eligible), "semantic radar dimensions are explicitly eligible");
   assert.ok(surgeonReport.temporal_maturity.dimension_strategy.rejected_candidates.some(candidate => candidate.semantic_type === "specialization" && /robotic surgery/.test(candidate.candidate.toLowerCase())), "robotic surgery is specialization and rejected from radar");
   assert.ok(surgeonReport.temporal_maturity.dimension_strategy.semantic_capability_dimensions >= 2, "dimension strategy exposes semantic count");
+
+  const mixedDominanceReport = buildReports(normalizeChatGptExport([
+    { id: "pt1", title: "Product roadmap", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Definisco roadmap, priorita di backlog e coordino stakeholder per delivery.", content_origin: { value: "original_user_input" } }] },
+    { id: "pt2", title: "Tech integration", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-03T00:00:00.000Z", text: "Valuto trade-off API, schema dati e integrazioni tra servizi.", content_origin: { value: "original_user_input" } }] },
+    { id: "pt3", title: "Execution", professional_category: "execution", messages: [{ author: "user", created_at: "2026-05-05T00:00:00.000Z", text: "Coordino dipendenze, milestone e consegna cross-functional.", content_origin: { value: "original_user_input" } }] },
+    { id: "pt4", title: "Data reasoning", professional_category: "data_analytics", messages: [{ author: "user", created_at: "2026-05-08T00:00:00.000Z", text: "Uso metric, KPI e validazione dati per prioritizzare.", content_origin: { value: "original_user_input" } }] },
+    { id: "pt5", title: "Stakeholder alignment", professional_category: "professional_communication", messages: [{ author: "user", created_at: "2026-05-10T00:00:00.000Z", text: "Allineo stakeholder e chiarisco decisioni operative.", content_origin: { value: "mixed_content" } }] },
+    { id: "pt6", title: "Delivery governance", professional_category: "project_management", messages: [{ author: "user", created_at: "2026-05-12T00:00:00.000Z", text: "Pianifico milestone, rischio e ownership di delivery.", content_origin: { value: "original_user_input" } }] },
+    { id: "pt7", title: "Product decision", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-14T00:00:00.000Z", text: "Prendo decisioni su scope MVP e backlog sequencing.", content_origin: { value: "original_user_input" } }] },
+    { id: "r1", title: "Interview prep", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-16T00:00:00.000Z", text: "Preparo domande colloquio e valutazione candidati.", content_origin: { value: "original_user_input" } }] },
+    { id: "r2", title: "Candidate screening", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-18T00:00:00.000Z", text: "Review CV e shortlist candidati per ruolo tecnico.", content_origin: { value: "mixed_content" } }] },
+    { id: "r3", title: "Recruiting support", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-20T00:00:00.000Z", text: "Supporto processo recruiting con feedback strutturato.", content_origin: { value: "original_user_input" } }] }
+  ]));
+  assert.notStrictEqual(mixedDominanceReport.professional_identity.observed_archetype, "hr_lead", "30% recruiting should not force HR lead archetype");
+  assert.notStrictEqual(mixedDominanceReport.professional_pattern.dominant_domain, "recruiting", "recruiting should not dominate 70/30 product-tech mix");
+
+  const oneRecruitingReport = buildReports(normalizeChatGptExport([
+    { id: "main1", title: "Product", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Definisco roadmap, backlog e stakeholder priorities.", content_origin: { value: "original_user_input" } }] },
+    { id: "main2", title: "Tech", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-03T00:00:00.000Z", text: "Valuto API, integrazioni e rischi tecnici.", content_origin: { value: "original_user_input" } }] },
+    { id: "main3", title: "Execution", professional_category: "execution", messages: [{ author: "user", created_at: "2026-05-05T00:00:00.000Z", text: "Coordino delivery con team cross-functional.", content_origin: { value: "original_user_input" } }] },
+    { id: "rec_once", title: "One recruiting task", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-08T00:00:00.000Z", text: "Una tantum preparo domande per colloquio tecnico.", content_origin: { value: "original_user_input" } }] }
+  ]));
+  const oneRecruitingDomain = oneRecruitingReport.professional_pattern.domain_scores.find(item => item.domain === "recruiting");
+  assert.ok(oneRecruitingDomain && !oneRecruitingDomain.passes_threshold, "single recruiting conversation should stay occasional");
+  assert.notStrictEqual(oneRecruitingReport.professional_pattern.dominant_domain, "recruiting", "single recruiting evidence must not become dominant domain");
+
+  const pastedDominanceReport = buildReports(normalizeChatGptExport([
+    { id: "jd1", title: "JD1", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Job description: architect profile with Kubernetes, APIs, leadership, hiring responsibilities.", content_origin: { value: "pasted_job_description" } }] },
+    { id: "jd2", title: "JD2", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-02T00:00:00.000Z", text: "External document: product leadership responsibilities and hiring ownership.", content_origin: { value: "pasted_external_document" } }] },
+    { id: "u_direct", title: "Direct user", professional_category: "execution", messages: [{ author: "user", created_at: "2026-05-03T00:00:00.000Z", text: "Coordino una delivery operativa con dipendenze e milestone.", content_origin: { value: "original_user_input" } }] }
+  ]));
+  const topPastedDomain = pastedDominanceReport.professional_pattern.domain_scores[0];
+  assert.ok(topPastedDomain.direct_user_items < 2 || !topPastedDomain.passes_threshold, "mostly pasted content should not pass direct-attribution threshold");
+  assert.ok(pastedDominanceReport.professional_pattern.limitations.some(item => /Attribution penalties|threshold/i.test(item)), "pasted-heavy profile should expose attribution limitations");
+
+  const mixedContentReport = buildReports(normalizeChatGptExport([
+    { id: "mix1", title: "Mixed A", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Valuto API trade-off ma allego blocchi AI-generated per bozza.", content_origin: { value: "mixed_content" } }] },
+    { id: "mix2", title: "Mixed B", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-04T00:00:00.000Z", text: "Definisco backlog prioritization con supporto di testo esterno.", content_origin: { value: "mixed_content" } }] },
+    { id: "mix3", title: "AI block", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-07T00:00:00.000Z", text: "Architecture summary drafted by AI assistant pasted for review.", content_origin: { value: "ai_generated_text" } }] },
+    { id: "mix4", title: "External", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-09T00:00:00.000Z", text: "Pasted candidate rubric from external source.", content_origin: { value: "pasted_external_document" } }] }
+  ]));
+  assert.ok(["archetype_driven", "insufficient_evidence"].includes(mixedContentReport.professional_pattern.signature_mode), "pattern mode should be valid after archetype refactor");
+  assert.ok(mixedContentReport.professional_pattern.limitations.length >= 1, "mixed content should expose attribution limitations clearly");
+
+  const chiefGrowthOfficerSynthetic = normalizeChatGptExport([
+    {
+      id: "growth_1",
+      title: "Chief Growth Officer synthetic sample",
+      professional_category: "strategy",
+      messages: [{
+        author: "user",
+        created_at: "2026-06-01T00:00:00.000Z",
+        text: "We are optimizing funnel conversion, CAC, LTV and retention. I am aligning marketing and sales pipeline priorities and defining pricing and monetization experiments.",
+        content_origin: { value: "original_user_input" }
+      }]
+    },
+    {
+      id: "growth_2",
+      title: "Revenue execution",
+      professional_category: "negotiation",
+      messages: [{
+        author: "user",
+        created_at: "2026-06-10T00:00:00.000Z",
+        text: "I am driving acquisition and expansion revenue through partner channels, upsell and cross-sell plans with measurable KPI tracking.",
+        content_origin: { value: "original_user_input" }
+      }]
+    }
+  ]);
+  const chiefGrowthReport = buildReports(chiefGrowthOfficerSynthetic);
+  assert.ok(chiefGrowthReport.professional_pattern.primary_archetype, "growth sample should infer a primary archetype");
+  assert.ok(chiefGrowthReport.professional_pattern.observed_professional_pattern.startsWith("Evidence suggests"), "observed pattern should use conservative wording");
+  assert.ok(chiefGrowthReport.professional_pattern.typical_professional_contribution.includes("Typically"), "typical contribution should be generated");
+  assert.ok(chiefGrowthReport.professional_pattern.radar_capabilities.length <= 6, "radar capabilities are capped at 6");
+  assert.ok(chiefGrowthReport.professional_pattern.radar_capabilities.every(item => !String(item.label).includes("_")), "radar labels should not expose snake_case");
+
+  const pasqualePackReport = buildReports(packConversations);
+  assert.ok(pasqualePackReport.professional_pattern.observed_professional_pattern.startsWith("Evidence suggests"), "pasquale pack keeps conservative pattern sentence");
+  assert.ok(Array.isArray(pasqualePackReport.professional_pattern.professional_domains_observed), "pasquale pack exposes professional domains observed");
+
+  const technicalProductReport = buildReports(normalizeChatGptExport([
+    {
+      id: "tp_1",
+      title: "Technical product coordination",
+      professional_category: "product_management",
+      messages: [{
+        author: "user",
+        created_at: "2026-06-12T00:00:00.000Z",
+        text: "I prioritize roadmap requirements, coordinate release delivery and discuss API integration trade-offs with engineering.",
+        content_origin: { value: "original_user_input" }
+      }]
+    },
+    {
+      id: "tp_2",
+      title: "Databricks help request",
+      professional_category: "technology",
+      messages: [{
+        author: "user",
+        created_at: "2026-06-13T00:00:00.000Z",
+        text: "period_diff does not work on Databricks, can you help me debug the SQL?",
+        content_origin: { value: "original_user_input" }
+      }]
+    }
+  ]));
+  const tpSignals = technicalProductReport.technical_signals_observed;
+  const tpSql = tpSignals.programming_languages.find(item => item.name === "SQL");
+  const tpDatabricks = tpSignals.cloud_infrastructure.find(item => item.name === "Databricks");
+  assert.ok(tpSql && ["requested_help", "discussed", "used_directly"].includes(tpSql.exposure), "SQL should be detected with non-expert conservative exposure");
+  assert.ok(tpDatabricks && ["requested_help", "discussed"].includes(tpDatabricks.exposure), "Databricks should be detected as discussed/assisted");
+
+  const governanceComplianceReport = buildReports(normalizeChatGptExport([
+    {
+      id: "gov_1",
+      title: "GDPR and controls",
+      professional_category: "leadership",
+      messages: [{
+        author: "user",
+        created_at: "2026-06-14T00:00:00.000Z",
+        text: "I coordinate GDPR compliance, approval flows, documentation ownership and control checks across stakeholders.",
+        content_origin: { value: "original_user_input" }
+      }]
+    },
+    {
+      id: "gov_2",
+      title: "Pasted security JD",
+      professional_category: "technology",
+      messages: [{
+        author: "user",
+        created_at: "2026-06-15T00:00:00.000Z",
+        text: "Job description: Kubernetes, Cloudflare, WAF, API security and zero trust architecture expertise required.",
+        content_origin: { value: "pasted_job_description" }
+      }]
+    }
+  ]));
+  assert.ok(governanceComplianceReport.professional_pattern.observed_professional_pattern.startsWith("Evidence suggests"), "governance pattern sentence should be natural and conservative");
+  assert.ok(governanceComplianceReport.professional_pattern.typical_professional_contribution.length > 30, "governance contribution should be role-aware");
+  const govKubernetes = governanceComplianceReport.technical_signals_observed.cloud_infrastructure.find(item => item.name === "Kubernetes");
+  assert.ok(govKubernetes && govKubernetes.exposure === "third_party_context", "pasted JD tools should be marked as external context");
+
+  assert.ok(chiefGrowthReport.professional_pattern.radar_capabilities.every(item => !/_[a-z]/i.test(item.label)), "no snake_case should appear in visible radar labels");
   console.log("All tests passed.");
 }
 
