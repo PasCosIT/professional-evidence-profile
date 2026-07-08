@@ -3852,6 +3852,8 @@ if (require.main === module) {
 }
 
 module.exports = handleRequest;
+module.exports.default = handleRequest;
+module.exports.server = server;
 module.exports.APP_VERSION = APP_VERSION;
 module.exports.handleRequest = handleRequest;
 module.exports.normalizeChatGptExport = normalizeChatGptExport;

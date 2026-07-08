@@ -7,7 +7,7 @@ const PDFDocument = require("pdfkit");
 
 const PORT = process.env.PORT || 4173;
 const MAX_UPLOAD_BYTES = 40 * 1024 * 1024;
-const PUBLIC_DIR = path.join(__dirname, "public");
+const PUBLIC_DIR = path.join(process.cwd(), "public");
 const APP_VERSION = "2026-07-07-snapshot-v10";
 const sessions = new Map();
 
@@ -239,6 +239,297 @@ const skillPassportGroups = [
     ]
   }
 ];
+
+const professionalFunctions = [
+  "engineering",
+  "product",
+  "program_project_management",
+  "operations",
+  "data_analytics",
+  "sales_business_development",
+  "marketing",
+  "customer_success",
+  "finance",
+  "hr_people",
+  "legal_compliance",
+  "consulting",
+  "executive_management",
+  "other"
+];
+
+const roleArchetypes = [
+  "individual_contributor",
+  "technical_specialist",
+  "backend_developer",
+  "frontend_developer",
+  "data_analyst",
+  "data_engineer",
+  "product_owner",
+  "product_manager",
+  "project_manager",
+  "program_manager",
+  "operations_manager",
+  "consultant",
+  "senior_consultant",
+  "manager",
+  "senior_manager",
+  "functional_lead",
+  "head_of_function",
+  "director",
+  "partner",
+  "executive",
+  "hr_lead",
+  "recruiter",
+  "customer_success_manager",
+  "sales_manager",
+  "other"
+];
+
+const operatingLevels = [
+  "junior",
+  "mid_level",
+  "senior",
+  "lead",
+  "manager",
+  "senior_manager",
+  "head_of",
+  "director",
+  "executive_partner",
+  "uncertain"
+];
+
+const workModes = [
+  "individual_delivery",
+  "specialist_execution",
+  "cross_functional_coordination",
+  "people_management",
+  "strategic_leadership",
+  "advisory_consulting",
+  "operational_ownership",
+  "commercial_ownership",
+  "technical_ownership"
+];
+
+const professionalFunctionSignals = {
+  engineering: ["backend", "frontend", "developer", "api", "architettura", "architecture", "deploy", "database", "python", "javascript", "bug", "incident", "reliability", "performance"],
+  product: ["prodotto", "product", "backlog", "roadmap", "priorit", "utente", "discovery", "feature", "value proposition"],
+  program_project_management: ["program", "project", "milestone", "timeline", "dipenden", "delivery", "piano", "scope", "workstream", "coordination"],
+  operations: ["operativo", "operations", "processo", "runbook", "sop", "handover", "monitoring", "continuita"],
+  data_analytics: ["data", "dati", "analytics", "kpi", "metric", "dashboard", "dataset", "sql", "analisi"],
+  sales_business_development: ["vendita", "sales", "pipeline", "cliente", "deal", "negozia", "opportunity", "business development"],
+  marketing: ["marketing", "campaign", "funnel", "brand", "acquisition", "content strategy"],
+  customer_success: ["customer success", "adoption", "renewal", "onboarding", "retention", "nps"],
+  finance: ["budget", "forecast", "margine", "pnl", "cash flow", "finance"],
+  hr_people: ["hiring", "recruiting", "talent", "performance review", "people", "onboarding"],
+  legal_compliance: ["compliance", "regolatorio", "contratto", "privacy", "gdpr", "legal"],
+  consulting: ["consulenza", "consulting", "cliente", "raccomando", "advisory", "diagnosi", "framework"],
+  executive_management: ["board", "executive", "strategic", "portfolio", "organizzazione", "company strategy", "governance"]
+};
+
+const canonicalDimensionDisplay = {
+  decision_making: "Decision making",
+  problem_solving: "Problem solving",
+  communication: "Communication",
+  execution: "Execution",
+  leadership: "Leadership",
+  collaboration: "Collaboration",
+  planning: "Planning",
+  learning: "Learning",
+  domain_knowledge: "Domain knowledge",
+  data_reasoning: "Data reasoning",
+  risk_awareness: "Risk awareness",
+  quality_improvement: "Quality improvement"
+};
+
+const professionalArchetypes = [
+  {
+    id: "growth_revenue",
+    label: "Growth & Revenue",
+    signals: ["growth", "revenue", "pricing", "funnel", "conversion", "cac", "ltv", "arpu", "churn", "retention", "acquisition", "go to market", "sales pipeline", "partner channel", "market expansion", "monetization", "expansion revenue", "upsell", "cross sell"],
+    capability_labels: ["Growth strategy", "Revenue planning", "Funnel optimization", "Pricing strategy", "Retention strategy", "Partner growth", "Market expansion", "Experimentation", "Acquisition strategy", "Monetization strategy"],
+    preferred_radar_labels: ["Growth strategy", "Revenue thinking", "Funnel optimization", "Data reasoning", "Experimentation", "Cross-functional leadership"],
+    summary_template: "Evidence suggests a growth-oriented profile focused on revenue initiatives, funnel performance, retention, partner channels and measurable business outcomes.",
+    contribution_template: "Typically translates growth objectives into measurable revenue initiatives, aligns product, marketing and sales around funnel priorities, and uses data to improve acquisition, activation, retention and expansion."
+  },
+  {
+    id: "strategy_transformation",
+    label: "Strategy & Transformation",
+    signals: ["strategy", "transformation", "operating model", "business case", "prioritization", "roadmap", "governance", "executive alignment", "strategic initiative", "organizational change", "target operating model", "decision memo"],
+    capability_labels: ["Strategic planning", "Operating model design", "Prioritization", "Business case development", "Executive alignment", "Transformation governance", "Roadmap definition"],
+    preferred_radar_labels: ["Strategic planning", "Prioritization", "Executive alignment", "Governance", "Decision making", "Execution"],
+    summary_template: "Evidence suggests a strategy-oriented profile focused on translating business priorities into structured initiatives, operating models and executive-level decision support.",
+    contribution_template: "Typically helps convert broad strategic priorities into structured initiatives, decision materials, operating models and executable roadmaps."
+  },
+  {
+    id: "product_delivery",
+    label: "Product & Delivery",
+    signals: ["product", "roadmap", "feature", "backlog", "user journey", "requirements", "release", "mvp", "customer experience", "delivery", "sprint", "stakeholder", "product discovery", "go live", "adoption"],
+    capability_labels: ["Product strategy", "Roadmap management", "Requirements definition", "Customer journey improvement", "Delivery coordination", "Stakeholder management", "Product discovery", "Release planning"],
+    preferred_radar_labels: ["Product strategy", "Delivery coordination", "Requirements definition", "Customer journey", "Stakeholder management", "Execution"],
+    summary_template: "Evidence suggests a product and delivery profile focused on turning user needs, business priorities and technical constraints into coordinated execution.",
+    contribution_template: "Typically turns product and business priorities into clearer requirements, coordinated delivery actions and improved customer or partner workflows."
+  },
+  {
+    id: "technology_architecture",
+    label: "Technology & Architecture",
+    signals: ["api", "architecture", "integration", "cloud", "aws", "azure", "gcp", "database", "sql", "backend", "frontend", "security", "infrastructure", "databricks", "cloudflare", "ci/cd", "kubernetes", "microservices", "authentication", "webhook", "rest", "graphql", "event-driven"],
+    capability_labels: ["Technical architecture", "API integration", "Cloud infrastructure", "Security awareness", "System design", "Technical problem solving", "Data platform understanding", "Integration design", "Platform delivery"],
+    preferred_radar_labels: ["System design", "API integration", "Cloud infrastructure", "Security awareness", "Technical problem solving", "Platform delivery"],
+    summary_template: "Evidence suggests a technology-oriented profile focused on integrations, platforms, cloud systems, security considerations and technical delivery.",
+    contribution_template: "Typically connects technical systems, integration needs and operational constraints to support reliable delivery and better platform outcomes."
+  },
+  {
+    id: "data_analytics",
+    label: "Data & Analytics",
+    signals: ["data", "dashboard", "kpi", "bi", "sql", "analytics", "reporting", "metric", "cohort", "forecast", "model", "attribution", "data quality", "data warehouse", "etl", "pipeline", "segmentation"],
+    capability_labels: ["Data reasoning", "KPI design", "Reporting governance", "Dashboard design", "Metric interpretation", "Data quality improvement", "Analytics translation", "Data pipeline understanding"],
+    preferred_radar_labels: ["Data reasoning", "KPI design", "Reporting governance", "Metric interpretation", "Data quality", "Decision support"],
+    summary_template: "Evidence suggests a data-oriented profile focused on metrics, reporting, KPI interpretation and evidence-based decision support.",
+    contribution_template: "Typically translates metrics and reporting into decision support, KPI interpretation and structured data-informed prioritization."
+  },
+  {
+    id: "operations_execution",
+    label: "Operations & Execution",
+    signals: ["process", "workflow", "operations", "sla", "handover", "incident", "runbook", "coordination", "delivery plan", "dependency", "timeline", "issue tracking", "blocker", "escalation", "process improvement"],
+    capability_labels: ["Operational execution", "Process improvement", "Dependency management", "Issue resolution", "Workflow coordination", "Execution discipline", "Escalation management"],
+    preferred_radar_labels: ["Operational execution", "Process improvement", "Dependency management", "Issue resolution", "Workflow coordination", "Execution"],
+    summary_template: "Evidence suggests an operations-oriented profile focused on coordinating workflows, resolving blockers and improving execution reliability.",
+    contribution_template: "Typically coordinates workflows, dependencies and escalation paths to improve delivery reliability and reduce execution blockers."
+  },
+  {
+    id: "risk_compliance_governance",
+    label: "Risk, Compliance & Governance",
+    signals: ["risk", "compliance", "privacy", "security", "audit", "regulation", "governance", "policy", "control", "insurance", "legal review", "documentation", "dora", "gdpr", "incident response", "approval flow"],
+    capability_labels: ["Risk awareness", "Compliance coordination", "Governance design", "Documentation ownership", "Control management", "Regulatory awareness", "Security coordination"],
+    preferred_radar_labels: ["Risk awareness", "Governance", "Compliance coordination", "Documentation", "Control management", "Stakeholder alignment"],
+    summary_template: "Evidence suggests a governance-oriented profile focused on risk awareness, compliance coordination, documentation and control of regulated activities.",
+    contribution_template: "Typically helps structure responsibilities, documentation, controls and coordination mechanisms across regulated or risk-sensitive activities."
+  },
+  {
+    id: "people_leadership",
+    label: "People & Leadership",
+    signals: ["team", "hiring", "interview", "candidate", "feedback", "performance", "leadership", "alignment", "delegation", "coaching", "meeting", "stakeholder", "cross-functional", "one-to-one", "team structure"],
+    capability_labels: ["Team leadership", "Hiring support", "Stakeholder alignment", "Meeting facilitation", "Feedback management", "Cross-functional coordination", "Team structuring"],
+    preferred_radar_labels: ["Team leadership", "Stakeholder alignment", "Cross-functional coordination", "Feedback management", "Meeting facilitation", "Execution"],
+    summary_template: "Evidence suggests a leadership-oriented profile focused on aligning people, coordinating teams, supporting hiring and enabling cross-functional execution.",
+    contribution_template: "Typically aligns teams, clarifies responsibilities and supports cross-functional execution through communication, coordination and feedback loops."
+  },
+  {
+    id: "sales_partnerships",
+    label: "Sales & Partnerships",
+    signals: ["partner", "client", "commercial", "contract", "renewal", "proposal", "negotiation", "account", "pipeline", "deal", "revenue share", "commission", "pricing", "sales", "account plan", "business development"],
+    capability_labels: ["Partner management", "Commercial negotiation", "Client communication", "Renewal strategy", "Proposal development", "Revenue-share modeling", "Account growth", "Business development"],
+    preferred_radar_labels: ["Partner management", "Commercial negotiation", "Client communication", "Renewal strategy", "Proposal development", "Revenue thinking"],
+    summary_template: "Evidence suggests a commercial profile focused on partner management, client communication, renewals, proposals and revenue-related decisions.",
+    contribution_template: "Typically supports partner-facing initiatives by clarifying commercial terms, coordinating stakeholders and translating business opportunities into actionable plans."
+  },
+  {
+    id: "communication_stakeholder",
+    label: "Communication & Stakeholder Management",
+    signals: ["email", "message", "presentation", "deck", "follow-up", "alignment", "stakeholder", "update", "executive summary", "meeting note", "communication", "narrative", "framing", "briefing"],
+    capability_labels: ["Professional communication", "Executive synthesis", "Stakeholder management", "Presentation refinement", "Follow-up discipline", "Message framing", "Narrative building"],
+    preferred_radar_labels: ["Professional communication", "Executive synthesis", "Stakeholder management", "Message framing", "Follow-up discipline", "Alignment"],
+    summary_template: "Evidence suggests a communication-oriented profile focused on clarifying messages, aligning stakeholders and translating work into structured professional updates.",
+    contribution_template: "Typically improves professional communication by clarifying messages, structuring updates, refining presentations and aligning stakeholders around next steps."
+  }
+];
+
+const archetypeSignals = {
+  individual_contributor: ["implemento", "eseguo", "delivery personale", "mi occupo direttamente"],
+  technical_specialist: ["specialist", "specialista", "deep dive", "expertise tecnica"],
+  backend_developer: ["backend", "api", "service", "microserv", "database", "python", "node"],
+  frontend_developer: ["frontend", "ui", "ux", "react", "css", "component"],
+  data_analyst: ["dashboard", "reporting", "analisi dati", "kpi", "sql"],
+  data_engineer: ["etl", "pipeline", "data model", "warehouse", "orchestrazione"],
+  product_owner: ["product owner", "backlog", "user story", "acceptance criteria", "prioritizzazione"],
+  product_manager: ["product manager", "roadmap", "go to market", "discovery", "value"],
+  project_manager: ["project manager", "timeline", "milestone", "piano progetto", "rischio progetto"],
+  program_manager: ["program manager", "workstream", "cross-functional", "governance programma"],
+  operations_manager: ["operations manager", "operazioni", "process governance", "service continuity"],
+  consultant: ["consulente", "consulenza", "raccomando", "assessment"],
+  senior_consultant: ["advisory", "cliente executive", "trasformazione", "framework decisionale"],
+  manager: ["gestisco team", "people management", "1:1", "obiettivi del team"],
+  senior_manager: ["piu team", "manager dei manager", "portfolio", "org-wide"],
+  functional_lead: ["functional lead", "guido la funzione", "standard della funzione"],
+  head_of_function: ["head of", "funzione", "capability building", "ownership funzione"],
+  director: ["director", "direzione", "strategic planning", "executive stakeholder"],
+  partner: ["partner", "practice", "commercial strategy", "account growth"],
+  executive: ["executive", "board", "company-level", "strategic leadership"],
+  hr_lead: ["hr", "people strategy", "talent strategy", "org design"],
+  recruiter: ["recruiter", "candidate", "sourcing", "interview pipeline"],
+  customer_success_manager: ["customer success", "onboarding", "renewal", "adoption"],
+  sales_manager: ["sales manager", "sales team", "pipeline", "quota"]
+};
+
+const workModeSignals = {
+  individual_delivery: ["eseguo", "delivery personale", "implemento", "produco"],
+  specialist_execution: ["specialista", "expertise", "deep dive", "focus tecnico"],
+  cross_functional_coordination: ["cross-functional", "allineo stakeholder", "coordino team", "dipendenze"],
+  people_management: ["people management", "1:1", "gestione persone", "performance review"],
+  strategic_leadership: ["strategia", "strategic", "portfolio", "company direction", "governance"],
+  advisory_consulting: ["consulenza", "advisory", "raccomando", "diagnosi"],
+  operational_ownership: ["operativo", "operations", "ownership operativo", "continuita"],
+  commercial_ownership: ["sales", "revenue", "commercial", "negoziazione", "deal"],
+  technical_ownership: ["ownership tecnica", "architecture decision", "reliability", "incident", "api design"]
+};
+
+const operatingLevelSignals = {
+  junior: {
+    support: ["con supporto", "aiutami", "non sono sicuro", "sto imparando", "entry level"],
+    counter: ["decido autonomamente", "guido", "ownership"]
+  },
+  mid_level: {
+    support: ["implemento", "gestisco task", "consegno", "eseguo in autonomia"],
+    counter: ["guido strategia", "gestisco team", "board"]
+  },
+  senior: {
+    support: ["trade-off", "ownership", "decido", "autonomia", "prioritizzo", "mentoring"],
+    counter: ["non posso decidere", "aspetto conferma su tutto"]
+  },
+  lead: {
+    support: ["coordino", "allineo team", "cross-functional", "guido iniziativa", "governance"],
+    counter: ["solo task individuali", "nessun coordinamento"]
+  },
+  manager: {
+    support: ["people management", "1:1", "gestisco team", "obiettivi del team", "hiring"],
+    counter: ["nessuna responsabilita persone"]
+  },
+  senior_manager: {
+    support: ["piu team", "manager dei manager", "portfolio", "org-wide execution"],
+    counter: ["solo contributo individuale"]
+  },
+  head_of: {
+    support: ["head of", "guida funzione", "ownership funzione", "functional strategy"],
+    counter: ["scope limitato al singolo task"]
+  },
+  director: {
+    support: ["director", "strategic planning", "executive stakeholder", "budget ownership"],
+    counter: ["solo execution operativa"]
+  },
+  executive_partner: {
+    support: ["board", "company strategy", "enterprise", "partner", "p&l", "org design"],
+    counter: ["scope solo operativo"]
+  }
+};
+
+const roleSpecificCapabilityTemplates = {
+  product_owner: [
+    { label: "Product ownership", canonical_dimension: "execution", support: ["product ownership", "ownership prodotto", "own product"], counter: ["non posso decidere prodotto"] },
+    { label: "Roadmap and backlog management", canonical_dimension: "planning", support: ["roadmap", "backlog", "user story", "priorit"], counter: ["senza backlog", "no piano"] },
+    { label: "Stakeholder alignment", canonical_dimension: "collaboration", support: ["stakeholder", "allineo", "cross-functional", "allineamento"], counter: ["non coinvolgo stakeholder", "alignment mancante"] },
+    { label: "Delivery coordination", canonical_dimension: "execution", support: ["delivery", "milestone", "dipendenze", "coordino"], counter: ["delivery bloccata", "nessun coordinamento"] },
+    { label: "Data-informed prioritization", canonical_dimension: "data_reasoning", support: ["kpi", "metric", "data", "priorit"], counter: ["senza dati", "priorita non supportata"] }
+  ],
+  backend_developer: [
+    { label: "Python backend expertise", canonical_dimension: "domain_knowledge", support: ["python", "backend", "service", "django", "fastapi"], counter: ["bassa confidenza tecnica", "serve specialista"] },
+    { label: "API and service design", canonical_dimension: "execution", support: ["api", "endpoint", "payload", "service design", "schema"], counter: ["non definisco api"] },
+    { label: "Performance diagnosis", canonical_dimension: "problem_solving", support: ["performance", "latency", "profiling", "ottimizz", "bottleneck"], counter: ["non so diagnosticare"] },
+    { label: "Reliability engineering", canonical_dimension: "risk_awareness", support: ["reliability", "retry", "fallback", "monitoring", "uptime"], counter: ["nessun monitoraggio", "nessuna mitigazione"] },
+    { label: "Incident resolution", canonical_dimension: "problem_solving", support: ["incident", "root cause", "rollback", "fix", "postmortem"], counter: ["incident non risolto"] },
+    { label: "Independent technical execution", canonical_dimension: "execution", support: ["implemento", "decido", "ownership tecnica", "autonomia"], counter: ["aspetto sempre conferma", "non posso decidere"] },
+    { label: "Collaboration and communication", canonical_dimension: "communication", support: ["allineo", "comunico", "stakeholder", "handover"], counter: ["lavoro da solo", "non collaboro", "messaggio non chiaro"] }
+  ]
+};
 
 function sanitizeProfileName(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 120);
@@ -1178,6 +1469,748 @@ function buildTechnologyReasoning(normalized, insights, publicOnly = false) {
   };
 }
 
+function identityEvidenceId(layer, key, message, conversation) {
+  return `identity:${layer}:${key}:${conversation.id}:${message.id}`;
+}
+
+function collectAttributableUserMessages(normalized) {
+  return normalized.flatMap(conversation =>
+    conversation.messages
+      .filter(message => message.author === "user")
+      .map(message => ({
+        ...message,
+        conversation,
+        lower: String(message.text || "").toLowerCase(),
+        attributable: canCreateCapabilityClaim(message)
+      }))
+  );
+}
+
+function scoreTaxonomy(messages, taxonomy, signalsMap, layer) {
+  const rows = taxonomy.map(key => {
+    const terms = signalsMap[key] || [];
+    let score = 0;
+    const evidence = [];
+    const conversations = new Set();
+    for (const message of messages) {
+      const matched = matchedTerms(message.lower, terms);
+      if (!matched.length || !message.attributable) continue;
+      const increment = Math.max(1, matched.length * sourceWeight(message));
+      score += increment;
+      conversations.add(message.conversation.id);
+      evidence.push({
+        id: identityEvidenceId(layer, key, message, message.conversation),
+        conversation_id: message.conversation.id,
+        date: message.created_at || message.conversation.created_at,
+        matched_terms: matched.slice(0, 6),
+        excerpt: message.text.slice(0, 220)
+      });
+    }
+    return {
+      key,
+      score,
+      evidence,
+      conversation_count: conversations.size
+    };
+  });
+  return rows.sort((a, b) => b.score - a.score || b.conversation_count - a.conversation_count);
+}
+
+function inferOperatingLevel(messages) {
+  const titleOnlyTerms = new Set(["junior", "senior", "lead", "manager", "senior manager", "head of", "director", "executive", "partner"]);
+  const scopeAutonomySignals = [
+    "ownership", "autonomia", "decido", "trade-off", "coordino", "cross-functional", "strategic", "portfolio", "people management", "1:1", "board", "budget"
+  ];
+  const rows = operatingLevels
+    .filter(level => level !== "uncertain")
+    .map(level => {
+      const profile = operatingLevelSignals[level] || { support: [], counter: [] };
+      let support = 0;
+      let counter = 0;
+      const supportEvidence = [];
+      const counterEvidence = [];
+      const conversations = new Set();
+      for (const message of messages) {
+        const supportTerms = matchedTerms(message.lower, profile.support || []);
+        const counterTerms = matchedTerms(message.lower, profile.counter || []);
+        const hasScopeSignal = matchedTerms(message.lower, scopeAutonomySignals).length > 0;
+        const titleOnlyMatch = supportTerms.length > 0 && supportTerms.every(term => titleOnlyTerms.has(String(term || "").toLowerCase()));
+        if (supportTerms.length && message.attributable && !(titleOnlyMatch && !hasScopeSignal)) {
+          support += Math.max(1, supportTerms.length * sourceWeight(message));
+          conversations.add(message.conversation.id);
+          supportEvidence.push(identityEvidenceId("level_support", level, message, message.conversation));
+        }
+        if (counterTerms.length && message.attributable) {
+          counter += Math.max(1, counterTerms.length * 0.8);
+          counterEvidence.push(identityEvidenceId("level_counter", level, message, message.conversation));
+        }
+      }
+      return {
+        level,
+        score: Math.max(0, support - counter * 0.8),
+        support,
+        counter,
+        support_evidence_ids: supportEvidence,
+        counter_evidence_ids: counterEvidence,
+        conversation_count: conversations.size
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.conversation_count - a.conversation_count);
+
+  const top = rows[0] || null;
+  const second = rows[1] || null;
+  if (!top || top.score < 2 || top.conversation_count < 1) {
+    return {
+      operating_level: "uncertain",
+      confidence: "low",
+      supporting_evidence_ids: [],
+      limitations: ["Insufficient evidence on scope, autonomy and ownership to infer operating level."]
+    };
+  }
+
+  const dominance = top.score - (second ? second.score : 0);
+  const confidence = top.score >= 6 && dominance >= 2 && top.conversation_count >= 2
+    ? "high"
+    : top.score >= 3
+      ? "medium"
+      : "low";
+  return {
+    operating_level: top.level,
+    confidence,
+    supporting_evidence_ids: top.support_evidence_ids.slice(0, 10),
+    limitations: top.counter ? ["Counter-evidence indicates potential limits on demonstrated scope or autonomy."] : []
+  };
+}
+
+function mapPrimaryRoleTemplate(identity, messages) {
+  const text = messages.map(message => message.lower).join("\n");
+  if (identity.observed_archetype === "product_owner" || identity.observed_archetype === "product_manager") return "product_owner";
+  if (identity.observed_archetype === "backend_developer") return "backend_developer";
+  if (identity.primary_function === "engineering" && /\bpython\b/.test(text)) return "backend_developer";
+  if (identity.primary_function === "product") return "product_owner";
+  return identity.primary_function === "engineering" ? "backend_developer" : "product_owner";
+}
+
+function roleSpecificStatus(weightedPositive, positiveCount, counterCount) {
+  if (!positiveCount) return "insufficient_evidence";
+  const net = Math.max(0, weightedPositive - counterCount * 0.8);
+  if (net >= 8 && positiveCount >= 3) return "strongly_supported";
+  if (net >= 5 && positiveCount >= 2) return "recurring";
+  if (net >= 2.5) return "observed";
+  return "emerging";
+}
+
+function buildRoleSpecificCapabilities(normalized, professionalIdentity) {
+  const messages = collectAttributableUserMessages(normalized);
+  const templateKey = mapPrimaryRoleTemplate(professionalIdentity, messages);
+  const templates = roleSpecificCapabilityTemplates[templateKey] || [];
+  return templates.map(template => {
+    let weightedPositive = 0;
+    const positiveEvidence = [];
+    const counterEvidence = [];
+    const conversations = new Set();
+    for (const message of messages) {
+      const supportTerms = matchedTerms(message.lower, template.support || []);
+      const counterTerms = matchedTerms(message.lower, template.counter || []);
+      if (supportTerms.length && message.attributable) {
+        weightedPositive += Math.max(1, supportTerms.length * sourceWeight(message));
+        conversations.add(message.conversation.id);
+        positiveEvidence.push(identityEvidenceId("role_capability", template.label.toLowerCase().replace(/[^a-z0-9]+/g, "_"), message, message.conversation));
+      }
+      if (counterTerms.length && message.attributable) {
+        counterEvidence.push(identityEvidenceId("role_capability_counter", template.label.toLowerCase().replace(/[^a-z0-9]+/g, "_"), message, message.conversation));
+      }
+    }
+    const coverage = evidenceCoverageScore(weightedPositive + counterEvidence.length, conversations.size);
+    return {
+      label: template.label,
+      canonical_dimension: template.canonical_dimension,
+      evidence_status: roleSpecificStatus(weightedPositive, positiveEvidence.length, counterEvidence.length),
+      coverage,
+      supporting_evidence_ids: positiveEvidence.slice(0, 10),
+      counter_evidence_ids: counterEvidence.slice(0, 8)
+    };
+  });
+}
+
+function domainToFunction(domain) {
+  const map = {
+    strategy: "product",
+    project_management: "program_project_management",
+    product_management: "product",
+    technology: "engineering",
+    programming: "engineering",
+    data_analytics: "data_analytics",
+    professional_communication: "consulting",
+    leadership: "executive_management",
+    recruiting: "hr_people",
+    negotiation: "sales_business_development",
+    execution: "operations",
+    learning: "consulting",
+    other: "other",
+    uncategorized: "other"
+  };
+  return map[domain] || "other";
+}
+
+function recencyWeightForDate(dateIso, latestIso) {
+  if (!dateIso || !latestIso) return 0.72;
+  const date = new Date(dateIso);
+  const latest = new Date(latestIso);
+  if (Number.isNaN(date.getTime()) || Number.isNaN(latest.getTime())) return 0.72;
+  const days = Math.max(0, Math.round((latest - date) / (1000 * 60 * 60 * 24)));
+  if (days <= 30) return 1;
+  if (days <= 90) return 0.9;
+  if (days <= 180) return 0.8;
+  return 0.68;
+}
+
+function sourcePenaltyWeight(source) {
+  if (source === "original_user_input") return 1;
+  if (source === "mixed_content") return 0.65;
+  if (source === "unknown") return 0.45;
+  if (source === "pasted_email" || source === "pasted_code") return 0.35;
+  if (source === "pasted_external_document" || source === "pasted_job_description") return 0.2;
+  if (source === "ai_generated_text") return 0.1;
+  return 0.35;
+}
+
+function buildDomainWeighting(normalized, temporalMaturity) {
+  const period = dateRange(normalized);
+  const latestIso = period.last;
+  const rows = new Map();
+
+  const ensure = domain => {
+    const key = domain || "other";
+    if (!rows.has(key)) {
+      rows.set(key, {
+        domain: key,
+        weighted_raw: 0,
+        supporting_evidence_items: 0,
+        direct_user_items: 0,
+        attributable_items: 0,
+        distinct_conversations: new Set(),
+        evidence_ids: [],
+        source_counts: {
+          original_user_input: 0,
+          mixed_content: 0,
+          unknown: 0,
+          pasted_content: 0,
+          ai_generated_text: 0,
+          external_content: 0
+        },
+        confidence_sum: 0,
+        confidence_count: 0,
+        recency_sum: 0,
+        recency_count: 0,
+        dimensions: new Set()
+      });
+    }
+    return rows.get(key);
+  };
+
+  for (const conversation of normalized) {
+    ensure(conversation.professional_category || "other");
+    const userMessages = (conversation.messages || []).filter(message => message.author === "user");
+    for (const message of userMessages) {
+      const domain = conversation.professional_category || "other";
+      const row = ensure(domain);
+      const source = sourceValue(message);
+      const sourcePenalty = sourcePenaltyWeight(source);
+      const recency = recencyWeightForDate(message.created_at || conversation.created_at || conversation.updated_at, latestIso);
+      const confidence = Number(conversation.confidence || 0.62);
+      const weighted = Math.max(0.05, sourcePenalty * recency * confidence);
+
+      row.weighted_raw += weighted;
+      row.distinct_conversations.add(conversation.id);
+      row.evidence_ids.push(identityEvidenceId("domain", domain, message, conversation));
+      row.confidence_sum += confidence;
+      row.confidence_count += 1;
+      row.recency_sum += recency;
+      row.recency_count += 1;
+
+      if (canCreateCapabilityClaim(message)) {
+        row.supporting_evidence_items += 1;
+        row.attributable_items += 1;
+      }
+      if (source === "original_user_input") row.direct_user_items += 1;
+
+      if (source === "original_user_input") row.source_counts.original_user_input += 1;
+      else if (source === "mixed_content") row.source_counts.mixed_content += 1;
+      else if (source === "ai_generated_text") row.source_counts.ai_generated_text += 1;
+      else if (source === "pasted_external_document" || source === "pasted_job_description") row.source_counts.external_content += 1;
+      else if (source === "pasted_email" || source === "pasted_code") row.source_counts.pasted_content += 1;
+      else row.source_counts.unknown += 1;
+    }
+  }
+
+  const canonicalDimensions = (temporalMaturity && temporalMaturity.dimensions || [])
+    .filter(dimension => dimension.derivation === "canonical_ontology_dimension");
+  for (const dimension of canonicalDimensions) {
+    for (const evidence of dimension.supporting_evidence || []) {
+      const conversation = normalized.find(item => item.id === evidence.conversation_id);
+      if (!conversation) continue;
+      const domain = conversation.professional_category || "other";
+      ensure(domain).dimensions.add(dimension.canonical_dimension || dimension.id);
+    }
+  }
+
+  const packed = Array.from(rows.values()).map(row => {
+    const conversationCount = row.distinct_conversations.size;
+    const diversity = row.dimensions.size;
+    const recurrenceBoost = conversationCount >= 4 ? 1.22 : conversationCount >= 3 ? 1.14 : conversationCount >= 2 ? 1.05 : 0.86;
+    const diversityBoost = 1 + Math.min(0.24, Math.max(0, diversity - 1) * 0.06);
+    const totalSources = Object.values(row.source_counts).reduce((sum, value) => sum + value, 0) || 1;
+    const externalRatio = (row.source_counts.external_content + row.source_counts.ai_generated_text + row.source_counts.pasted_content) / totalSources;
+    const isolatedPenalty = conversationCount < 2 ? 0.18 : 0;
+    const attributionPenalty = Math.min(0.42, externalRatio * 0.5 + isolatedPenalty);
+    const weighted_score = row.weighted_raw * recurrenceBoost * diversityBoost * (1 - attributionPenalty);
+    return {
+      domain: row.domain,
+      weighted_score,
+      weighted_raw: row.weighted_raw,
+      supporting_evidence_items: row.supporting_evidence_items,
+      distinct_conversations: conversationCount,
+      direct_user_items: row.direct_user_items,
+      attributable_items: row.attributable_items,
+      average_confidence: row.confidence_count ? row.confidence_sum / row.confidence_count : 0,
+      average_recency: row.recency_count ? row.recency_sum / row.recency_count : 0,
+      diversity_count: diversity,
+      recurrence_factor: recurrenceBoost,
+      attribution_penalty: attributionPenalty,
+      source_counts: row.source_counts,
+      evidence_ids: Array.from(new Set(row.evidence_ids)).slice(0, 20)
+    };
+  }).sort((a, b) => b.weighted_score - a.weighted_score);
+
+  const totalWeighted = packed.reduce((sum, item) => sum + item.weighted_score, 0) || 1;
+  const enriched = packed.map(item => {
+    const weighted_share = item.weighted_score / totalWeighted;
+    const passes_threshold =
+      item.supporting_evidence_items >= 3 &&
+      item.distinct_conversations >= 2 &&
+      item.direct_user_items >= 2 &&
+      weighted_share >= 0.25;
+    return {
+      ...item,
+      weighted_share,
+      passes_threshold
+    };
+  });
+
+  return {
+    total_weighted_evidence: totalWeighted,
+    domains: enriched,
+    dominant_domain: enriched[0] || null,
+    secondary_domains: enriched.slice(1, 4)
+  };
+}
+
+function humanReadableCapability(label) {
+  const clean = String(label || "").trim();
+  if (!clean) return "";
+  const normalized = clean.toLowerCase().replace(/\s+/g, "_");
+  if (canonicalDimensionDisplay[normalized]) return canonicalDimensionDisplay[normalized];
+  if (canonicalDimensionDisplay[clean]) return canonicalDimensionDisplay[clean];
+  return clean
+    .replace(/[_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .map(token => token ? token.charAt(0).toUpperCase() + token.slice(1) : token)
+    .join(" ");
+}
+
+function shortCapabilityLabel(label) {
+  const map = {
+    "Strategic planning": "Strategy",
+    Prioritization: "Prioritization",
+    "Cross-functional coordination": "Cross-functional coordination",
+    "Product strategy": "Product delivery",
+    "Operational execution": "Growth execution",
+    "Data reasoning": "Data reasoning",
+    "Partner management": "Partner management",
+    "Revenue planning": "Revenue planning",
+    "Funnel optimization": "Funnel optimization",
+    "Retention strategy": "Retention",
+    "Risk awareness": "Risk governance",
+    "API integration": "Technical integration",
+    "System design": "System design",
+    "Governance design": "Risk governance"
+  };
+  return map[label] || label;
+}
+
+function archetypeCategoryBoost(archetypeId, category) {
+  const map = {
+    growth_revenue: ["strategy", "negotiation", "marketing", "sales_business_development"],
+    strategy_transformation: ["strategy", "project_management", "leadership"],
+    product_delivery: ["product_management", "project_management", "execution"],
+    technology_architecture: ["technology", "programming"],
+    data_analytics: ["data_analytics"],
+    operations_execution: ["execution", "operations", "project_management"],
+    risk_compliance_governance: ["leadership", "professional_communication", "legal_compliance"],
+    people_leadership: ["leadership", "recruiting", "professional_communication"],
+    sales_partnerships: ["negotiation", "sales_business_development", "professional_communication"],
+    communication_stakeholder: ["professional_communication", "leadership", "project_management"]
+  };
+  return (map[archetypeId] || []).includes(category) ? 0.8 : 0;
+}
+
+function combineArchetypePattern(primary, secondaries) {
+  if (!primary) return "Evidence suggests a mixed professional profile with limited attributable evidence for a stable archetype pattern.";
+  if (!secondaries.length) return primary.summary_template;
+  const secondaryLabels = secondaries.map(item => item.label.toLowerCase().replace(/\s*&\s*/g, " and "));
+  return `Evidence suggests a ${primary.label.toLowerCase().replace(/\s*&\s*/g, " and ")} profile with meaningful exposure to ${joinHuman(secondaryLabels)}, supported by recurring attributable evidence.`;
+}
+
+function combineContribution(primary, secondaries) {
+  if (!primary) return "Typically translates professional priorities into clearer actions and stakeholder-aligned execution when enough attributable evidence is available.";
+  if (!secondaries.length) return primary.contribution_template;
+  const secondaryText = secondaries.map(item => item.label.toLowerCase().replace(/\s*&\s*/g, " and ")).slice(0, 2).join(" and ");
+  return `${primary.contribution_template} The profile also shows practical contribution across ${secondaryText}.`;
+}
+
+function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, secondaryArchetypes) {
+  const supported = new Map();
+  const canonical = (temporalMaturity && temporalMaturity.dimensions || [])
+    .filter(dimension => dimension.derivation === "canonical_ontology_dimension")
+    .filter(dimension => !["insufficient_evidence", "counter_evidence_only"].includes(dimension.status));
+  for (const dimension of canonical) {
+    const label = humanReadableCapability(canonicalDimensionDisplay[dimension.canonical_dimension || dimension.id] || dimension.label || dimension.id);
+    supported.set(label, {
+      label,
+      short_label: shortCapabilityLabel(label),
+      canonical_dimension: dimension.canonical_dimension || dimension.id,
+      coverage: Number(dimension.evidence_coverage || 0),
+      strength: Number(dimension.capability_score || dimension.evidence_coverage || 0),
+      confidence: dimension.confidence || "medium",
+      level: dimension.status || "observed",
+      score: Number(dimension.evidence_coverage || 0),
+      sources: ["canonical"]
+    });
+  }
+
+  const messageStream = collectAttributableUserMessages(normalized);
+  const selectedArchetypes = [primaryArchetype].concat(secondaryArchetypes).filter(Boolean);
+  for (const archetype of selectedArchetypes) {
+    for (const capability of archetype.capability_labels) {
+      const label = humanReadableCapability(capability);
+      const previous = supported.get(label) || {
+        label,
+        short_label: shortCapabilityLabel(label),
+        canonical_dimension: null,
+        coverage: 0,
+        strength: 0,
+        confidence: "medium",
+        level: "observed",
+        score: 0,
+        sources: []
+      };
+      const relatedTerms = archetype.signals.slice(0, 16);
+      let termHits = 0;
+      let directHits = 0;
+      for (const message of messageStream) {
+        const lower = String(message.lower || "");
+        const hits = relatedTerms.filter(term => lower.includes(String(term).toLowerCase())).length;
+        if (!hits) continue;
+        termHits += hits;
+        if (sourceValue(message) === "original_user_input") directHits += hits;
+      }
+      const evidenceScore = Math.min(100, Math.round(previous.score + termHits * 6 + directHits * 3 + (archetype.preferred_radar_labels.includes(capability) ? 16 : 8)));
+      const coverage = Math.max(previous.coverage, Math.min(100, Math.round((termHits * 8) + (directHits * 6))));
+      const confidence = directHits >= 4 ? "high" : directHits >= 2 ? "medium" : "low";
+      const level = evidenceScore >= 75 ? "strongly_supported" : evidenceScore >= 55 ? "recurring" : "observed";
+      supported.set(label, {
+        ...previous,
+        short_label: shortCapabilityLabel(label),
+        coverage,
+        strength: Math.max(previous.strength, evidenceScore),
+        confidence: previous.confidence === "high" ? "high" : confidence,
+        level,
+        score: Math.max(previous.score, evidenceScore),
+        sources: Array.from(new Set(previous.sources.concat(["archetype"])))
+      });
+    }
+  }
+
+  const ranked = Array.from(supported.values())
+    .filter(item => item.label && !/_/.test(item.label))
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 6)
+    .map(item => ({
+      label: item.label,
+      short_label: item.short_label,
+      canonical_dimension: item.canonical_dimension,
+      coverage: Math.max(35, Math.min(100, Number(item.coverage || 0))),
+      strength: Math.max(35, Math.min(100, Number(item.strength || 0))),
+      confidence: item.confidence,
+      level: item.level
+    }));
+  return ranked;
+}
+
+function buildProfessionalPattern(normalized, temporalMaturity, language = "en") {
+  const domainWeighting = buildDomainWeighting(normalized, temporalMaturity);
+  const dominant = domainWeighting.dominant_domain;
+  const secondaryDomains = domainWeighting.secondary_domains;
+  const messages = collectAttributableUserMessages(normalized);
+
+  const scores = professionalArchetypes.map(archetype => {
+    let weightedScore = 0;
+    let attributableHits = 0;
+    let directHits = 0;
+    const evidenceIds = [];
+    for (const message of messages) {
+      const lower = String(message.lower || "");
+      const hits = archetype.signals.filter(signal => lower.includes(String(signal).toLowerCase())).length;
+      if (!hits) continue;
+      const weight = sourceWeight(message);
+      weightedScore += Math.max(0.35, hits * weight);
+      if (canCreateCapabilityClaim(message)) attributableHits += hits;
+      if (sourceValue(message) === "original_user_input") directHits += hits;
+      evidenceIds.push(identityEvidenceId("archetype", archetype.id, message, message.conversation));
+    }
+    for (const conversation of normalized) {
+      weightedScore += archetypeCategoryBoost(archetype.id, conversation.professional_category || "other");
+    }
+    return {
+      ...archetype,
+      weighted_score: weightedScore,
+      attributable_hits: attributableHits,
+      direct_hits: directHits,
+      evidence_ids: Array.from(new Set(evidenceIds)).slice(0, 18)
+    };
+  }).sort((a, b) => b.weighted_score - a.weighted_score);
+
+  const top = scores[0];
+  const primaryArchetype = top && top.weighted_score >= 2 ? top : null;
+  const secondaryArchetypes = scores
+    .slice(1)
+    .filter(item => primaryArchetype && item.weighted_score >= Math.max(1.4, primaryArchetype.weighted_score * 0.38))
+    .slice(0, 3);
+
+  const radarCapabilities = buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, secondaryArchetypes);
+  const observedPattern = combineArchetypePattern(primaryArchetype, secondaryArchetypes);
+  const typicalContribution = combineContribution(primaryArchetype, secondaryArchetypes);
+
+  const limitations = [];
+  if (!dominant || !dominant.passes_threshold) limitations.push("Dominant domain does not pass minimum evidence thresholds for a strong role label.");
+  if (!primaryArchetype) limitations.push("Archetype inference remains conservative because attributable evidence is limited or mixed.");
+  if (dominant && dominant.attribution_penalty > 0.22) limitations.push("Attribution penalties are material due to pasted, AI-generated or isolated evidence.");
+  if (dominant && dominant.weighted_share < 0.35) limitations.push("Evidence is mixed across domains, so signature remains intentionally neutral.");
+
+  return {
+    hierarchy: ["evidence_item", "observed_activity", "capability", "domain", "professional_signature"],
+    signature_text: observedPattern,
+    signature_mode: primaryArchetype ? "archetype_driven" : "insufficient_evidence",
+    dominant_domain: dominant ? dominant.domain : "uncertain",
+    secondary_domains: secondaryDomains.map(item => item.domain),
+    dominant_domain_share: dominant ? Number(dominant.weighted_share.toFixed(4)) : 0,
+    main_capabilities: radarCapabilities.map(item => item.label),
+    attribution_note: "Attribution measures how directly evidence comes from user-authored messages versus pasted, AI-generated or external content.",
+    thresholds: {
+      min_supporting_evidence_items: 3,
+      min_distinct_conversations: 2,
+      min_direct_user_items: 2,
+      min_weighted_share: 0.25
+    },
+    domain_scores: domainWeighting.domains.map(item => ({
+      domain: item.domain,
+      weighted_score: Number(item.weighted_score.toFixed(4)),
+      weighted_share: Number(item.weighted_share.toFixed(4)),
+      supporting_evidence_items: item.supporting_evidence_items,
+      distinct_conversations: item.distinct_conversations,
+      direct_user_items: item.direct_user_items,
+      attributable_items: item.attributable_items,
+      diversity_count: item.diversity_count,
+      recurrence_factor: Number(item.recurrence_factor.toFixed(3)),
+      average_recency: Number(item.average_recency.toFixed(3)),
+      attribution_penalty: Number(item.attribution_penalty.toFixed(3)),
+      passes_threshold: item.passes_threshold,
+      evidence_ids: item.evidence_ids
+    })),
+    primary_archetype: primaryArchetype ? { id: primaryArchetype.id, label: primaryArchetype.label, score: Number(primaryArchetype.weighted_score.toFixed(3)) } : null,
+    secondary_archetypes: secondaryArchetypes.map(item => ({ id: item.id, label: item.label, score: Number(item.weighted_score.toFixed(3)) })),
+    observed_professional_pattern: observedPattern,
+    professional_domains_observed: domainWeighting.domains.slice(0, 5).map(item => item.domain),
+    typical_professional_contribution: typicalContribution,
+    radar_capabilities: radarCapabilities,
+    limitations
+  };
+}
+
+function buildProfessionalDomains(normalized, professionalPattern) {
+  if (professionalPattern && Array.isArray(professionalPattern.professional_domains_observed) && professionalPattern.professional_domains_observed.length) {
+    return professionalPattern.professional_domains_observed.slice(0, 5);
+  }
+  if (professionalPattern && Array.isArray(professionalPattern.domain_scores) && professionalPattern.domain_scores.length) {
+    return professionalPattern.domain_scores
+      .slice(0, 5)
+      .map(item => item.domain);
+  }
+  const counts = normalized.reduce((acc, conversation) => {
+    const key = conversation.professional_category || "other";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([key]) => key);
+}
+
+function inferProfessionalIdentity(normalized, temporalMaturity, evidenceCoverage, professionalPattern) {
+  const messages = collectAttributableUserMessages(normalized);
+  const functionRanking = scoreTaxonomy(messages, professionalFunctions.filter(item => item !== "other"), professionalFunctionSignals, "function");
+  const archetypeRanking = scoreTaxonomy(messages, roleArchetypes.filter(item => item !== "other"), archetypeSignals, "archetype");
+  const workModeRanking = scoreTaxonomy(messages, workModes, workModeSignals, "work_mode");
+  const level = inferOperatingLevel(messages);
+  const topFunction = functionRanking[0];
+  const secondFunction = functionRanking[1];
+  const topArchetype = archetypeRanking[0];
+  const topWorkMode = workModeRanking[0];
+
+  const dominantDomain = professionalPattern && professionalPattern.dominant_domain;
+  const dominantDomainShare = professionalPattern && professionalPattern.dominant_domain_share || 0;
+  const patternPrimaryArchetype = professionalPattern && professionalPattern.primary_archetype && professionalPattern.primary_archetype.id;
+  const mappedPrimaryFromDomain = dominantDomain && dominantDomain !== "uncertain" ? domainToFunction(dominantDomain) : "uncertain";
+  const primaryFunction = mappedPrimaryFromDomain !== "uncertain"
+    ? mappedPrimaryFromDomain
+    : (!topFunction || topFunction.score < 2 ? "uncertain" : topFunction.key);
+  const secondaryFunctions = functionRanking
+    .slice(1)
+    .filter(item => item.score >= 2 && (!topFunction || item.key !== topFunction.key))
+    .slice(0, 2)
+    .map(item => item.key);
+  const archetypeNeedsDominance = new Set(["hr_lead", "recruiter", "executive", "director", "partner"]);
+  const lowDomainDominance = dominantDomainShare < 0.35;
+  let observedArchetype = !topArchetype || topArchetype.score < 2 ? "uncertain" : topArchetype.key;
+  if (archetypeNeedsDominance.has(observedArchetype) && lowDomainDominance) observedArchetype = "uncertain";
+  if ((observedArchetype === "hr_lead" || observedArchetype === "recruiter") && dominantDomain !== "recruiting") observedArchetype = "uncertain";
+  if (professionalPattern && professionalPattern.signature_mode === "neutral_mixed" && topArchetype && topArchetype.score < 4) observedArchetype = "uncertain";
+  if (patternPrimaryArchetype) observedArchetype = patternPrimaryArchetype;
+  const workMode = !topWorkMode || topWorkMode.score < 2 ? "uncertain" : topWorkMode.key;
+
+  const attributionBase = Math.max(1, Number((evidenceCoverage && evidenceCoverage.total_evidence_items) || 0));
+  const directRatio = Number((evidenceCoverage && evidenceCoverage.direct_user_inputs) || 0) / attributionBase;
+  const evidencePool = [
+    ...(topFunction ? topFunction.evidence.map(item => item.id) : []),
+    ...(topArchetype ? topArchetype.evidence.map(item => item.id) : []),
+    ...(topWorkMode ? topWorkMode.evidence.map(item => item.id) : []),
+    ...level.supporting_evidence_ids
+  ];
+  const uniqueEvidence = Array.from(new Set(evidencePool)).slice(0, 14);
+  const topFunctionDominance = topFunction ? topFunction.score - ((secondFunction && secondFunction.score) || 0) : 0;
+  const confidenceScore =
+    (uniqueEvidence.length >= 8 ? 2 : uniqueEvidence.length >= 4 ? 1 : 0) +
+    (topFunctionDominance >= 2 ? 1 : 0) +
+    (directRatio >= 0.45 ? 1 : 0) +
+    (level.confidence === "high" ? 1 : level.confidence === "medium" ? 0.5 : 0);
+  const confidence = confidenceScore >= 4 ? "high" : confidenceScore >= 2 ? "medium" : "low";
+
+  const limitations = [];
+  if (primaryFunction === "uncertain") limitations.push("Insufficient direct evidence to infer a primary professional function.");
+  if (observedArchetype === "uncertain") limitations.push("Observed role archetype remains uncertain due to limited attributable role evidence.");
+  if (workMode === "uncertain") limitations.push("Work mode is uncertain because ownership and collaboration patterns are weakly evidenced.");
+  if (level.operating_level === "uncertain") limitations.push(...level.limitations);
+  if (directRatio < 0.35) limitations.push("Attribution quality is limited because direct user-authored evidence is a minority of the dataset.");
+  if (professionalPattern && Array.isArray(professionalPattern.limitations)) limitations.push(...professionalPattern.limitations.slice(0, 3));
+
+  return {
+    primary_function: primaryFunction,
+    secondary_functions: secondaryFunctions,
+    observed_archetype: observedArchetype,
+    operating_level: level.operating_level,
+    work_mode: workMode,
+    confidence,
+    supporting_evidence_ids: uniqueEvidence,
+    limitations
+  };
+}
+
+function buildDifferentiators(professionalIdentity, roleSpecificCapabilities, professionalDomains, evidenceCoverage) {
+  const items = [];
+  const strongest = roleSpecificCapabilities
+    .filter(capability => ["recurring", "strongly_supported"].includes(capability.evidence_status))
+    .sort((a, b) => (b.coverage || 0) - (a.coverage || 0));
+  if (strongest[0]) {
+    items.push({
+      label: strongest[0].label,
+      explanation: `Recurring attributable evidence suggests this capability is a distinctive pattern in the observed role profile.`,
+      supporting_evidence_ids: strongest[0].supporting_evidence_ids.slice(0, 6)
+    });
+  }
+  if (professionalDomains.length >= 2) {
+    items.push({
+      label: "Cross-domain operating span",
+      explanation: `Evidence spans multiple professional domains (${professionalDomains.slice(0, 3).join(", ")}), indicating non-single-lane contribution patterns.`,
+      supporting_evidence_ids: professionalIdentity.supporting_evidence_ids.slice(0, 6)
+    });
+  }
+  const attributableBase = Math.max(1, Number((evidenceCoverage && evidenceCoverage.total_evidence_items) || 0));
+  const directRatio = Number((evidenceCoverage && evidenceCoverage.direct_user_inputs) || 0) / attributableBase;
+  if (directRatio >= 0.55) {
+    items.push({
+      label: "High direct attribution",
+      explanation: "A large share of evidence is directly user-authored, increasing interpretability of the professional profile.",
+      supporting_evidence_ids: professionalIdentity.supporting_evidence_ids.slice(0, 5)
+    });
+  }
+  return items.slice(0, 4);
+}
+
+function dimensionByCanonical(temporalMaturity, canonical) {
+  return (temporalMaturity && temporalMaturity.dimensions || []).find(dimension =>
+    (dimension.canonical_dimension || dimension.id) === canonical
+  );
+}
+
+function buildWatchOuts(professionalIdentity, roleSpecificCapabilities, temporalMaturity, evidenceCoverage) {
+  const watchOuts = [];
+  const conversationBreadth = Number((evidenceCoverage && evidenceCoverage.total_professional_conversations) || 0);
+  if (conversationBreadth < 4) {
+    watchOuts.push({
+      label: "Limited evidence breadth",
+      explanation: "The profile is built on a narrow conversation base, so role inferences may shift with additional evidence.",
+      evidence_ids: professionalIdentity.supporting_evidence_ids.slice(0, 4),
+      severity: "medium"
+    });
+  }
+
+  const communication = dimensionByCanonical(temporalMaturity, "communication");
+  if (communication && communication.negative_count > communication.positive_count) {
+    watchOuts.push({
+      label: "Communication risk",
+      explanation: "Counter-evidence on communication outweighs supporting evidence in the selected period.",
+      evidence_ids: (communication.counter_evidence || []).map(item => item.id).slice(0, 6),
+      severity: "high"
+    });
+  }
+
+  const collaboration = dimensionByCanonical(temporalMaturity, "collaboration");
+  if (collaboration && collaboration.status === "insufficient_evidence") {
+    watchOuts.push({
+      label: "Collaboration evidence gap",
+      explanation: "There is not enough attributable evidence to assess collaboration behavior reliably.",
+      evidence_ids: (collaboration.uncertain_evidence || []).map(item => item.id).slice(0, 5),
+      severity: "low"
+    });
+  }
+
+  const weakRoleSpecific = roleSpecificCapabilities.filter(capability => capability.evidence_status === "insufficient_evidence").length;
+  if (weakRoleSpecific >= Math.ceil(Math.max(1, roleSpecificCapabilities.length) * 0.45)) {
+    watchOuts.push({
+      label: "Role-specific coverage is shallow",
+      explanation: "Many role-specific capabilities remain under-evidenced, so archetype conclusions should be treated as provisional.",
+      evidence_ids: professionalIdentity.supporting_evidence_ids.slice(0, 5),
+      severity: "medium"
+    });
+  }
+
+  return watchOuts.slice(0, 5);
+}
+
 function includesAny(text, terms) {
   return terms.some(term => text.includes(term.toLowerCase()));
 }
@@ -1741,6 +2774,104 @@ function buildEvidenceCoverage(normalized, temporalMaturity) {
   };
 }
 
+const technicalSignalCatalog = {
+  programming_languages: ["JavaScript", "TypeScript", "Python", "Java", "C#", "C++", "Go", "Rust", "PHP", "Ruby", "Kotlin", "Swift", "Dart", "Scala", "R", "SQL", "Bash", "PowerShell", "HTML", "CSS"],
+  frameworks_libraries: ["React", "Angular", "Vue", "Next.js", "Node.js", "Express", "NestJS", "Django", "Flask", "FastAPI", "Spring Boot", ".NET", "Flutter", "React Native", "Laravel", "Rails", "Pandas", "NumPy", "PySpark"],
+  cloud_infrastructure: ["AWS", "Azure", "GCP", "Cloudflare", "Kubernetes", "Docker", "Terraform", "Lambda", "S3", "EC2", "API Gateway", "IAM", "Databricks", "Snowflake"],
+  data_bi_tools: ["SQL", "Databricks", "Qlik Sense", "Power BI", "Tableau", "Metabase", "BigQuery", "Redshift", "Snowflake", "Excel", "Google Sheets"],
+  security_networking: ["WAF", "SSL", "TLS", "SSL pinning", "OAuth", "SSO", "JWT", "firewall", "whitelist", "allowlist", "DNS", "API security", "Cloudflare rules"],
+  collaboration_delivery_tools: ["Jira", "Confluence", "Asana", "Trello", "GitHub", "GitLab", "Bitbucket", "Slack", "Teams", "Notion"]
+};
+
+function technicalTermRegex(term) {
+  const escaped = String(term || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped.replace(/\\\s+/g, "\\\\s+")}\\b`, "i");
+}
+
+function exposureForMention(message, rawText) {
+  const source = sourceValue(message);
+  const text = String(rawText || "").toLowerCase();
+  if (["pasted_external_document", "pasted_job_description"].includes(source)) return "third_party_context";
+  if (["pasted_code", "pasted_code_authored_by_user"].includes(source)) return "pasted_code";
+  if (/\b(help|aiutami|does not work|non funziona|errore|fix|debug|issue|support|come faccio|how do i)\b/.test(text)) return "requested_help";
+  if (/\b(i built|i use|i wrote|i implemented|i configured|ho usato|uso|implemento|configuro|scrivo|gestisco|integro|deploy)\b/.test(text)) return "used_directly";
+  if (source === "original_user_input" || source === "mixed_content") return "discussed";
+  return "unknown";
+}
+
+function aggregateExposure(exposures) {
+  const rank = {
+    used_directly: 6,
+    pasted_code: 5,
+    requested_help: 4,
+    discussed: 3,
+    third_party_context: 2,
+    unknown: 1
+  };
+  const best = exposures.slice().sort((a, b) => (rank[b] || 0) - (rank[a] || 0))[0] || "unknown";
+  return best;
+}
+
+function exposureUiLabel(exposure) {
+  const map = {
+    used_directly: "Direct",
+    discussed: "Discussed",
+    requested_help: "Assisted",
+    pasted_code: "Direct",
+    third_party_context: "External context",
+    unknown: "Unknown"
+  };
+  return map[exposure] || "Unknown";
+}
+
+function buildTechnicalSignalsObserved(normalized) {
+  const rows = {
+    programming_languages: new Map(),
+    frameworks_libraries: new Map(),
+    cloud_infrastructure: new Map(),
+    data_bi_tools: new Map(),
+    security_networking: new Map(),
+    collaboration_delivery_tools: new Map()
+  };
+
+  const userMessages = normalized.flatMap(conversation =>
+    (conversation.messages || [])
+      .filter(message => message.author === "user")
+      .map(message => ({ message, conversation, text: String(message.text || "") }))
+  );
+
+  for (const [group, terms] of Object.entries(technicalSignalCatalog)) {
+    for (const term of terms) {
+      const regex = technicalTermRegex(term);
+      const exposures = [];
+      const evidenceIds = [];
+      for (const entry of userMessages) {
+        if (!regex.test(entry.text)) continue;
+        exposures.push(exposureForMention(entry.message, entry.text));
+        evidenceIds.push(identityEvidenceId("technical", `${group}:${term.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`, entry.message, entry.conversation));
+      }
+      if (!exposures.length) continue;
+      const dominantExposure = aggregateExposure(exposures);
+      rows[group].set(term, {
+        name: term,
+        exposure: dominantExposure,
+        attribution_label: exposureUiLabel(dominantExposure),
+        mentions: exposures.length,
+        evidence_ids: Array.from(new Set(evidenceIds)).slice(0, 10)
+      });
+    }
+  }
+
+  return {
+    programming_languages: Array.from(rows.programming_languages.values()).sort((a, b) => b.mentions - a.mentions),
+    frameworks_libraries: Array.from(rows.frameworks_libraries.values()).sort((a, b) => b.mentions - a.mentions),
+    cloud_infrastructure: Array.from(rows.cloud_infrastructure.values()).sort((a, b) => b.mentions - a.mentions),
+    data_bi_tools: Array.from(rows.data_bi_tools.values()).sort((a, b) => b.mentions - a.mentions),
+    security_networking: Array.from(rows.security_networking.values()).sort((a, b) => b.mentions - a.mentions),
+    collaboration_delivery_tools: Array.from(rows.collaboration_delivery_tools.values()).sort((a, b) => b.mentions - a.mentions)
+  };
+}
+
 function confidenceWeight(confidence) {
   if (confidence === "high") return 1;
   if (confidence === "medium") return 0.72;
@@ -1863,6 +2994,13 @@ function buildReports(normalized, userInsights, reportConfig) {
   const publicTemporalMaturity = extractTemporalEvidence(normalized, true);
   const privateEvidenceCoverage = buildEvidenceCoverage(normalized, privateTemporalMaturity);
   const publicEvidenceCoverage = buildEvidenceCoverage(normalized, publicTemporalMaturity);
+  const professionalPattern = buildProfessionalPattern(normalized, privateTemporalMaturity);
+  const technicalSignalsObserved = buildTechnicalSignalsObserved(normalized);
+  const professionalIdentity = inferProfessionalIdentity(normalized, privateTemporalMaturity, privateEvidenceCoverage, professionalPattern);
+  const professionalDomains = buildProfessionalDomains(normalized, professionalPattern);
+  const roleSpecificCapabilities = buildRoleSpecificCapabilities(normalized, professionalIdentity);
+  const differentiators = buildDifferentiators(professionalIdentity, roleSpecificCapabilities, professionalDomains, privateEvidenceCoverage);
+  const watchOuts = buildWatchOuts(professionalIdentity, roleSpecificCapabilities, privateTemporalMaturity, privateEvidenceCoverage);
   const kpis = {
     evidence_coverage: normalized.length,
     months_covered: range.months_covered,
@@ -1877,6 +3015,16 @@ function buildReports(normalized, userInsights, reportConfig) {
   return {
     normalized,
     insights,
+    professional_pattern: professionalPattern,
+    observed_professional_pattern: professionalPattern.observed_professional_pattern,
+    professional_domains_observed: professionalPattern.professional_domains_observed,
+    typical_professional_contribution: professionalPattern.typical_professional_contribution,
+    professional_identity: professionalIdentity,
+    professional_domains: professionalDomains,
+    technical_signals_observed: technicalSignalsObserved,
+    role_specific_capabilities: roleSpecificCapabilities,
+    differentiators: differentiators,
+    watch_outs: watchOuts,
     skill_passport,
     kpis,
     report_config: config,
@@ -1898,6 +3046,16 @@ function buildReports(normalized, userInsights, reportConfig) {
         "Il profilo non e' una diagnosi psicologica e non deve essere usato come unico criterio di selezione."
       ],
       insights,
+      professional_pattern: professionalPattern,
+      observed_professional_pattern: professionalPattern.observed_professional_pattern,
+      professional_domains_observed: professionalPattern.professional_domains_observed,
+      typical_professional_contribution: professionalPattern.typical_professional_contribution,
+      professional_identity: professionalIdentity,
+      professional_domains: professionalDomains,
+      technical_signals_observed: technicalSignalsObserved,
+      role_specific_capabilities: roleSpecificCapabilities,
+      differentiators,
+      watch_outs: watchOuts,
       skill_passport,
       kpis,
       visual_profile: privateVisualProfile,
@@ -1911,6 +3069,16 @@ function buildReports(normalized, userInsights, reportConfig) {
       generated_at: kpis.generated_at,
       period: config ? { from: config.period_from, to: config.period_to, selected_months: config.selected_months } : { first_data: range.first, last_data: range.last },
       kpis,
+      professional_pattern: professionalPattern,
+      observed_professional_pattern: professionalPattern.observed_professional_pattern,
+      professional_domains_observed: professionalPattern.professional_domains_observed,
+      typical_professional_contribution: professionalPattern.typical_professional_contribution,
+      professional_identity: professionalIdentity,
+      professional_domains: professionalDomains,
+      technical_signals_observed: technicalSignalsObserved,
+      role_specific_capabilities: roleSpecificCapabilities,
+      differentiators,
+      watch_outs: watchOuts,
       skill_passport,
       visual_profile: publicVisualProfile,
       technology_reasoning: publicTechnologyReasoning,
@@ -2093,7 +3261,7 @@ function buildCapabilityRows(axes, language = "en") {
   return (axes || []).slice(0, 5).map(axis => {
     const coverage = Number(axis.coverage || 0);
     return {
-      label: axis.label,
+      label: String(axis.label || "").split(/\s+/).slice(0, 2).join(" "),
       maturity: axis.statusLabel || pdfStatusLabel(axis.level, language),
       confidence: axis.confidenceLabel || pdfConfidenceLabel(axis.confidence, language),
       coverage,
@@ -2204,9 +3372,10 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
     const methodologyNote = language === "it"
       ? "La coverage misura disponibilita, ricorrenza e attribuzione dell'evidenza. Non e' un punteggio di abilita."
       : "Coverage measures evidence availability, recurrence and attribution. It is not a skill score.";
+    const baseVerification = String(model.verificationLabel || "AI-assisted report · User-provided content · Not independently verified");
     const footerDisclaimer = language === "it"
-      ? `Report assistito da AI · Contenuti forniti dall'utente · Non verificato in modo indipendente · Estrazione ${model.extractedDate} · ${APP_VERSION}`
-      : `AI-assisted report · User-provided content · Not independently verified · Extracted ${model.extractedDate} · ${APP_VERSION}`;
+      ? `${baseVerification} · Estrazione ${model.extractedDate} · ${APP_VERSION}`
+      : `${baseVerification} · Extracted ${model.extractedDate} · ${APP_VERSION}`;
     const headerY = 24;
     const headerH = 78;
     const identityY = headerY + headerH + gap;
@@ -2322,11 +3491,15 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
       const rowY = capabilityY + 52 + index * 30;
       drawRoundedPanel(doc, listX, rowY, listWidth, 26, { fill: "#f7faf9", stroke: "#d7e1de", radius: 10 });
       doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(9.5).text(row.label, listX + 12, rowY + 7, { width: 150, lineBreak: false });
-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(8)
-        .text(`${language === "it" ? "Maturita evidenza" : "Evidence maturity"}: ${row.maturity}`, listX + 176, rowY + 6, { width: 145, lineBreak: false })
-        .text(`${language === "it" ? "Confidenza AI" : "AI confidence"}: ${row.confidence}`, listX + 176, rowY + 16, { width: 145, lineBreak: false });
-      doc.fillColor(row.coverageMeta.color).font("Helvetica-Bold").fontSize(8.5).text(row.coverageMeta.label, listX + listWidth - 132, rowY + 8, { width: 120, align: "right", lineBreak: false });
-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(7.5).text(`${language === "it" ? "Copertura evidenza" : "Evidence coverage"}: ${row.coverage}/100`, listX + listWidth - 152, rowY + 18, { width: 140, align: "right", lineBreak: false });
+      const compactSummary = `${row.maturity} · ${row.coverageMeta.label} · AI ${row.confidence}`;
+      drawFittedText(doc, compactSummary, listX + 176, rowY + 7, listWidth - 188, 12, {
+        font: "Helvetica",
+        maxFontSize: 7.8,
+        minFontSize: 7,
+        color: "#5f6d69",
+        lineGap: 0
+      });
+      doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(7.5).text(`${language === "it" ? "Coverage" : "Coverage"} ${row.coverage}`, listX + listWidth - 70, rowY + 16, { width: 58, align: "right", lineBreak: false });
     });
 
     drawRoundedPanel(doc, margin, footerY, contentWidth, footerH, { fill: "#f7faf9", stroke: "#d7e1de", radius: 12 });
@@ -2337,7 +3510,7 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
     doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(8).text(`${weightedLabel}: ${attribution.weightedAttribution}%`, margin + footerColA - 118, footerY + 10, { width: 104, align: "right", lineBreak: false });
     drawSegmentBar(doc, model.evidenceMix.segments || [], margin + 14, footerY + 23, footerColA - 28, 8);
     attribution.lines.forEach((line, index) => {
-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(7.5).text(line, margin + 14, footerY + 35 + index * 8, { width: footerColA - 28, lineBreak: false });
+      doc.fillColor("#5f6d69").font("Helvetica").fontSize(7.2).text(line, margin + 14, footerY + 34 + index * 7, { width: footerColA - 28, lineBreak: false });
     });
 
     const methodX = margin + footerColA + gap;
@@ -2356,7 +3529,7 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
 
     const disclaimerX = methodX + footerColB + gap;
     doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(8.5).text(disclaimerTitle.toUpperCase(), disclaimerX, footerY + 10);
-    drawFittedText(doc, footerDisclaimer, disclaimerX, footerY + 24, footerColC, 30, {
+    drawFittedText(doc, footerDisclaimer, disclaimerX, footerY + 24, footerColC, 20, {
       font: "Helvetica",
       maxFontSize: 7.5,
       minFontSize: 7,
@@ -2371,42 +3544,82 @@ async function renderAppendixPdf(snapshot, reportConfig) {
   const model = validateSnapshotPayload(snapshot);
   return pdfBuffer(doc => {
     doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
+    const language = config.report_language || model.language || "en";
+    const representativeNote = language === "it"
+      ? "Gli estratti sono una selezione rappresentativa e non esaustiva del periodo analizzato."
+      : "Excerpts are representative selections and not a full transcript of the analyzed period.";
+    const verificationNote = language === "it"
+      ? "Nota di verifica: i contenuti derivano da input utente e possono includere materiale incollato o generato da AI; non sono verificati in modo indipendente."
+      : "Verification note: content is user-provided and may include pasted or AI-generated material; it is not independently verified.";
+    const cleanText = (value, fallback = "") => {
+      const normalized = String(value || "")
+        .replace(/\s+/g, " ")
+        .replace(/\bContent origin:\s*\.?/gi, "")
+        .trim();
+      return normalized || fallback;
+    };
     const addHeader = () => {
       doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(12).text(model.texts.appendixTitle, 34, 34);
       doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(20).text(model.personName, 34, 52);
-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(10).text(`${model.selectedConversationCount} ${model.texts.selectedConversations} ${model.texts.outOfAnalyzed} ${model.analyzedConversationCount} ${model.texts.analyzedLabel}`, 34, 78)
-        .text(`${model.selectedExcerptCount} ${model.texts.selectedExcerpts} ${model.texts.outOfEvidence} ${model.totalEvidenceItemCount} ${model.texts.evidenceLabel}`, 34, 92);
-      return 122;
+      doc.fillColor("#5f6d69").font("Helvetica").fontSize(10).text(cleanText(model.texts.appendixSubtitle || model.texts.appendixIntro), 34, 72, { width: doc.page.width - 68 });
+      doc.fillColor("#5f6d69").font("Helvetica").fontSize(10).text(`${model.selectedConversationCount} ${model.texts.selectedConversations} ${model.texts.outOfAnalyzed} ${model.analyzedConversationCount} ${model.texts.analyzedLabel}`, 34, 90)
+        .text(`${model.selectedExcerptCount} ${model.texts.selectedExcerpts} ${model.texts.outOfEvidence} ${model.totalEvidenceItemCount} ${model.texts.evidenceLabel}`, 34, 104);
+      return 142;
     };
     const drawCard = (title, meta, body, badge) => {
       const width = doc.page.width - 68;
-      const height = 82;
+      const titleText = cleanText(title, language === "it" ? "Conversazione" : "Conversation");
+      const metaText = cleanText(meta, language === "it" ? "Dettagli non disponibili" : "Details unavailable");
+      const bodyText = cleanText(body, language === "it" ? "Estratto non disponibile." : "Excerpt unavailable.");
+      const titleLine = truncateTextToHeight(doc, titleText, width - 140, 26, { font: "Helvetica-Bold", fontSize: 12, lineGap: 1 });
+      const metaLine = truncateTextToHeight(doc, metaText, width - 28, 14, { font: "Helvetica-Bold", fontSize: 9, lineGap: 1 });
+      const bodyLine = truncateTextToHeight(doc, bodyText, width - 28, 30, { font: "Helvetica", fontSize: 10, lineGap: 1 });
+      const titleHeight = measureTextHeight(doc, titleLine, width - 140, { font: "Helvetica-Bold", fontSize: 12, lineGap: 1 });
+      const metaHeight = measureTextHeight(doc, metaLine, width - 28, { font: "Helvetica-Bold", fontSize: 9, lineGap: 1 });
+      const bodyHeight = measureTextHeight(doc, bodyLine, width - 28, { font: "Helvetica", fontSize: 10, lineGap: 1 });
+      const height = Math.max(86, 16 + titleHeight + 4 + metaHeight + 6 + bodyHeight + 14);
       if (cursorY + height > doc.page.height - 50) {
         doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
         cursorY = addHeader();
       }
       drawRoundedPanel(doc, 34, cursorY, width, height);
-      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(12).text(title, 48, cursorY + 14, { width: width - 140 });
+      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(12).text(titleLine, 48, cursorY + 14, { width: width - 140 });
       if (badge) {
-        doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(badge, doc.page.width - 130, cursorY + 16, { width: 82, align: "right" });
+        doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(cleanText(badge), doc.page.width - 130, cursorY + 16, { width: 82, align: "right" });
       }
-      doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(9).text(meta, 48, cursorY + 32, { width: width - 28 });
-      doc.fillColor("#1f2726").font("Helvetica").fontSize(10).text(body, 48, cursorY + 48, { width: width - 28, height: 24 });
+      const metaY = cursorY + 16 + titleHeight + 2;
+      const bodyY = metaY + metaHeight + 4;
+      doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(9).text(metaLine, 48, metaY, { width: width - 28 });
+      doc.fillColor("#1f2726").font("Helvetica").fontSize(10).text(bodyLine, 48, bodyY, { width: width - 28, height: bodyHeight + 2 });
       cursorY += height + 10;
     };
 
     let cursorY = addHeader();
+    drawFittedText(doc, representativeNote, 34, cursorY, doc.page.width - 68, 16, {
+      font: "Helvetica",
+      maxFontSize: 8.8,
+      minFontSize: 8,
+      color: "#5f6d69",
+      lineGap: 0
+    });
+    cursorY += 20;
     doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(11).text(model.texts.analyzedConversations, 34, cursorY);
     cursorY += 18;
     (model.analyzedConversations || []).forEach(item => {
-      drawCard(item.title, `${item.date} · ${item.category}`, item.excerpt, null);
+      drawCard(item.title, `${cleanText(item.date, "-")} · ${cleanText(item.category, language === "it" ? "non classificata" : "uncategorized")}`, item.excerpt, null);
     });
     cursorY += 8;
     doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(11).text(model.texts.evidenceItems, 34, cursorY);
     cursorY += 18;
     (model.evidenceHighlights || []).forEach(item => {
-      drawCard(item.skill, `${item.group} · ${item.title}`, item.excerpt, item.confidence || "");
+      const meta = `${cleanText(item.group)} · ${cleanText(item.title)}${item.date ? ` · ${cleanText(String(item.date).slice(0, 10))}` : ""}`;
+      drawCard(item.skill, meta, item.excerpt, item.confidence || "");
     });
+    if (cursorY + 24 > doc.page.height - 34) {
+      doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
+      cursorY = addHeader();
+    }
+    doc.fillColor("#5f6d69").font("Helvetica").fontSize(8.5).text(verificationNote, 34, cursorY + 8, { width: doc.page.width - 68 });
   });
 }
 
@@ -2505,13 +3718,15 @@ async function handleApi(req, res) {
   }
 }
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   if (req.url.startsWith("/api/")) {
     handleApi(req, res);
   } else {
     serveStatic(req, res);
   }
-});
+}
+
+const server = http.createServer(handleRequest);
 
 if (require.main === module) {
   server.listen(PORT, () => {
@@ -2519,15 +3734,15 @@ if (require.main === module) {
   });
 }
 
-module.exports = {
-  APP_VERSION,
-  normalizeChatGptExport,
-  buildNormalized,
-  generateInsights,
-  buildReports,
-  renderSnapshotPdf,
-  renderAppendixPdf,
-  scanSummary,
-  redactText,
-  classifyConversation
-};
+module.exports = handleRequest;
+module.exports.APP_VERSION = APP_VERSION;
+module.exports.handleRequest = handleRequest;
+module.exports.normalizeChatGptExport = normalizeChatGptExport;
+module.exports.buildNormalized = buildNormalized;
+module.exports.generateInsights = generateInsights;
+module.exports.buildReports = buildReports;
+module.exports.renderSnapshotPdf = renderSnapshotPdf;
+module.exports.renderAppendixPdf = renderAppendixPdf;
+module.exports.scanSummary = scanSummary;
+module.exports.redactText = redactText;
+module.exports.classifyConversation = classifyConversation;

@@ -484,10 +484,8 @@ function renderSnapshotPreview() {
             ${renderRadar(snapshot.axes, snapshot.texts)}
           </div>
           <div class="axis-pill-row">
-            ${snapshot.axes.slice(0, 2).map(axis => `<span title="${escapeHtml(axis.label)}">${escapeHtml(axis.label)}</span>`).join("")}
-            ${snapshot.axes.length > 2 ? `<span title="${escapeHtml(snapshot.axes.slice(2).map(axis => axis.label).join(", "))}">+${snapshot.axes.length - 2} more</span>` : ""}
+            ${snapshot.axes.slice(0, 4).map(axis => `<span>${escapeHtml(axis.label)} ${escapeHtml(String(axis.coverage))}</span>`).join("")}
           </div>
-          ${renderTechnicalSignalsCompact(snapshot.technicalSignalsObserved, snapshot.language)}
         </section>
         ${renderSnapshotFooter(snapshot)}
       </article>
@@ -503,11 +501,11 @@ function renderSnapshotFooter(snapshot) {
     Number((snapshot.evidenceMix.segments.find(item => item.tone === "ai") || {}).value || 0) +
     Number((snapshot.evidenceMix.segments.find(item => item.tone === "unknown") || {}).value || 0);
   const method = snapshot.language === "it"
-    ? "Coverage measures evidence availability, recurrence and attribution. It is not a skill score."
-    : "Coverage measures evidence availability, recurrence and attribution. It is not a skill score.";
+    ? "Coverage = disponibilita, ricorrenza e attribuzione evidenze. Non e' un punteggio di skill."
+    : "Coverage = evidence availability, recurrence and attribution. It is not a skill score.";
   const verification = snapshot.language === "it"
-    ? `${snapshot.verificationLabel || "AI-assisted report · User-provided content · Not independently verified"} · Estratto ${snapshot.extractedDate}`
-    : `${snapshot.verificationLabel || "AI-assisted report · User-provided content · Not independently verified"} · Extracted ${snapshot.extractedDate}`;
+    ? `AI-assisted · Non verificato · Estratto ${snapshot.extractedDate}`
+    : `AI-assisted · Not independently verified · Extracted ${snapshot.extractedDate}`;
   return `
     <footer class="snapshot-footer">
       <article class="snapshot-card footer-card">
@@ -578,11 +576,11 @@ function reportText(language) {
       analyzedConversations: "Conversazioni professionali analizzate",
       evidenceItems: "Elementi di evidenza",
       supportedAreas: "Capacita valutate",
-      attributableEvidence: "Quota evidenza diretta",
+      attributableEvidence: "Attribuzione diretta",
       retainedNote: "Conversazioni analizzate",
       evidenceNote: "Supporting, counter e uncertain",
       supportedNote: "Coverage sufficiente",
-      attributableNote: "Share of evidence directly attributable to the user",
+      attributableNote: "Quota evidenze direttamente attribuibili alle parole dell'utente",
       notAssessed: "Non valutata — evidenza insufficiente",
       snapshotFooterA: "Disponibilita di evidenze, non punteggio di skill.",
       snapshotFooterB: "Profilo basato su conversazioni approvate, non verificato in modo indipendente.",
@@ -607,7 +605,7 @@ function reportText(language) {
       differentiatorsTitle: "Differenziatori",
       watchOutsTitle: "Watch-outs",
       methodologyTitle: "Attribuzione e metodologia",
-      directAttributionTooltip: "Share of evidence directly attributable to the user."
+      directAttributionTooltip: "Share of evidence directly attributable to the user's own words."
     };
   }
   return {
@@ -628,11 +626,11 @@ function reportText(language) {
     analyzedConversations: "Professional conversations analyzed",
     evidenceItems: "Evidence items",
     supportedAreas: "Capabilities assessed",
-    attributableEvidence: "Direct evidence share",
+    attributableEvidence: "Direct attribution",
     retainedNote: "Conversations analyzed",
     evidenceNote: "Supporting, counter and uncertain",
     supportedNote: "Sufficient evidence coverage",
-    attributableNote: "Share of evidence directly attributable to the user",
+    attributableNote: "Share of evidence directly attributable to the user's own words",
     notAssessed: "Not assessed — insufficient evidence",
     snapshotFooterA: "Coverage means evidence availability, not a skill score.",
     snapshotFooterB: "Profile built from approved conversations and not independently verified.",
@@ -657,7 +655,7 @@ function reportText(language) {
     differentiatorsTitle: "Differentiators",
     watchOutsTitle: "Watch-outs",
     methodologyTitle: "Attribution and methodology",
-    directAttributionTooltip: "Share of evidence directly attributable to the user."
+    directAttributionTooltip: "Share of evidence directly attributable to the user's own words."
   };
 }
 
@@ -773,15 +771,6 @@ function canonicalDimensionLabel(idOrLabel, language = getReportLanguage()) {
     decision_making: language === "it" ? "Capacita decisionale" : "Decision making",
     problem_solving: language === "it" ? "Problem solving" : "Problem solving",
     communication: language === "it" ? "Comunicazione" : "Communication",
-    growth_revenue: language === "it" ? "Growth & Revenue" : "Growth & Revenue",
-    strategy_transformation: language === "it" ? "Strategy & Transformation" : "Strategy & Transformation",
-    product_delivery: language === "it" ? "Product & Delivery" : "Product & Delivery",
-    technology_architecture: language === "it" ? "Technology & Architecture" : "Technology & Architecture",
-    operations_execution: language === "it" ? "Operations & Execution" : "Operations & Execution",
-    risk_compliance_governance: language === "it" ? "Risk, Compliance & Governance" : "Risk, Compliance & Governance",
-    people_leadership: language === "it" ? "People & Leadership" : "People & Leadership",
-    sales_partnerships: language === "it" ? "Sales & Partnerships" : "Sales & Partnerships",
-    communication_stakeholder: language === "it" ? "Communication & Stakeholder Management" : "Communication & Stakeholder Management",
     execution: language === "it" ? "Execution" : "Execution",
     leadership: language === "it" ? "Leadership" : "Leadership",
     collaboration: language === "it" ? "Collaborazione" : "Collaboration",
@@ -803,18 +792,17 @@ function joinHumanLocalized(items, language = getReportLanguage()) {
 }
 
 function buildProfessionalSignature(identity, axes, categoryBreakdown, professionalPattern, language) {
-  if (professionalPattern && professionalPattern.observed_professional_pattern) {
-    return limitWords(String(professionalPattern.observed_professional_pattern), 30);
-  }
   if (professionalPattern && professionalPattern.signature_text) {
-    return limitWords(String(professionalPattern.signature_text), 30);
+    return limitWords(String(professionalPattern.signature_text), 22);
   }
   const topAxes = axes.slice(0, 3).map(axis => axis.label.toLowerCase());
   const topDomain = categoryBreakdown[0] ? professionalCategoryLabel(categoryBreakdown[0].raw || categoryBreakdown[0].label, language) : (language === "it" ? "domini professionali multipli" : "multiple professional domains");
+  const functionLabel = taxonomyLabel(identity && identity.primary_function, language);
+  const archetypeLabel = taxonomyLabel(identity && identity.observed_archetype, language);
   if (language === "it") {
-    return limitWords(`Le evidenze suggeriscono un profilo con attivita ricorrente tra ${topDomain}, ${joinHumanLocalized(topAxes, language)} e coordinamento cross-funzionale.`, 26);
+    return limitWords(`${functionLabel} con profilo ${archetypeLabel}, attivo in ${topDomain} e con pattern osservabili in ${joinHumanLocalized(topAxes, language)}.`, 22);
   }
-  return limitWords(`Evidence suggests recurring work across ${topDomain}, ${joinHumanLocalized(topAxes, language)} and cross-functional coordination.`, 24);
+  return limitWords(`${functionLabel} profile with an observed ${archetypeLabel} archetype, operating in ${topDomain} with recurring patterns in ${joinHumanLocalized(topAxes, language)}.`, 22);
 }
 
 function buildTypicalContribution(axes, categoryBreakdown, language) {
@@ -935,13 +923,12 @@ function buildSnapshotData() {
   const professionalIdentity = reports.professional_identity || (reports.private_report && reports.private_report.professional_identity) || {};
   const roleSpecificCapabilities = reports.role_specific_capabilities || (reports.private_report && reports.private_report.role_specific_capabilities) || [];
   const professionalPattern = reports.professional_pattern || (reports.private_report && reports.private_report.professional_pattern) || null;
-  const technicalSignalsObserved = reports.technical_signals_observed || (reports.private_report && reports.private_report.technical_signals_observed) || null;
   const differentiators = reports.differentiators || (reports.private_report && reports.private_report.differentiators) || [];
   const watchOuts = reports.watch_outs || (reports.private_report && reports.private_report.watch_outs) || [];
   const identityDomains = reports.professional_domains || (reports.private_report && reports.private_report.professional_domains) || [];
   const canonicalAxes = buildRadarAxesFromTemporal(temporal)
     .filter(axis => axis.derivation === "canonical_ontology_dimension" && !isMetadataLikeLabel(axis.label));
-  const canonicalFallbackAxes = canonicalAxes
+  const axes = canonicalAxes
     .filter(axis => axis.assessed && axis.radar_eligible && !["insufficient_evidence", "counter_evidence_only"].includes(axis.level) && Number(axis.coverage || 0) >= MIN_RADAR_EVIDENCE_COVERAGE)
     .map(axis => ({
       ...axis,
@@ -949,24 +936,7 @@ function buildSnapshotData() {
       statusLabel: displayStatus(axis.level, language),
       confidenceLabel: texts.confidence[axis.confidence] || axis.confidence
     }))
-    .slice(0, 6);
-  const patternAxes = Array.isArray(professionalPattern && professionalPattern.radar_capabilities)
-    ? professionalPattern.radar_capabilities
-      .filter(item => item && item.label)
-      .map(item => ({
-        label: compactCapabilityLabel(item.short_label || item.label, language),
-        canonical_dimension: item.canonical_dimension || null,
-        coverage: Number(item.coverage || 0),
-        strength: Number(item.strength || item.coverage || 0),
-        level: item.level || "observed",
-        assessed: true,
-        confidence: item.confidence || "medium",
-        statusLabel: displayStatus(item.level || "observed", language),
-        confidenceLabel: texts.confidence[item.confidence] || item.confidence || "medium"
-      }))
-      .slice(0, 6)
-    : [];
-  const axes = patternAxes.length ? patternAxes : canonicalFallbackAxes;
+    .slice(0, 5);
   const allDimensions = (temporal.dimensions || [])
     .filter(dimension => dimension.derivation === "canonical_ontology_dimension" && !isMetadataLikeLabel(dimension.label));
   const notAssessed = allDimensions
@@ -1040,20 +1010,11 @@ function buildSnapshotData() {
       date: entry.item.date || ""
     }));
   const fallbackDomains = categoryBreakdown.slice(0, 4).map(item => item.raw || item.label);
-  const observedDomains = ((professionalPattern && professionalPattern.professional_domains_observed) || (identityDomains.length ? identityDomains : fallbackDomains))
+  const observedDomains = (identityDomains.length ? identityDomains : fallbackDomains)
     .slice(0, 5)
     .map(domain => limitChars(professionalCategoryLabel(domain, language), 24));
   const professionalSignature = buildProfessionalSignature(professionalIdentity, axes, categoryBreakdown, professionalPattern, language);
-  const typicalContribution = (professionalPattern && professionalPattern.typical_professional_contribution)
-    ? limitWords(String(professionalPattern.typical_professional_contribution), 26)
-    : buildTypicalContribution(axes, categoryBreakdown, language);
-  const normalizedSource = reports.normalized || [];
-  const isEvidencePack = normalizedSource.some(conversation => conversation.source && conversation.source.verification);
-  const looksSynthetic = !isEvidencePack && normalizedSource.length > 0 && normalizedSource.every(conversation => /^conv_/i.test(String(conversation.id || "")));
-  const verificationLabel = looksSynthetic
-    ? "AI-assisted report · Synthetic test data · Not independently verified"
-    : "AI-assisted report · User-provided content · Not independently verified";
-
+  const typicalContribution = buildTypicalContribution(axes, categoryBreakdown, language);
   return {
     language,
     texts,
@@ -1084,12 +1045,10 @@ function buildSnapshotData() {
     professionalIdentity,
     professionalPattern,
     observedDomains,
-    technicalSignalsObserved,
     roleSpecificCapabilities,
     differentiators,
     watchOuts,
     typicalContribution,
-    verificationLabel,
     evidenceMix,
     categoryBreakdown,
     analyzedConversations,
@@ -1129,43 +1088,6 @@ function renderEvidenceMix(mix, texts = reportText(getReportLanguage())) {
     <div class="evidence-mix-legend">
       ${mix.segments.map(segment => `<span><b class="${escapeHtml(segment.tone)}"></b>${escapeHtml(texts.provenance[segment.tone] || segment.label)} ${escapeHtml(String(segment.value))}%</span>`).join("")}
     </div>
-  `;
-}
-
-function technicalGroupLabel(key, language = getReportLanguage()) {
-  const labels = {
-    programming_languages: language === "it" ? "Languages" : "Languages",
-    frameworks_libraries: language === "it" ? "Frameworks / Libraries" : "Frameworks / Libraries",
-    cloud_infrastructure: language === "it" ? "Platforms / Tools" : "Platforms / Tools",
-    data_bi_tools: language === "it" ? "Data & BI" : "Data & BI",
-    security_networking: language === "it" ? "Security / Infrastructure" : "Security / Infrastructure",
-    collaboration_delivery_tools: language === "it" ? "Delivery tools" : "Delivery tools"
-  };
-  return labels[key] || key;
-}
-
-function formatTechnicalItem(item) {
-  return `${item.name} · ${item.attribution_label}`;
-}
-
-function renderTechnicalSignalsCompact(signals, language = getReportLanguage()) {
-  if (!signals || typeof signals !== "object") return "";
-  const groups = ["programming_languages", "cloud_infrastructure", "data_bi_tools", "security_networking"]
-    .map(key => ({ key, items: (signals[key] || []).slice(0, 3) }))
-    .filter(group => group.items.length);
-  if (!groups.length) return "";
-  return `
-    <section class="tech-mini-block">
-      <p class="snapshot-eyebrow">Technical Signals Observed</p>
-      <div class="tech-mini-grid">
-        ${groups.map(group => `
-          <article class="tech-mini-group">
-            <strong>${escapeHtml(technicalGroupLabel(group.key, language))}</strong>
-            <p>${escapeHtml(group.items.map(formatTechnicalItem).join("  |  "))}</p>
-          </article>
-        `).join("")}
-      </div>
-    </section>
   `;
 }
 

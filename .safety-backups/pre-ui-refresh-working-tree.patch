@@ -1,0 +1,2241 @@
+diff --git a/public/app.js b/public/app.js
+index 5dcafcf..67c8f30 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -141,6 +141,13 @@ Selected window: ${config.selected_months} months
+ Objective:
+ Create a valid importable JSON file containing ONLY professional conversations or professional excerpts within the selected period.
+ 
++File output requirement:
++- Create a downloadable JSON file named: professional_evidence_pack_${config.sanitized_profile_name}_${config.generated_at}.json
++- If your environment supports file creation, generate and attach/download the .json file directly.
++- If file creation is not supported, return ONLY the valid JSON object content.
++- Prefer file output over plain text JSON whenever attachment/file creation is available.
++- If attachment is possible and no .json file is produced, treat the output as incomplete and retry in file mode.
++
+ Trusted values calculated by the application:
+ - profile_name: ${config.profile_name}
+ - generated_at: ${config.generated_at}
+@@ -186,7 +193,7 @@ Rules:
+ - add a domain-aware display_label only when the candidate is capability, behavior or responsibility;
+ - do not produce psychological diagnoses, rankings, hiring scores or absolute judgments about the person.
+ 
+-Return ONLY valid JSON, with no Markdown and no text outside JSON.
++Return ONLY valid JSON or the requested .json file, with no Markdown and no text outside JSON.
+ 
+ Required schema:
+ {
+@@ -435,6 +442,7 @@ function renderSnapshotPreview() {
+           <div>
+             <p>${escapeHtml(snapshot.texts.snapshotTitle)}</p>
+             <h1>${escapeHtml(snapshot.personName)}</h1>
++            <p class="snapshot-signature-line">${escapeHtml(snapshot.professionalSignature)}</p>
+           </div>
+           <dl>
+             <div><dt>${escapeHtml(snapshot.texts.extractedLabel)}</dt><dd>${escapeHtml(snapshot.extractedDate)}</dd></div>
+@@ -442,32 +450,26 @@ function renderSnapshotPreview() {
+             <div><dt>${escapeHtml(snapshot.texts.observationPeriodLabel)}</dt><dd>${escapeHtml(snapshot.observationPeriod)}</dd></div>
+           </dl>
+         </header>
+-        <section class="snapshot-summary">
+-          ${renderIdentityCard(snapshot)}
+-          <article class="snapshot-card executive-card">
+-            <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.executiveSummary)}</p>
+-            <p>${escapeHtml(snapshot.summary)}</p>
++        <section class="snapshot-identity-row">
++          <article class="snapshot-card identity-mini">
++            <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.signatureLabel)}</p>
++            <p class="clamp-3">${escapeHtml(snapshot.professionalSignature)}</p>
++          </article>
++          <article class="snapshot-card identity-mini">
++            <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.domainsLabel)}</p>
++            <div class="identity-chip-row">
++              ${snapshot.observedDomains.slice(0, 4).map(domain => `<span>${escapeHtml(domain)}</span>`).join("")}
++            </div>
++          </article>
++          <article class="snapshot-card identity-mini">
++            <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.contributionLabel)}</p>
++            <p class="clamp-3">${escapeHtml(snapshot.typicalContribution)}</p>
+           </article>
++        </section>
++        <section class="snapshot-kpi-row">
+           <div class="snapshot-kpis">
+             ${snapshot.kpis.map(kpi => renderSnapshotKpi(kpi)).join("")}
+           </div>
+-          <article class="snapshot-card mini-visual-card">
+-            <div class="mini-visual-head">
+-              <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.domainPanelTitle)}</p>
+-              <span>${escapeHtml(String(snapshot.selectedConversationCount))} / ${escapeHtml(String(snapshot.analyzedConversationCount))}</span>
+-            </div>
+-            <div class="category-chip-row">
+-              <span>${escapeHtml(snapshot.texts.domainsLabel)}</span>
+-            </div>
+-            <div class="category-chip-row">
+-              ${snapshot.categoryBreakdown.map(item => `<span>${escapeHtml(item.label)} ${escapeHtml(String(item.count))}</span>`).join("")}
+-            </div>
+-            <div class="mini-visual-head">
+-              <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.provenancePanelTitle)}</p>
+-              <span>${escapeHtml(String(snapshot.evidenceMix.attributable || 0))}% ${escapeHtml(snapshot.texts.attributableLabel)}</span>
+-            </div>
+-            ${renderEvidenceMix(snapshot.evidenceMix, snapshot.texts)}
+-          </article>
+         </section>
+         <section class="snapshot-card profile-card">
+           <div class="profile-card-head">
+@@ -485,16 +487,43 @@ function renderSnapshotPreview() {
+             ${snapshot.axes.slice(0, 4).map(axis => `<span>${escapeHtml(axis.label)} ${escapeHtml(String(axis.coverage))}</span>`).join("")}
+           </div>
+         </section>
+-        <footer class="snapshot-footer">
+-          <span>${escapeHtml(snapshot.texts.snapshotFooterA)}</span>
+-          <span>${escapeHtml(snapshot.texts.snapshotFooterB)}</span>
+-        </footer>
++        ${renderSnapshotFooter(snapshot)}
+       </article>
+     </div>
+   `;
+   bindSnapshotZoom();
+ }
+ 
++function renderSnapshotFooter(snapshot) {
++  const direct = Number((snapshot.evidenceMix.segments.find(item => item.tone === "direct") || {}).value || 0);
++  const mixed = Number((snapshot.evidenceMix.segments.find(item => item.tone === "mixed") || {}).value || 0);
++  const external = Number((snapshot.evidenceMix.segments.find(item => item.tone === "external") || {}).value || 0) +
++    Number((snapshot.evidenceMix.segments.find(item => item.tone === "ai") || {}).value || 0) +
++    Number((snapshot.evidenceMix.segments.find(item => item.tone === "unknown") || {}).value || 0);
++  const method = snapshot.language === "it"
++    ? "Coverage = disponibilita, ricorrenza e attribuzione evidenze. Non e' un punteggio di skill."
++    : "Coverage = evidence availability, recurrence and attribution. It is not a skill score.";
++  const verification = snapshot.language === "it"
++    ? `AI-assisted · Non verificato · Estratto ${snapshot.extractedDate}`
++    : `AI-assisted · Not independently verified · Extracted ${snapshot.extractedDate}`;
++  return `
++    <footer class="snapshot-footer">
++      <article class="snapshot-card footer-card">
++        <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.provenancePanelTitle)}</p>
++        <p>Direct ${direct}% · Partial ${mixed}% · External ${external}%</p>
++      </article>
++      <article class="snapshot-card footer-card">
++        <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.methodologyTitle || "Method")}</p>
++        <p>${escapeHtml(method)}</p>
++      </article>
++      <article class="snapshot-card footer-card">
++        <p class="snapshot-eyebrow">Verification</p>
++        <p>${escapeHtml(verification)}</p>
++      </article>
++    </footer>
++  `;
++}
++
+ function renderSnapshotAxis(axis) {
+   const coverage = Math.max(0, Math.min(100, axis.coverage || 0));
+   return `
+@@ -513,12 +542,13 @@ function renderSnapshotAxis(axis) {
+ 
+ function renderSnapshotKpi(kpi) {
+   const meter = Math.max(0, Math.min(100, Number(kpi.meter || 0)));
++  const tooltip = kpi.tooltip ? ` title="${escapeHtml(kpi.tooltip)}"` : "";
+   return `
+     <article class="snapshot-kpi with-meter">
+       <div class="kpi-meter" style="--meter:${meter}%">
+         <strong>${escapeHtml(kpi.value)}</strong>
+       </div>
+-      <span>${escapeHtml(kpi.label)}</span>
++      <span${tooltip}>${escapeHtml(kpi.label)}</span>
+       <p>${escapeHtml(kpi.note)}</p>
+     </article>
+   `;
+@@ -534,27 +564,28 @@ function reportText(language) {
+       dataAnalyzedLabel: "Dati analizzati",
+       observationPeriodLabel: "Periodo di osservazione",
+       executiveSummary: "Sintesi esecutiva",
+-      signatureLabel: "Firma professionale",
++      signatureLabel: "Pattern professionale osservato",
+       domainsLabel: "Domini professionali osservati",
+       contributionLabel: "Contributo professionale tipico",
+       domainPanelTitle: "Evidenze per dominio professionale",
+       provenancePanelTitle: "Sintesi attribuzione",
+-      attributableLabel: "attribuibile direttamente",
++      attributableLabel: "attribuzione diretta",
+       capabilityTitle: "Capacita osservate",
+-      capabilitySubtitle: "Il radar descrive come lavora questa persona. Coverage indica disponibilita, ricorrenza e attribuzione dell'evidenza: non e' un punteggio di skill.",
++      capabilitySubtitle: "Il radar mostra coverage, ricorrenza e attribuzione dell'evidenza. Non e' un punteggio di skill.",
+       areasLabel: "aree",
+       analyzedConversations: "Conversazioni professionali analizzate",
+       evidenceItems: "Elementi di evidenza",
+       supportedAreas: "Capacita valutate",
+-      attributableEvidence: "Attribuzione pesata",
+-      retainedNote: "Incluse nello snapshot",
++      attributableEvidence: "Attribuzione diretta",
++      retainedNote: "Conversazioni analizzate",
+       evidenceNote: "Supporting, counter e uncertain",
+-      supportedNote: "Soglia minima di evidenza raggiunta",
+-      attributableNote: "Diretta o parzialmente attribuibile anche in contenuti misti",
++      supportedNote: "Coverage sufficiente",
++      attributableNote: "Quota evidenze direttamente attribuibili alle parole dell'utente",
+       notAssessed: "Non valutata — evidenza insufficiente",
+       snapshotFooterA: "Disponibilita di evidenze, non punteggio di skill.",
+       snapshotFooterB: "Profilo basato su conversazioni approvate, non verificato in modo indipendente.",
+-      appendixTitle: "Appendice dettagliata delle evidenze",
++      appendixTitle: "Detailed Evidence Appendix",
++      appendixSubtitle: "Evidenze professionali rappresentative estratte dal periodo analizzato.",
+       appendixIntro: "Conversazioni ed estratti selezionati per supportare lo snapshot.",
+       selectedConversations: "conversazioni selezionate",
+       outOfAnalyzed: "su",
+@@ -566,7 +597,15 @@ function reportText(language) {
+       provenance: { direct: "Diretta", mixed: "Mista", external: "Esterna", ai: "AI", unknown: "Sconosciuta" },
+       observedDomainsQuestion: "In quali ambiti opera?",
+       signatureQuestion: "Chi emerge essere professionalmente?",
+-      radarQuestion: "Come lavora questa persona?"
++      radarQuestion: "Capacita osservate",
++      observedArchetypeLabel: "Archetipo osservato",
++      operatingLevelLabel: "Livello operativo",
++      workModeLabel: "Modalita di lavoro",
++      roleSpecificTitle: "Capacita specifiche del ruolo",
++      differentiatorsTitle: "Differenziatori",
++      watchOutsTitle: "Watch-outs",
++      methodologyTitle: "Attribuzione e metodologia",
++      directAttributionTooltip: "Share of evidence directly attributable to the user's own words."
+     };
+   }
+   return {
+@@ -575,27 +614,28 @@ function reportText(language) {
+     dataAnalyzedLabel: "Data analyzed",
+     observationPeriodLabel: "Observation period",
+     executiveSummary: "Executive summary",
+-    signatureLabel: "Professional signature",
++    signatureLabel: "Observed professional pattern",
+     domainsLabel: "Professional domains observed",
+     contributionLabel: "Typical professional contribution",
+     domainPanelTitle: "Evidence by professional domain",
+     provenancePanelTitle: "Attribution summary",
+-    attributableLabel: "directly attributable",
++    attributableLabel: "direct attribution",
+     capabilityTitle: "Observed capabilities",
+-    capabilitySubtitle: "The radar answers how this person works. Coverage reflects evidence availability, recurrence and attribution. It is not a skill score.",
++    capabilitySubtitle: "The radar shows evidence coverage, recurrence and attribution. It is not a skill score.",
+     areasLabel: "areas",
+     analyzedConversations: "Professional conversations analyzed",
+     evidenceItems: "Evidence items",
+     supportedAreas: "Capabilities assessed",
+-    attributableEvidence: "Weighted attribution",
+-    retainedNote: "Retained for this snapshot",
++    attributableEvidence: "Direct attribution",
++    retainedNote: "Conversations analyzed",
+     evidenceNote: "Supporting, counter and uncertain",
+-    supportedNote: "Minimum evidence threshold reached",
+-    attributableNote: "Direct plus partial attribution from mixed-source evidence",
++    supportedNote: "Sufficient evidence coverage",
++    attributableNote: "Share of evidence directly attributable to the user's own words",
+     notAssessed: "Not assessed — insufficient evidence",
+     snapshotFooterA: "Coverage means evidence availability, not a skill score.",
+     snapshotFooterB: "Profile built from approved conversations and not independently verified.",
+     appendixTitle: "Detailed Evidence Appendix",
++    appendixSubtitle: "Representative professional evidence extracted from the analyzed period.",
+     appendixIntro: "Selected conversations and excerpts supporting the snapshot.",
+     selectedConversations: "selected conversations",
+     outOfAnalyzed: "out of",
+@@ -607,10 +647,104 @@ function reportText(language) {
+     provenance: { direct: "Direct", mixed: "Mixed", external: "External", ai: "AI", unknown: "Unknown" },
+     observedDomainsQuestion: "In which domains does this person operate?",
+     signatureQuestion: "Who emerges professionally?",
+-    radarQuestion: "How does this person work?"
++    radarQuestion: "Observed capabilities",
++    observedArchetypeLabel: "Observed archetype",
++    operatingLevelLabel: "Operating level",
++    workModeLabel: "Work mode",
++    roleSpecificTitle: "Role-specific capabilities",
++    differentiatorsTitle: "Differentiators",
++    watchOutsTitle: "Watch-outs",
++    methodologyTitle: "Attribution and methodology",
++    directAttributionTooltip: "Share of evidence directly attributable to the user's own words."
+   };
+ }
+ 
++function taxonomyLabel(value, language = getReportLanguage()) {
++  const key = String(value || "").toLowerCase();
++  const labels = {
++    engineering: language === "it" ? "Engineering" : "Engineering",
++    product: language === "it" ? "Product" : "Product",
++    program_project_management: language === "it" ? "Program/Project management" : "Program/Project management",
++    operations: language === "it" ? "Operations" : "Operations",
++    data_analytics: language === "it" ? "Data analytics" : "Data analytics",
++    sales_business_development: language === "it" ? "Sales e business development" : "Sales and business development",
++    marketing: "Marketing",
++    customer_success: language === "it" ? "Customer success" : "Customer success",
++    finance: "Finance",
++    hr_people: language === "it" ? "HR / People" : "HR / People",
++    legal_compliance: language === "it" ? "Legal e compliance" : "Legal and compliance",
++    consulting: language === "it" ? "Consulenza" : "Consulting",
++    executive_management: language === "it" ? "Executive management" : "Executive management",
++    individual_contributor: language === "it" ? "Individual contributor" : "Individual contributor",
++    technical_specialist: language === "it" ? "Specialista tecnico" : "Technical specialist",
++    backend_developer: language === "it" ? "Backend developer" : "Backend developer",
++    frontend_developer: language === "it" ? "Frontend developer" : "Frontend developer",
++    data_analyst: language === "it" ? "Data analyst" : "Data analyst",
++    data_engineer: language === "it" ? "Data engineer" : "Data engineer",
++    product_owner: language === "it" ? "Product owner" : "Product owner",
++    product_manager: language === "it" ? "Product manager" : "Product manager",
++    project_manager: language === "it" ? "Project manager" : "Project manager",
++    program_manager: language === "it" ? "Program manager" : "Program manager",
++    operations_manager: language === "it" ? "Operations manager" : "Operations manager",
++    consultant: language === "it" ? "Consulente" : "Consultant",
++    senior_consultant: language === "it" ? "Senior consultant" : "Senior consultant",
++    manager: "Manager",
++    senior_manager: language === "it" ? "Senior manager" : "Senior manager",
++    functional_lead: language === "it" ? "Functional lead" : "Functional lead",
++    head_of_function: language === "it" ? "Head of function" : "Head of function",
++    director: "Director",
++    partner: "Partner",
++    executive: "Executive",
++    hr_lead: language === "it" ? "HR lead" : "HR lead",
++    recruiter: "Recruiter",
++    customer_success_manager: language === "it" ? "Customer success manager" : "Customer success manager",
++    sales_manager: language === "it" ? "Sales manager" : "Sales manager",
++    junior: language === "it" ? "Junior" : "Junior",
++    mid_level: language === "it" ? "Mid level" : "Mid level",
++    senior: language === "it" ? "Senior" : "Senior",
++    lead: language === "it" ? "Lead" : "Lead",
++    head_of: language === "it" ? "Head of" : "Head of",
++    executive_partner: language === "it" ? "Executive / Partner" : "Executive / Partner",
++    individual_delivery: language === "it" ? "Contributo individuale" : "Individual delivery",
++    specialist_execution: language === "it" ? "Execution specialistica" : "Specialist execution",
++    cross_functional_coordination: language === "it" ? "Coordinamento cross-funzionale" : "Cross-functional coordination",
++    people_management: language === "it" ? "People management" : "People management",
++    strategic_leadership: language === "it" ? "Leadership strategica" : "Strategic leadership",
++    advisory_consulting: language === "it" ? "Advisory/consulting" : "Advisory/consulting",
++    operational_ownership: language === "it" ? "Ownership operativa" : "Operational ownership",
++    commercial_ownership: language === "it" ? "Ownership commerciale" : "Commercial ownership",
++    technical_ownership: language === "it" ? "Ownership tecnica" : "Technical ownership",
++    uncertain: language === "it" ? "Incerto" : "Uncertain",
++    other: language === "it" ? "Altro" : "Other"
++  };
++  return labels[key] || String(value || "").replace(/_/g, " ");
++}
++
++function limitChars(text, maxChars) {
++  const value = String(text || "").trim();
++  if (!value || value.length <= maxChars) return value;
++  return `${value.slice(0, Math.max(0, maxChars - 1)).trim()}…`;
++}
++
++function compactCapabilityLabel(label, language = getReportLanguage()) {
++  const canonical = {
++    "Decision making": language === "it" ? "Decision making" : "Decision making",
++    "Problem solving": language === "it" ? "Problem solving" : "Problem solving",
++    Communication: language === "it" ? "Communication" : "Communication",
++    Execution: language === "it" ? "Execution" : "Execution",
++    Leadership: language === "it" ? "Leadership" : "Leadership",
++    Collaboration: language === "it" ? "Collaboration" : "Collaboration",
++    Planning: language === "it" ? "Planning" : "Planning",
++    Learning: language === "it" ? "Learning" : "Learning",
++    "Domain knowledge": language === "it" ? "Domain knowledge" : "Domain knowledge",
++    "Data reasoning": language === "it" ? "Data reasoning" : "Data reasoning",
++    "Risk awareness": language === "it" ? "Risk awareness" : "Risk awareness",
++    "Quality improvement": language === "it" ? "Quality" : "Quality improvement"
++  };
++  const direct = canonical[String(label || "")];
++  return limitChars(direct || String(label || ""), 26);
++}
++
+ function professionalCategoryLabel(category, language = getReportLanguage()) {
+   const labels = {
+     strategy: language === "it" ? "strategia e prioritizzazione" : "strategy and prioritization",
+@@ -657,32 +791,52 @@ function joinHumanLocalized(items, language = getReportLanguage()) {
+   return `${clean.slice(0, -1).join(", ")} ${language === "it" ? "e" : "and"} ${clean[clean.length - 1]}`;
+ }
+ 
+-function buildProfessionalIdentity(axes, categoryBreakdown, language) {
++function buildProfessionalSignature(identity, axes, categoryBreakdown, professionalPattern, language) {
++  if (professionalPattern && professionalPattern.signature_text) {
++    return limitWords(String(professionalPattern.signature_text), 22);
++  }
+   const topAxes = axes.slice(0, 3).map(axis => axis.label.toLowerCase());
+-  const topDomain = categoryBreakdown[0] ? professionalCategoryLabel(categoryBreakdown[0].raw || categoryBreakdown[0].label, language) : (language === "it" ? "lavoro cross-funzionale" : "cross-functional work");
+-  const secondDomain = categoryBreakdown[1] ? professionalCategoryLabel(categoryBreakdown[1].raw || categoryBreakdown[1].label, language) : null;
++  const topDomain = categoryBreakdown[0] ? professionalCategoryLabel(categoryBreakdown[0].raw || categoryBreakdown[0].label, language) : (language === "it" ? "domini professionali multipli" : "multiple professional domains");
++  const functionLabel = taxonomyLabel(identity && identity.primary_function, language);
++  const archetypeLabel = taxonomyLabel(identity && identity.observed_archetype, language);
+   if (language === "it") {
+-    return limitWords(`Professionista cross-funzionale attivo tra ${topDomain}${secondDomain ? ` e ${secondDomain}` : ""}, con pattern ricorrenti in ${joinHumanLocalized(topAxes, language)}.`, 24);
++    return limitWords(`${functionLabel} con profilo ${archetypeLabel}, attivo in ${topDomain} e con pattern osservabili in ${joinHumanLocalized(topAxes, language)}.`, 22);
+   }
+-  return limitWords(`Cross-functional professional operating across ${topDomain}${secondDomain ? ` and ${secondDomain}` : ""}, with recurring patterns in ${joinHumanLocalized(topAxes, language)}.`, 24);
++  return limitWords(`${functionLabel} profile with an observed ${archetypeLabel} archetype, operating in ${topDomain} with recurring patterns in ${joinHumanLocalized(topAxes, language)}.`, 22);
+ }
+ 
+ function buildTypicalContribution(axes, categoryBreakdown, language) {
+   const domainA = categoryBreakdown[0] ? professionalCategoryLabel(categoryBreakdown[0].raw || categoryBreakdown[0].label, language) : (language === "it" ? "esigenze di business" : "business needs");
+   const domainB = categoryBreakdown[1] ? professionalCategoryLabel(categoryBreakdown[1].raw || categoryBreakdown[1].label, language) : (language === "it" ? "execution operativa" : "operational execution");
+   if (language === "it") {
+-    return limitWords(`Trasforma priorita e bisogni in azioni coordinate, requisiti chiari e delivery condivisa tra ${domainA} e ${domainB}.`, 22);
++    return limitWords(`Trasforma priorita e bisogni in azioni coordinate, requisiti chiari e delivery condivisa tra ${domainA} e ${domainB}.`, 20);
+   }
+-  return limitWords(`Typically turns priorities into coordinated actions, clearer requirements and shared delivery across ${domainA} and ${domainB}.`, 22);
++  return limitWords(`Typically turns priorities into coordinated actions, clearer requirements and shared delivery across ${domainA} and ${domainB}.`, 20);
+ }
+ 
+ function renderIdentityCard(snapshot) {
++  const identity = snapshot.professionalIdentity || {};
++  const language = snapshot.language || getReportLanguage();
+   return `
+     <article class="snapshot-card identity-card">
+       <div class="identity-block">
+         <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.signatureLabel)}</p>
+         <h3>${escapeHtml(snapshot.professionalSignature)}</h3>
+       </div>
++      <div class="identity-meta-grid">
++        <div class="identity-meta-item">
++          <span>${escapeHtml(snapshot.texts.observedArchetypeLabel)}</span>
++          <strong>${escapeHtml(taxonomyLabel(identity.observed_archetype || "uncertain", language))}</strong>
++        </div>
++        <div class="identity-meta-item">
++          <span>${escapeHtml(snapshot.texts.operatingLevelLabel)}</span>
++          <strong>${escapeHtml(taxonomyLabel(identity.operating_level || "uncertain", language))}</strong>
++        </div>
++        <div class="identity-meta-item">
++          <span>${escapeHtml(snapshot.texts.workModeLabel)}</span>
++          <strong>${escapeHtml(taxonomyLabel(identity.work_mode || "uncertain", language))}</strong>
++        </div>
++      </div>
+       <div class="identity-block">
+         <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.domainsLabel)}</p>
+         <div class="identity-chip-row">
+@@ -697,6 +851,62 @@ function renderIdentityCard(snapshot) {
+   `;
+ }
+ 
++function renderRoleSpecificCapabilities(snapshot) {
++  const items = (snapshot.roleSpecificCapabilities || []).slice(0, 5);
++  if (!items.length) {
++    return `<div class="snapshot-empty">${escapeHtml(snapshot.texts.notAssessed)}</div>`;
++  }
++  return `
++    <div class="bottom-list">
++      ${items.map(item => `
++        <article>
++          <div class="bottom-head">
++            <strong>${escapeHtml(item.label)}</strong>
++            <span>${escapeHtml(displayStatus(item.evidence_status, snapshot.language))}</span>
++          </div>
++          <div class="capability-track"><i style="width:${Math.max(0, Math.min(100, Number(item.coverage || 0)))}%"></i></div>
++          <p>${escapeHtml(canonicalDimensionLabel(item.canonical_dimension, snapshot.language))} · coverage ${escapeHtml(String(item.coverage || 0))}/100</p>
++        </article>
++      `).join("")}
++    </div>
++  `;
++}
++
++function renderDifferentiators(snapshot) {
++  const items = (snapshot.differentiators || []).slice(0, 3);
++  if (!items.length) return `<div class="snapshot-empty">${escapeHtml(snapshot.texts.notAssessed)}</div>`;
++  return `
++    <div class="bottom-list compact">
++      ${items.map(item => `
++        <article>
++          <div class="bottom-head">
++            <strong>${escapeHtml(item.label)}</strong>
++          </div>
++          <p>${escapeHtml(item.explanation)}</p>
++        </article>
++      `).join("")}
++    </div>
++  `;
++}
++
++function renderWatchOuts(snapshot) {
++  const items = (snapshot.watchOuts || []).slice(0, 3);
++  if (!items.length) return `<div class="snapshot-empty">${escapeHtml(snapshot.texts.notAssessed)}</div>`;
++  return `
++    <div class="bottom-list compact">
++      ${items.map(item => `
++        <article>
++          <div class="bottom-head">
++            <strong>${escapeHtml(item.label)}</strong>
++            <span class="watch-pill ${escapeHtml(item.severity || "low")}">${escapeHtml(item.severity || "low")}</span>
++          </div>
++          <p>${escapeHtml(item.explanation)}</p>
++        </article>
++      `).join("")}
++    </div>
++  `;
++}
++
+ function buildSnapshotData() {
+   const reports = state.reports || {};
+   const kpis = reports.kpis || {};
+@@ -710,13 +920,19 @@ function buildSnapshotData() {
+   };
+   const language = config.report_language || getReportLanguage();
+   const texts = reportText(language);
++  const professionalIdentity = reports.professional_identity || (reports.private_report && reports.private_report.professional_identity) || {};
++  const roleSpecificCapabilities = reports.role_specific_capabilities || (reports.private_report && reports.private_report.role_specific_capabilities) || [];
++  const professionalPattern = reports.professional_pattern || (reports.private_report && reports.private_report.professional_pattern) || null;
++  const differentiators = reports.differentiators || (reports.private_report && reports.private_report.differentiators) || [];
++  const watchOuts = reports.watch_outs || (reports.private_report && reports.private_report.watch_outs) || [];
++  const identityDomains = reports.professional_domains || (reports.private_report && reports.private_report.professional_domains) || [];
+   const canonicalAxes = buildRadarAxesFromTemporal(temporal)
+     .filter(axis => axis.derivation === "canonical_ontology_dimension" && !isMetadataLikeLabel(axis.label));
+   const axes = canonicalAxes
+     .filter(axis => axis.assessed && axis.radar_eligible && !["insufficient_evidence", "counter_evidence_only"].includes(axis.level) && Number(axis.coverage || 0) >= MIN_RADAR_EVIDENCE_COVERAGE)
+     .map(axis => ({
+       ...axis,
+-      label: canonicalDimensionLabel(axis.canonical_dimension || axis.dimension || axis.label, language),
++      label: compactCapabilityLabel(canonicalDimensionLabel(axis.canonical_dimension || axis.dimension || axis.label, language), language),
+       statusLabel: displayStatus(axis.level, language),
+       confidenceLabel: texts.confidence[axis.confidence] || axis.confidence
+     }))
+@@ -739,14 +955,39 @@ function buildSnapshotData() {
+     .sort((a, b) => b[1] - a[1])
+     .slice(0, 4)
+     .map(([label, count]) => ({ label: professionalCategoryLabel(label, language), raw: label, count }));
+-  const analyzedConversations = (reports.normalized || []).slice(0, 4).map(conversation => {
++  const normalizedConversations = (reports.normalized || []).slice().sort((a, b) => {
++    const aDate = new Date(a.created_at || a.updated_at || 0).getTime() || 0;
++    const bDate = new Date(b.created_at || b.updated_at || 0).getTime() || 0;
++    return bDate - aDate;
++  });
++  const representative = [];
++  const selectedIds = new Set();
++  const seenCategories = new Set();
++  for (const conversation of normalizedConversations) {
++    if (representative.length >= 4) break;
++    const category = conversation.professional_category || "uncategorized";
++    if (seenCategories.has(category)) continue;
++    representative.push(conversation);
++    selectedIds.add(conversation.id);
++    seenCategories.add(category);
++  }
++  for (const conversation of normalizedConversations) {
++    if (representative.length >= 4) break;
++    if (selectedIds.has(conversation.id)) continue;
++    representative.push(conversation);
++  }
++  const analyzedConversations = representative.map(conversation => {
+     const firstUser = (conversation.messages || []).find(message => message.author === "user");
++    const cleanExcerpt = String((firstUser && firstUser.text) || "No attributable user excerpt available.")
++      .replace(/\s+/g, " ")
++      .replace(/\bContent origin:\s*\.?/gi, "")
++      .trim();
+     return {
+       id: conversation.id,
+       title: conversation.title,
+       category: professionalCategoryLabel(conversation.professional_category || "uncategorized", language),
+       date: (conversation.created_at || conversation.updated_at || "").slice(0, 10) || "-",
+-      excerpt: limitWords((firstUser && firstUser.text) || "No user excerpt available.", 22)
++      excerpt: limitWords(cleanExcerpt || "No attributable user excerpt available.", 22)
+     };
+   });
+   const evidenceHighlights = allDimensions
+@@ -762,13 +1003,17 @@ function buildSnapshotData() {
+       group: canonicalDimensionLabel(entry.dimension.canonical_dimension || entry.dimension.id || entry.dimension.label, language),
+       skill: canonicalDimensionLabel(entry.dimension.canonical_dimension || entry.dimension.id || entry.dimension.label, language),
+       confidence: texts.confidence[entry.dimension.confidence] || entry.dimension.confidence,
++      confidenceScore: Number(entry.dimension.capability_score || entry.dimension.evidence_coverage || 0),
+       evidenceType: entry.type,
+-      excerpt: limitWords(entry.item.excerpt || "", 24),
++      excerpt: limitWords(String(entry.item.excerpt || "").replace(/\s+/g, " ").replace(/\bContent origin:\s*\.?/gi, "").trim(), 24),
+       title: entry.item.conversation_title || "Conversation",
+       date: entry.item.date || ""
+     }));
+-  const professionalSignature = buildProfessionalIdentity(axes, categoryBreakdown, language);
+-  const observedDomains = categoryBreakdown.slice(0, 4).map(item => item.label);
++  const fallbackDomains = categoryBreakdown.slice(0, 4).map(item => item.raw || item.label);
++  const observedDomains = (identityDomains.length ? identityDomains : fallbackDomains)
++    .slice(0, 5)
++    .map(domain => limitChars(professionalCategoryLabel(domain, language), 24));
++  const professionalSignature = buildProfessionalSignature(professionalIdentity, axes, categoryBreakdown, professionalPattern, language);
+   const typicalContribution = buildTypicalContribution(axes, categoryBreakdown, language);
+   return {
+     language,
+@@ -782,14 +1027,27 @@ function buildSnapshotData() {
+     axes,
+     summary: buildSnapshotSummary(axes, notAssessed, language),
+     kpis: [
+-      { value: String(professionalConversations || "-"), label: texts.analyzedConversations, note: texts.retainedNote, meter: Math.min(100, professionalConversations * 10) },
+-      { value: String(evidenceItems || "-"), label: texts.evidenceItems, note: texts.evidenceNote, meter: Math.min(100, evidenceItems * 3) },
+-      { value: String(axes.length), label: texts.supportedAreas, note: texts.supportedNote, meter: Math.min(100, axes.length * 16) },
+-      { value: `${attributablePercentage}%`, label: texts.attributableEvidence, note: texts.attributableNote, meter: attributablePercentage }
++      { value: String(professionalConversations || "-"), label: limitChars(texts.analyzedConversations, 24), note: limitWords(texts.retainedNote, 8), meter: Math.min(100, professionalConversations * 10) },
++      { value: String(evidenceItems || "-"), label: limitChars(texts.evidenceItems, 24), note: limitWords(texts.evidenceNote, 8), meter: Math.min(100, evidenceItems * 3) },
++      { value: String(axes.length), label: limitChars(texts.supportedAreas, 24), note: limitWords(texts.supportedNote, 8), meter: Math.min(100, axes.length * 16) },
++      {
++        value: `${attributablePercentage}%`,
++        label: limitChars(texts.attributableEvidence, 24),
++        note: limitWords(texts.attributableNote, 8),
++        meter: attributablePercentage,
++        tooltip: texts.directAttributionTooltip || (professionalPattern && professionalPattern.attribution_note
++          ? professionalPattern.attribution_note
++          : "Attribution reflects direct user-authored evidence versus pasted, AI-generated or external content.")
++      }
+     ],
+     interpretation: buildSnapshotInterpretation(axes, notAssessed, language),
+     professionalSignature,
++    professionalIdentity,
++    professionalPattern,
+     observedDomains,
++    roleSpecificCapabilities,
++    differentiators,
++    watchOuts,
+     typicalContribution,
+     evidenceMix,
+     categoryBreakdown,
+@@ -1668,6 +1926,13 @@ function dimensionLabel(dimension) {
+ 
+ function renderRadar(axes, texts = reportText(getReportLanguage())) {
+   if (!axes.length) return `<div class="empty-visual">${escapeHtml(texts.notAssessed)}</div>`;
++  if (axes.length > 6) {
++    return `
++      <div class="capability-bars">
++        ${axes.slice(0, 6).map(axis => renderSnapshotAxis(axis)).join("")}
++      </div>
++    `;
++  }
+   const assessedAxes = axes.filter(axis => axis.assessed && typeof axis.strength === "number");
+   const notAssessedAxes = axes.filter(axis => !axis.assessed || typeof axis.strength !== "number");
+   if (!assessedAxes.length) {
+@@ -1712,9 +1977,13 @@ function renderRadar(axes, texts = reportText(getReportLanguage())) {
+       <title>${escapeHtml(radarTooltip(point))}</title>
+     </circle>
+   `).join("");
+-  const legend = assessedAxes.map(axis => `
+-    <li><span>${escapeHtml(axis.label)}</span><strong>${escapeHtml(displayStatus(axis.level))} · ${escapeHtml(texts.confidence[axis.confidence] || axis.confidence)} · coverage ${axis.coverage || 0}/100</strong></li>
+-  `).join("");
++  const legend = assessedAxes.map(axis => {
++    const coverage = axis.coverage >= 75 ? "high coverage" : axis.coverage >= 45 ? "medium coverage" : "limited coverage";
++    const confidence = String(texts.confidence[axis.confidence] || axis.confidence || "").toLowerCase();
++    return `
++      <li><span>${escapeHtml(axis.label)}</span><strong>${escapeHtml(displayStatus(axis.level))} · ${escapeHtml(coverage)} · ${escapeHtml(confidence)} confidence</strong></li>
++    `;
++  }).join("");
+   return `
+     <div class="radar-wrap">
+       <svg viewBox="0 0 ${size} ${size}" class="radar-chart" role="img" aria-label="Radar chart evidence strength">
+@@ -1739,7 +2008,7 @@ function renderNotAssessedAxes(axes, texts = reportText(getReportLanguage())) {
+       ${axes.map(axis => `
+         <p>
+           <span>${escapeHtml(axis.label)}</span>
+-          <em>coverage ${axis.coverage || 0}/100 - positive ${axis.positive_count || 0} - counter ${axis.negative_count || 0} - uncertain ${axis.uncertain_count || 0}</em>
++          <em>${escapeHtml(axis.coverage >= 75 ? "High coverage" : axis.coverage >= 45 ? "Medium coverage" : "Limited coverage")}</em>
+         </p>
+       `).join("")}
+     </div>
+diff --git a/public/styles.css b/public/styles.css
+index 6510d8b..6884924 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1434,11 +1434,11 @@ input[type="file"] {
+   transform: scale(var(--snapshot-zoom));
+   transform-origin: top center;
+   margin-bottom: calc((var(--snapshot-zoom) - 1) * 792px);
+-  padding: 44px;
++  padding: 22px;
+   display: grid;
+-  grid-template-columns: 0.36fr 0.64fr;
+-  grid-template-rows: auto 1fr auto;
+-  gap: 24px;
++  grid-template-columns: 1fr;
++  grid-template-rows: 94px 120px 96px minmax(0, 1fr) 78px;
++  gap: 12px;
+   overflow: hidden;
+   border: 1px solid #d9e2df;
+   border-radius: 4px;
+@@ -1510,8 +1510,10 @@ input[type="file"] {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+-  gap: 24px;
+-  padding: 26px 32px;
++  gap: 20px;
++  padding: 18px 22px;
++  min-height: 0;
++  overflow: hidden;
+   border-radius: 14px;
+   background: #142322;
+   color: #fff;
+@@ -1528,11 +1530,28 @@ input[type="file"] {
+ 
+ .snapshot-header h1 {
+   margin: 0;
+-  font-size: 30px;
++  font-size: clamp(28px, 3.3vw, 42px);
+   line-height: 1;
+   letter-spacing: 0;
+ }
+ 
++.snapshot-header > div {
++  min-width: 0;
++}
++
++.snapshot-header > div h1,
++.snapshot-header > div .snapshot-signature-line {
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.snapshot-signature-line {
++  margin: 4px 0 0;
++  color: #cfe3df;
++  font-size: clamp(12px, 1.5vw, 18px);
++}
++
+ .snapshot-header dl {
+   display: grid;
+   gap: 10px;
+@@ -1555,10 +1574,31 @@ input[type="file"] {
+ }
+ 
+ .snapshot-summary {
++  display: none;
++}
++
++.snapshot-identity-row {
+   display: grid;
+-  grid-template-rows: auto auto 1fr;
+-  gap: 16px;
+-  min-width: 0;
++  grid-template-columns: 1.25fr 0.65fr 1fr;
++  gap: 12px;
++  min-height: 0;
++}
++
++.identity-mini {
++  padding: 12px 14px;
++  min-height: 0;
++  overflow: hidden;
++}
++
++.identity-mini p {
++  margin: 0;
++  color: #22302f;
++  font-size: 13px;
++  line-height: 1.35;
++}
++
++.snapshot-kpi-row {
++  min-height: 0;
+ }
+ 
+ .snapshot-card,
+@@ -1571,8 +1611,9 @@ input[type="file"] {
+ }
+ 
+ .executive-card {
+-  padding: 22px;
+-  min-height: 154px;
++  padding: 14px;
++  min-height: 0;
++  overflow: hidden;
+ }
+ 
+ .executive-card p:last-child,
+@@ -1586,13 +1627,17 @@ input[type="file"] {
+ 
+ .snapshot-kpis {
+   display: grid;
+-  grid-template-columns: 1fr 1fr;
+-  gap: 12px;
++  grid-template-columns: repeat(4, minmax(0, 1fr));
++  gap: 10px;
++  min-height: 0;
+ }
+ 
+ .snapshot-kpi {
+-  min-height: 104px;
+-  padding: 16px 18px;
++  min-height: 0;
++  padding: 12px;
++  overflow: hidden;
++  display: grid;
++  gap: 6px;
+ }
+ 
+ .snapshot-kpi.with-meter {
+@@ -1601,8 +1646,8 @@ input[type="file"] {
+ }
+ 
+ .kpi-meter {
+-  width: 58px;
+-  height: 58px;
++  width: 50px;
++  height: 50px;
+   display: grid;
+   place-items: center;
+   border-radius: 50%;
+@@ -1610,39 +1655,45 @@ input[type="file"] {
+ }
+ 
+ .kpi-meter strong {
+-  width: 42px;
+-  height: 42px;
++  width: 36px;
++  height: 36px;
+   margin: 0;
+   border-radius: 50%;
+   display: grid;
+   place-items: center;
+   background: #fff;
+-  font-size: 16px;
++  font-size: 12px;
+ }
+ 
+ .snapshot-kpi strong {
+   display: block;
+-  margin-bottom: 8px;
++  margin-bottom: 4px;
+   color: #16877f;
+-  font-size: 27px;
++  font-size: 38px;
+   line-height: 1;
+ }
+ 
+ .snapshot-kpi span {
+   display: block;
+-  min-height: 31px;
++  min-height: 0;
+   color: #23312f;
+   font-size: 12px;
+   font-weight: 900;
+   line-height: 1.22;
+   text-transform: uppercase;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
+ }
+ 
+ .snapshot-kpi p {
+-  margin: 8px 0 0;
++  margin: 6px 0 0;
+   color: #687673;
+-  font-size: 11px;
++  font-size: 10px;
+   line-height: 1.3;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
+ }
+ 
+ .snapshot-note {
+@@ -1653,15 +1704,48 @@ input[type="file"] {
+ }
+ 
+ .mini-visual-card {
+-  padding: 16px 18px;
++  padding: 14px;
+   display: grid;
+-  gap: 10px;
++  gap: 8px;
++  min-height: 0;
++  overflow: hidden;
+ }
+ 
+ .identity-card {
+-  padding: 16px 18px;
++  padding: 14px;
+   display: grid;
+-  gap: 14px;
++  gap: 10px;
++  min-height: 0;
++  overflow: hidden;
++}
++
++.identity-meta-grid {
++  display: grid;
++  grid-template-columns: 1fr;
++  gap: 8px;
++}
++
++.identity-meta-item {
++  display: flex;
++  align-items: baseline;
++  justify-content: space-between;
++  gap: 10px;
++  padding: 7px 9px;
++  border: 1px solid #d6e2df;
++  border-radius: 8px;
++  background: #f7fbf9;
++}
++
++.identity-meta-item span {
++  color: #5c6b67;
++  font-size: 10px;
++  font-weight: 800;
++  text-transform: uppercase;
++}
++
++.identity-meta-item strong {
++  color: #22302f;
++  font-size: 12px;
+ }
+ 
+ .identity-block {
+@@ -1671,14 +1755,23 @@ input[type="file"] {
+ 
+ .identity-block h3 {
+   margin: 0;
+-  font-size: 18px;
+-  line-height: 1.25;
++  font-size: 36px;
++  line-height: 1.22;
++  display: -webkit-box;
++  -webkit-line-clamp: 2;
++  -webkit-box-orient: vertical;
++  overflow: hidden;
+ }
+ 
+ .identity-block p:last-child {
+   margin: 0;
+   color: #22302f;
+-  line-height: 1.45;
++  line-height: 1.22;
++  font-size: 14px;
++  display: -webkit-box;
++  -webkit-line-clamp: 2;
++  -webkit-box-orient: vertical;
++  overflow: hidden;
+ }
+ 
+ .identity-chip-row {
+@@ -1696,6 +1789,10 @@ input[type="file"] {
+   color: #24413c;
+   font-size: 11px;
+   font-weight: 800;
++  max-width: 24ch;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
+ }
+ 
+ .mini-visual-head {
+@@ -1794,17 +1891,113 @@ input[type="file"] {
+ }
+ 
+ .profile-card {
+-  padding: 22px 26px;
++  padding: 16px 18px;
++  min-width: 0;
++  min-height: 0;
++  overflow: hidden;
++}
++
++.snapshot-page .snapshot-card {
++  min-height: 0;
++  overflow: hidden;
++}
++
++.snapshot-bottom {
++  display: none;
++}
++
++.bottom-grid {
++  display: grid;
++  grid-template-columns: 1.25fr 1fr 1fr;
++  gap: 10px;
++}
++
++.bottom-panel {
++  border: 1px solid #d6e2df;
++  border-radius: 10px;
++  padding: 10px;
++  background: #fbfdfc;
+   min-width: 0;
+ }
+ 
++.bottom-list {
++  display: grid;
++  gap: 7px;
++}
++
++.bottom-list article {
++  display: grid;
++  gap: 5px;
++}
++
++.bottom-list p {
++  margin: 0;
++  color: #5f6d69;
++  font-size: 11px;
++  line-height: 1.32;
++}
++
++.bottom-head {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 8px;
++}
++
++.bottom-head strong {
++  color: #22302f;
++  font-size: 12px;
++}
++
++.bottom-head span {
++  color: #60706c;
++  font-size: 10px;
++  font-weight: 800;
++}
++
++.watch-pill {
++  display: inline-flex;
++  align-items: center;
++  padding: 3px 7px;
++  border-radius: 999px;
++  text-transform: uppercase;
++}
++
++.watch-pill.low {
++  background: #ecf5f2;
++  color: #1b675e;
++}
++
++.watch-pill.medium {
++  background: #fff0d7;
++  color: #7a560d;
++}
++
++.watch-pill.high {
++  background: #fae0e0;
++  color: #8b2525;
++}
++
++.bottom-method-note {
++  margin: 0;
++  padding: 8px 10px;
++  border: 1px dashed #c7d9d5;
++  border-radius: 8px;
++  color: #53615e;
++  font-size: 11px;
++  line-height: 1.34;
++}
++
+ .snapshot-radar-panel .radar-wrap {
+-  grid-template-columns: minmax(280px, 1.2fr) minmax(140px, 0.7fr);
++  grid-template-columns: minmax(220px, 0.85fr) minmax(380px, 1.15fr);
+   gap: 10px;
++  min-height: 0;
++  max-height: 100%;
+ }
+ 
+ .snapshot-radar-panel .radar-chart {
+-  max-width: 420px;
++  max-width: 200px;
++  max-height: 200px;
+ }
+ 
+ .snapshot-radar-panel .radar-legend {
+@@ -1812,25 +2005,29 @@ input[type="file"] {
+ }
+ 
+ .snapshot-radar-panel .radar-legend li {
+-  padding-bottom: 6px;
++  padding-bottom: 4px;
+ }
+ 
+ .snapshot-radar-panel .radar-legend strong {
+   font-size: 11px;
+ }
+ 
++.snapshot-radar-panel .radar-label {
++  font-size: 10px;
++}
++
+ .profile-card-head {
+   display: flex;
+   align-items: flex-start;
+   justify-content: space-between;
+   gap: 18px;
+-  margin-bottom: 18px;
++  margin-bottom: 8px;
+ }
+ 
+ .profile-card-head h2 {
+   margin: 0;
+   color: #1e2a29;
+-  font-size: 22px;
++  font-size: clamp(24px, 2.8vw, 32px);
+   letter-spacing: 0;
+ }
+ 
+@@ -1844,22 +2041,28 @@ input[type="file"] {
+ }
+ 
+ .profile-subtitle {
+-  margin: 0 0 14px;
++  margin: 0 0 10px;
+   color: #5f6d69;
+   font-size: 12px;
+   line-height: 1.35;
++  display: -webkit-box;
++  -webkit-line-clamp: 2;
++  -webkit-box-orient: vertical;
++  overflow: hidden;
+ }
+ 
+ .capability-bars {
+   display: grid;
+-  gap: 13px;
+-  margin-top: 8px;
++  gap: 8px;
++  margin-top: 6px;
++  max-height: 100%;
++  overflow: hidden;
+ }
+ 
+ .capability-row {
+   display: grid;
+-  grid-template-columns: minmax(190px, 0.95fr) minmax(180px, 1.25fr) 34px;
+-  gap: 14px;
++  grid-template-columns: minmax(190px, 0.95fr) minmax(180px, 1.25fr) 70px;
++  gap: 10px;
+   align-items: center;
+ }
+ 
+@@ -1867,19 +2070,19 @@ input[type="file"] {
+   display: block;
+   color: #22302f;
+   font-size: 13px;
+-  line-height: 1.25;
++  line-height: 1.2;
+ }
+ 
+ .capability-label span {
+   display: block;
+-  margin-top: 3px;
++  margin-top: 2px;
+   color: #6b7774;
+   font-size: 11px;
+   line-height: 1.2;
+ }
+ 
+ .capability-track {
+-  height: 14px;
++  height: 12px;
+   overflow: hidden;
+   border-radius: 999px;
+   background: #dce9e6;
+@@ -1940,12 +2143,31 @@ input[type="file"] {
+ 
+ .snapshot-footer {
+   grid-column: 1 / -1;
+-  display: flex;
+-  justify-content: space-between;
+-  gap: 18px;
+-  color: #6c7a77;
+-  font-size: 10px;
+-  line-height: 1.2;
++  display: grid;
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++  gap: 10px;
++  min-height: 0;
++  overflow: hidden;
++}
++
++.footer-card {
++  padding: 10px 12px;
++  min-height: 0;
++  overflow: hidden;
++}
++
++.footer-card p {
++  margin: 0;
++  color: #60706c;
++  font-size: 11px;
++  line-height: 1.28;
++}
++
++.clamp-3 {
++  display: -webkit-box;
++  -webkit-line-clamp: 3;
++  -webkit-box-orient: vertical;
++  overflow: hidden;
+ }
+ 
+ @page {
+@@ -2054,6 +2276,24 @@ input[type="file"] {
+     padding: 16px 18px;
+   }
+ 
++  body.print-mode .snapshot-bottom {
++    padding: 10px 12px;
++  }
++
++  body.print-mode .bottom-grid {
++    grid-template-columns: 1fr 1fr 1fr;
++    gap: 8px;
++  }
++
++  body.print-mode .bottom-panel {
++    padding: 8px;
++  }
++
++  body.print-mode .bottom-method-note {
++    font-size: 10px;
++    padding: 6px 8px;
++  }
++
+   body.print-mode .snapshot-radar-panel .radar-wrap {
+     grid-template-columns: minmax(240px, 1.15fr) minmax(125px, 0.75fr);
+     gap: 8px;
+@@ -2196,7 +2436,14 @@ input[type="file"] {
+   .review-summary-metrics,
+   .export-config,
+   .appendix-list,
+-  .skill-group-grid {
++  .skill-group-grid,
++  .bottom-grid {
++    grid-template-columns: 1fr;
++  }
++
++  .snapshot-identity-row,
++  .snapshot-kpis,
++  .snapshot-footer {
+     grid-template-columns: 1fr;
+   }
+ }
+diff --git a/server.js b/server.js
+index add135d..b909ac5 100644
+--- a/server.js
++++ b/server.js
+@@ -240,6 +240,189 @@ const skillPassportGroups = [
+   }
+ ];
+ 
++const professionalFunctions = [
++  "engineering",
++  "product",
++  "program_project_management",
++  "operations",
++  "data_analytics",
++  "sales_business_development",
++  "marketing",
++  "customer_success",
++  "finance",
++  "hr_people",
++  "legal_compliance",
++  "consulting",
++  "executive_management",
++  "other"
++];
++
++const roleArchetypes = [
++  "individual_contributor",
++  "technical_specialist",
++  "backend_developer",
++  "frontend_developer",
++  "data_analyst",
++  "data_engineer",
++  "product_owner",
++  "product_manager",
++  "project_manager",
++  "program_manager",
++  "operations_manager",
++  "consultant",
++  "senior_consultant",
++  "manager",
++  "senior_manager",
++  "functional_lead",
++  "head_of_function",
++  "director",
++  "partner",
++  "executive",
++  "hr_lead",
++  "recruiter",
++  "customer_success_manager",
++  "sales_manager",
++  "other"
++];
++
++const operatingLevels = [
++  "junior",
++  "mid_level",
++  "senior",
++  "lead",
++  "manager",
++  "senior_manager",
++  "head_of",
++  "director",
++  "executive_partner",
++  "uncertain"
++];
++
++const workModes = [
++  "individual_delivery",
++  "specialist_execution",
++  "cross_functional_coordination",
++  "people_management",
++  "strategic_leadership",
++  "advisory_consulting",
++  "operational_ownership",
++  "commercial_ownership",
++  "technical_ownership"
++];
++
++const professionalFunctionSignals = {
++  engineering: ["backend", "frontend", "developer", "api", "architettura", "architecture", "deploy", "database", "python", "javascript", "bug", "incident", "reliability", "performance"],
++  product: ["prodotto", "product", "backlog", "roadmap", "priorit", "utente", "discovery", "feature", "value proposition"],
++  program_project_management: ["program", "project", "milestone", "timeline", "dipenden", "delivery", "piano", "scope", "workstream", "coordination"],
++  operations: ["operativo", "operations", "processo", "runbook", "sop", "handover", "monitoring", "continuita"],
++  data_analytics: ["data", "dati", "analytics", "kpi", "metric", "dashboard", "dataset", "sql", "analisi"],
++  sales_business_development: ["vendita", "sales", "pipeline", "cliente", "deal", "negozia", "opportunity", "business development"],
++  marketing: ["marketing", "campaign", "funnel", "brand", "acquisition", "content strategy"],
++  customer_success: ["customer success", "adoption", "renewal", "onboarding", "retention", "nps"],
++  finance: ["budget", "forecast", "margine", "pnl", "cash flow", "finance"],
++  hr_people: ["hiring", "recruiting", "talent", "performance review", "people", "onboarding"],
++  legal_compliance: ["compliance", "regolatorio", "contratto", "privacy", "gdpr", "legal"],
++  consulting: ["consulenza", "consulting", "cliente", "raccomando", "advisory", "diagnosi", "framework"],
++  executive_management: ["board", "executive", "strategic", "portfolio", "organizzazione", "company strategy", "governance"]
++};
++
++const archetypeSignals = {
++  individual_contributor: ["implemento", "eseguo", "delivery personale", "mi occupo direttamente"],
++  technical_specialist: ["specialist", "specialista", "deep dive", "expertise tecnica"],
++  backend_developer: ["backend", "api", "service", "microserv", "database", "python", "node"],
++  frontend_developer: ["frontend", "ui", "ux", "react", "css", "component"],
++  data_analyst: ["dashboard", "reporting", "analisi dati", "kpi", "sql"],
++  data_engineer: ["etl", "pipeline", "data model", "warehouse", "orchestrazione"],
++  product_owner: ["product owner", "backlog", "user story", "acceptance criteria", "prioritizzazione"],
++  product_manager: ["product manager", "roadmap", "go to market", "discovery", "value"],
++  project_manager: ["project manager", "timeline", "milestone", "piano progetto", "rischio progetto"],
++  program_manager: ["program manager", "workstream", "cross-functional", "governance programma"],
++  operations_manager: ["operations manager", "operazioni", "process governance", "service continuity"],
++  consultant: ["consulente", "consulenza", "raccomando", "assessment"],
++  senior_consultant: ["advisory", "cliente executive", "trasformazione", "framework decisionale"],
++  manager: ["gestisco team", "people management", "1:1", "obiettivi del team"],
++  senior_manager: ["piu team", "manager dei manager", "portfolio", "org-wide"],
++  functional_lead: ["functional lead", "guido la funzione", "standard della funzione"],
++  head_of_function: ["head of", "funzione", "capability building", "ownership funzione"],
++  director: ["director", "direzione", "strategic planning", "executive stakeholder"],
++  partner: ["partner", "practice", "commercial strategy", "account growth"],
++  executive: ["executive", "board", "company-level", "strategic leadership"],
++  hr_lead: ["hr", "people strategy", "talent strategy", "org design"],
++  recruiter: ["recruiter", "candidate", "sourcing", "interview pipeline"],
++  customer_success_manager: ["customer success", "onboarding", "renewal", "adoption"],
++  sales_manager: ["sales manager", "sales team", "pipeline", "quota"]
++};
++
++const workModeSignals = {
++  individual_delivery: ["eseguo", "delivery personale", "implemento", "produco"],
++  specialist_execution: ["specialista", "expertise", "deep dive", "focus tecnico"],
++  cross_functional_coordination: ["cross-functional", "allineo stakeholder", "coordino team", "dipendenze"],
++  people_management: ["people management", "1:1", "gestione persone", "performance review"],
++  strategic_leadership: ["strategia", "strategic", "portfolio", "company direction", "governance"],
++  advisory_consulting: ["consulenza", "advisory", "raccomando", "diagnosi"],
++  operational_ownership: ["operativo", "operations", "ownership operativo", "continuita"],
++  commercial_ownership: ["sales", "revenue", "commercial", "negoziazione", "deal"],
++  technical_ownership: ["ownership tecnica", "architecture decision", "reliability", "incident", "api design"]
++};
++
++const operatingLevelSignals = {
++  junior: {
++    support: ["con supporto", "aiutami", "non sono sicuro", "sto imparando", "entry level"],
++    counter: ["decido autonomamente", "guido", "ownership"]
++  },
++  mid_level: {
++    support: ["implemento", "gestisco task", "consegno", "eseguo in autonomia"],
++    counter: ["guido strategia", "gestisco team", "board"]
++  },
++  senior: {
++    support: ["trade-off", "ownership", "decido", "autonomia", "prioritizzo", "mentoring"],
++    counter: ["non posso decidere", "aspetto conferma su tutto"]
++  },
++  lead: {
++    support: ["coordino", "allineo team", "cross-functional", "guido iniziativa", "governance"],
++    counter: ["solo task individuali", "nessun coordinamento"]
++  },
++  manager: {
++    support: ["people management", "1:1", "gestisco team", "obiettivi del team", "hiring"],
++    counter: ["nessuna responsabilita persone"]
++  },
++  senior_manager: {
++    support: ["piu team", "manager dei manager", "portfolio", "org-wide execution"],
++    counter: ["solo contributo individuale"]
++  },
++  head_of: {
++    support: ["head of", "guida funzione", "ownership funzione", "functional strategy"],
++    counter: ["scope limitato al singolo task"]
++  },
++  director: {
++    support: ["director", "strategic planning", "executive stakeholder", "budget ownership"],
++    counter: ["solo execution operativa"]
++  },
++  executive_partner: {
++    support: ["board", "company strategy", "enterprise", "partner", "p&l", "org design"],
++    counter: ["scope solo operativo"]
++  }
++};
++
++const roleSpecificCapabilityTemplates = {
++  product_owner: [
++    { label: "Product ownership", canonical_dimension: "execution", support: ["product ownership", "ownership prodotto", "own product"], counter: ["non posso decidere prodotto"] },
++    { label: "Roadmap and backlog management", canonical_dimension: "planning", support: ["roadmap", "backlog", "user story", "priorit"], counter: ["senza backlog", "no piano"] },
++    { label: "Stakeholder alignment", canonical_dimension: "collaboration", support: ["stakeholder", "allineo", "cross-functional", "allineamento"], counter: ["non coinvolgo stakeholder", "alignment mancante"] },
++    { label: "Delivery coordination", canonical_dimension: "execution", support: ["delivery", "milestone", "dipendenze", "coordino"], counter: ["delivery bloccata", "nessun coordinamento"] },
++    { label: "Data-informed prioritization", canonical_dimension: "data_reasoning", support: ["kpi", "metric", "data", "priorit"], counter: ["senza dati", "priorita non supportata"] }
++  ],
++  backend_developer: [
++    { label: "Python backend expertise", canonical_dimension: "domain_knowledge", support: ["python", "backend", "service", "django", "fastapi"], counter: ["bassa confidenza tecnica", "serve specialista"] },
++    { label: "API and service design", canonical_dimension: "execution", support: ["api", "endpoint", "payload", "service design", "schema"], counter: ["non definisco api"] },
++    { label: "Performance diagnosis", canonical_dimension: "problem_solving", support: ["performance", "latency", "profiling", "ottimizz", "bottleneck"], counter: ["non so diagnosticare"] },
++    { label: "Reliability engineering", canonical_dimension: "risk_awareness", support: ["reliability", "retry", "fallback", "monitoring", "uptime"], counter: ["nessun monitoraggio", "nessuna mitigazione"] },
++    { label: "Incident resolution", canonical_dimension: "problem_solving", support: ["incident", "root cause", "rollback", "fix", "postmortem"], counter: ["incident non risolto"] },
++    { label: "Independent technical execution", canonical_dimension: "execution", support: ["implemento", "decido", "ownership tecnica", "autonomia"], counter: ["aspetto sempre conferma", "non posso decidere"] },
++    { label: "Collaboration and communication", canonical_dimension: "communication", support: ["allineo", "comunico", "stakeholder", "handover"], counter: ["lavoro da solo", "non collaboro", "messaggio non chiaro"] }
++  ]
++};
++
+ function sanitizeProfileName(value) {
+   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 120);
+ }
+@@ -1178,6 +1361,603 @@ function buildTechnologyReasoning(normalized, insights, publicOnly = false) {
+   };
+ }
+ 
++function identityEvidenceId(layer, key, message, conversation) {
++  return `identity:${layer}:${key}:${conversation.id}:${message.id}`;
++}
++
++function collectAttributableUserMessages(normalized) {
++  return normalized.flatMap(conversation =>
++    conversation.messages
++      .filter(message => message.author === "user")
++      .map(message => ({
++        ...message,
++        conversation,
++        lower: String(message.text || "").toLowerCase(),
++        attributable: canCreateCapabilityClaim(message)
++      }))
++  );
++}
++
++function scoreTaxonomy(messages, taxonomy, signalsMap, layer) {
++  const rows = taxonomy.map(key => {
++    const terms = signalsMap[key] || [];
++    let score = 0;
++    const evidence = [];
++    const conversations = new Set();
++    for (const message of messages) {
++      const matched = matchedTerms(message.lower, terms);
++      if (!matched.length || !message.attributable) continue;
++      const increment = Math.max(1, matched.length * sourceWeight(message));
++      score += increment;
++      conversations.add(message.conversation.id);
++      evidence.push({
++        id: identityEvidenceId(layer, key, message, message.conversation),
++        conversation_id: message.conversation.id,
++        date: message.created_at || message.conversation.created_at,
++        matched_terms: matched.slice(0, 6),
++        excerpt: message.text.slice(0, 220)
++      });
++    }
++    return {
++      key,
++      score,
++      evidence,
++      conversation_count: conversations.size
++    };
++  });
++  return rows.sort((a, b) => b.score - a.score || b.conversation_count - a.conversation_count);
++}
++
++function inferOperatingLevel(messages) {
++  const titleOnlyTerms = new Set(["junior", "senior", "lead", "manager", "senior manager", "head of", "director", "executive", "partner"]);
++  const scopeAutonomySignals = [
++    "ownership", "autonomia", "decido", "trade-off", "coordino", "cross-functional", "strategic", "portfolio", "people management", "1:1", "board", "budget"
++  ];
++  const rows = operatingLevels
++    .filter(level => level !== "uncertain")
++    .map(level => {
++      const profile = operatingLevelSignals[level] || { support: [], counter: [] };
++      let support = 0;
++      let counter = 0;
++      const supportEvidence = [];
++      const counterEvidence = [];
++      const conversations = new Set();
++      for (const message of messages) {
++        const supportTerms = matchedTerms(message.lower, profile.support || []);
++        const counterTerms = matchedTerms(message.lower, profile.counter || []);
++        const hasScopeSignal = matchedTerms(message.lower, scopeAutonomySignals).length > 0;
++        const titleOnlyMatch = supportTerms.length > 0 && supportTerms.every(term => titleOnlyTerms.has(String(term || "").toLowerCase()));
++        if (supportTerms.length && message.attributable && !(titleOnlyMatch && !hasScopeSignal)) {
++          support += Math.max(1, supportTerms.length * sourceWeight(message));
++          conversations.add(message.conversation.id);
++          supportEvidence.push(identityEvidenceId("level_support", level, message, message.conversation));
++        }
++        if (counterTerms.length && message.attributable) {
++          counter += Math.max(1, counterTerms.length * 0.8);
++          counterEvidence.push(identityEvidenceId("level_counter", level, message, message.conversation));
++        }
++      }
++      return {
++        level,
++        score: Math.max(0, support - counter * 0.8),
++        support,
++        counter,
++        support_evidence_ids: supportEvidence,
++        counter_evidence_ids: counterEvidence,
++        conversation_count: conversations.size
++      };
++    })
++    .sort((a, b) => b.score - a.score || b.conversation_count - a.conversation_count);
++
++  const top = rows[0] || null;
++  const second = rows[1] || null;
++  if (!top || top.score < 2 || top.conversation_count < 1) {
++    return {
++      operating_level: "uncertain",
++      confidence: "low",
++      supporting_evidence_ids: [],
++      limitations: ["Insufficient evidence on scope, autonomy and ownership to infer operating level."]
++    };
++  }
++
++  const dominance = top.score - (second ? second.score : 0);
++  const confidence = top.score >= 6 && dominance >= 2 && top.conversation_count >= 2
++    ? "high"
++    : top.score >= 3
++      ? "medium"
++      : "low";
++  return {
++    operating_level: top.level,
++    confidence,
++    supporting_evidence_ids: top.support_evidence_ids.slice(0, 10),
++    limitations: top.counter ? ["Counter-evidence indicates potential limits on demonstrated scope or autonomy."] : []
++  };
++}
++
++function mapPrimaryRoleTemplate(identity, messages) {
++  const text = messages.map(message => message.lower).join("\n");
++  if (identity.observed_archetype === "product_owner" || identity.observed_archetype === "product_manager") return "product_owner";
++  if (identity.observed_archetype === "backend_developer") return "backend_developer";
++  if (identity.primary_function === "engineering" && /\bpython\b/.test(text)) return "backend_developer";
++  if (identity.primary_function === "product") return "product_owner";
++  return identity.primary_function === "engineering" ? "backend_developer" : "product_owner";
++}
++
++function roleSpecificStatus(weightedPositive, positiveCount, counterCount) {
++  if (!positiveCount) return "insufficient_evidence";
++  const net = Math.max(0, weightedPositive - counterCount * 0.8);
++  if (net >= 8 && positiveCount >= 3) return "strongly_supported";
++  if (net >= 5 && positiveCount >= 2) return "recurring";
++  if (net >= 2.5) return "observed";
++  return "emerging";
++}
++
++function buildRoleSpecificCapabilities(normalized, professionalIdentity) {
++  const messages = collectAttributableUserMessages(normalized);
++  const templateKey = mapPrimaryRoleTemplate(professionalIdentity, messages);
++  const templates = roleSpecificCapabilityTemplates[templateKey] || [];
++  return templates.map(template => {
++    let weightedPositive = 0;
++    const positiveEvidence = [];
++    const counterEvidence = [];
++    const conversations = new Set();
++    for (const message of messages) {
++      const supportTerms = matchedTerms(message.lower, template.support || []);
++      const counterTerms = matchedTerms(message.lower, template.counter || []);
++      if (supportTerms.length && message.attributable) {
++        weightedPositive += Math.max(1, supportTerms.length * sourceWeight(message));
++        conversations.add(message.conversation.id);
++        positiveEvidence.push(identityEvidenceId("role_capability", template.label.toLowerCase().replace(/[^a-z0-9]+/g, "_"), message, message.conversation));
++      }
++      if (counterTerms.length && message.attributable) {
++        counterEvidence.push(identityEvidenceId("role_capability_counter", template.label.toLowerCase().replace(/[^a-z0-9]+/g, "_"), message, message.conversation));
++      }
++    }
++    const coverage = evidenceCoverageScore(weightedPositive + counterEvidence.length, conversations.size);
++    return {
++      label: template.label,
++      canonical_dimension: template.canonical_dimension,
++      evidence_status: roleSpecificStatus(weightedPositive, positiveEvidence.length, counterEvidence.length),
++      coverage,
++      supporting_evidence_ids: positiveEvidence.slice(0, 10),
++      counter_evidence_ids: counterEvidence.slice(0, 8)
++    };
++  });
++}
++
++function domainToFunction(domain) {
++  const map = {
++    strategy: "product",
++    project_management: "program_project_management",
++    product_management: "product",
++    technology: "engineering",
++    programming: "engineering",
++    data_analytics: "data_analytics",
++    professional_communication: "consulting",
++    leadership: "executive_management",
++    recruiting: "hr_people",
++    negotiation: "sales_business_development",
++    execution: "operations",
++    learning: "consulting",
++    other: "other",
++    uncategorized: "other"
++  };
++  return map[domain] || "other";
++}
++
++function recencyWeightForDate(dateIso, latestIso) {
++  if (!dateIso || !latestIso) return 0.72;
++  const date = new Date(dateIso);
++  const latest = new Date(latestIso);
++  if (Number.isNaN(date.getTime()) || Number.isNaN(latest.getTime())) return 0.72;
++  const days = Math.max(0, Math.round((latest - date) / (1000 * 60 * 60 * 24)));
++  if (days <= 30) return 1;
++  if (days <= 90) return 0.9;
++  if (days <= 180) return 0.8;
++  return 0.68;
++}
++
++function sourcePenaltyWeight(source) {
++  if (source === "original_user_input") return 1;
++  if (source === "mixed_content") return 0.65;
++  if (source === "unknown") return 0.45;
++  if (source === "pasted_email" || source === "pasted_code") return 0.35;
++  if (source === "pasted_external_document" || source === "pasted_job_description") return 0.2;
++  if (source === "ai_generated_text") return 0.1;
++  return 0.35;
++}
++
++function buildDomainWeighting(normalized, temporalMaturity) {
++  const period = dateRange(normalized);
++  const latestIso = period.last;
++  const rows = new Map();
++
++  const ensure = domain => {
++    const key = domain || "other";
++    if (!rows.has(key)) {
++      rows.set(key, {
++        domain: key,
++        weighted_raw: 0,
++        supporting_evidence_items: 0,
++        direct_user_items: 0,
++        attributable_items: 0,
++        distinct_conversations: new Set(),
++        evidence_ids: [],
++        source_counts: {
++          original_user_input: 0,
++          mixed_content: 0,
++          unknown: 0,
++          pasted_content: 0,
++          ai_generated_text: 0,
++          external_content: 0
++        },
++        confidence_sum: 0,
++        confidence_count: 0,
++        recency_sum: 0,
++        recency_count: 0,
++        dimensions: new Set()
++      });
++    }
++    return rows.get(key);
++  };
++
++  for (const conversation of normalized) {
++    ensure(conversation.professional_category || "other");
++    const userMessages = (conversation.messages || []).filter(message => message.author === "user");
++    for (const message of userMessages) {
++      const domain = conversation.professional_category || "other";
++      const row = ensure(domain);
++      const source = sourceValue(message);
++      const sourcePenalty = sourcePenaltyWeight(source);
++      const recency = recencyWeightForDate(message.created_at || conversation.created_at || conversation.updated_at, latestIso);
++      const confidence = Number(conversation.confidence || 0.62);
++      const weighted = Math.max(0.05, sourcePenalty * recency * confidence);
++
++      row.weighted_raw += weighted;
++      row.distinct_conversations.add(conversation.id);
++      row.evidence_ids.push(identityEvidenceId("domain", domain, message, conversation));
++      row.confidence_sum += confidence;
++      row.confidence_count += 1;
++      row.recency_sum += recency;
++      row.recency_count += 1;
++
++      if (canCreateCapabilityClaim(message)) {
++        row.supporting_evidence_items += 1;
++        row.attributable_items += 1;
++      }
++      if (source === "original_user_input") row.direct_user_items += 1;
++
++      if (source === "original_user_input") row.source_counts.original_user_input += 1;
++      else if (source === "mixed_content") row.source_counts.mixed_content += 1;
++      else if (source === "ai_generated_text") row.source_counts.ai_generated_text += 1;
++      else if (source === "pasted_external_document" || source === "pasted_job_description") row.source_counts.external_content += 1;
++      else if (source === "pasted_email" || source === "pasted_code") row.source_counts.pasted_content += 1;
++      else row.source_counts.unknown += 1;
++    }
++  }
++
++  const canonicalDimensions = (temporalMaturity && temporalMaturity.dimensions || [])
++    .filter(dimension => dimension.derivation === "canonical_ontology_dimension");
++  for (const dimension of canonicalDimensions) {
++    for (const evidence of dimension.supporting_evidence || []) {
++      const conversation = normalized.find(item => item.id === evidence.conversation_id);
++      if (!conversation) continue;
++      const domain = conversation.professional_category || "other";
++      ensure(domain).dimensions.add(dimension.canonical_dimension || dimension.id);
++    }
++  }
++
++  const packed = Array.from(rows.values()).map(row => {
++    const conversationCount = row.distinct_conversations.size;
++    const diversity = row.dimensions.size;
++    const recurrenceBoost = conversationCount >= 4 ? 1.22 : conversationCount >= 3 ? 1.14 : conversationCount >= 2 ? 1.05 : 0.86;
++    const diversityBoost = 1 + Math.min(0.24, Math.max(0, diversity - 1) * 0.06);
++    const totalSources = Object.values(row.source_counts).reduce((sum, value) => sum + value, 0) || 1;
++    const externalRatio = (row.source_counts.external_content + row.source_counts.ai_generated_text + row.source_counts.pasted_content) / totalSources;
++    const isolatedPenalty = conversationCount < 2 ? 0.18 : 0;
++    const attributionPenalty = Math.min(0.42, externalRatio * 0.5 + isolatedPenalty);
++    const weighted_score = row.weighted_raw * recurrenceBoost * diversityBoost * (1 - attributionPenalty);
++    return {
++      domain: row.domain,
++      weighted_score,
++      weighted_raw: row.weighted_raw,
++      supporting_evidence_items: row.supporting_evidence_items,
++      distinct_conversations: conversationCount,
++      direct_user_items: row.direct_user_items,
++      attributable_items: row.attributable_items,
++      average_confidence: row.confidence_count ? row.confidence_sum / row.confidence_count : 0,
++      average_recency: row.recency_count ? row.recency_sum / row.recency_count : 0,
++      diversity_count: diversity,
++      recurrence_factor: recurrenceBoost,
++      attribution_penalty: attributionPenalty,
++      source_counts: row.source_counts,
++      evidence_ids: Array.from(new Set(row.evidence_ids)).slice(0, 20)
++    };
++  }).sort((a, b) => b.weighted_score - a.weighted_score);
++
++  const totalWeighted = packed.reduce((sum, item) => sum + item.weighted_score, 0) || 1;
++  const enriched = packed.map(item => {
++    const weighted_share = item.weighted_score / totalWeighted;
++    const passes_threshold =
++      item.supporting_evidence_items >= 3 &&
++      item.distinct_conversations >= 2 &&
++      item.direct_user_items >= 2 &&
++      weighted_share >= 0.25;
++    return {
++      ...item,
++      weighted_share,
++      passes_threshold
++    };
++  });
++
++  return {
++    total_weighted_evidence: totalWeighted,
++    domains: enriched,
++    dominant_domain: enriched[0] || null,
++    secondary_domains: enriched.slice(1, 4)
++  };
++}
++
++function capabilitySummaryForPattern(temporalMaturity) {
++  const top = (temporalMaturity && temporalMaturity.dimensions || [])
++    .filter(dimension =>
++      dimension.derivation === "canonical_ontology_dimension" &&
++      !["insufficient_evidence", "counter_evidence_only"].includes(dimension.status)
++    )
++    .sort((a, b) => (b.evidence_coverage || 0) - (a.evidence_coverage || 0))
++    .slice(0, 2)
++    .map(dimension => dimension.canonical_dimension || dimension.id);
++  return top;
++}
++
++function strongArchetypeLabel(domain) {
++  const labels = {
++    recruiting: "HR lead archetype",
++    product_management: "Product leader pattern",
++    data_analytics: "Data analyst pattern",
++    technology: "Technology architect pattern",
++    programming: "Technology architect pattern",
++    strategy: "Executive strategy pattern"
++  };
++  return labels[domain] || null;
++}
++
++function buildProfessionalPattern(normalized, temporalMaturity, language = "en") {
++  const domainWeighting = buildDomainWeighting(normalized, temporalMaturity);
++  const dominant = domainWeighting.dominant_domain;
++  const secondary = domainWeighting.secondary_domains;
++  const capabilities = capabilitySummaryForPattern(temporalMaturity);
++  const capabilityText = capabilities.length ? capabilities.join("/") : "professional capabilities";
++
++  let signature_text;
++  let signature_mode = "neutral_mixed";
++  if (!dominant) {
++    signature_text = "Profile with limited attributable evidence. Professional pattern remains uncertain.";
++    signature_mode = "insufficient_evidence";
++  } else {
++    const strongLabel = strongArchetypeLabel(dominant.domain);
++    const canUseStrongLabel = Boolean(
++      strongLabel &&
++      dominant.passes_threshold &&
++      dominant.weighted_share >= 0.45 &&
++      dominant.supporting_evidence_items >= 4 &&
++      dominant.distinct_conversations >= 3
++    );
++    if (canUseStrongLabel) {
++      signature_text = `${strongLabel} with recurring evidence in ${dominant.domain.replace(/_/g, " ")} and ${capabilityText}.`;
++      signature_mode = "dominant_archetype";
++    } else {
++      const domains = [dominant.domain].concat(secondary.map(item => item.domain)).slice(0, 2);
++      signature_text = `Profile with observed activity across ${domains.join(" and ").replace(/_/g, " ")} and ${capabilityText}.`;
++      signature_mode = dominant.passes_threshold ? "dominant_domain_neutral" : "neutral_mixed";
++    }
++  }
++
++  const limitations = [];
++  if (!dominant || !dominant.passes_threshold) limitations.push("Dominant domain does not pass minimum evidence thresholds for a strong role label.");
++  if (dominant && dominant.attribution_penalty > 0.22) limitations.push("Attribution penalties are material due to pasted, AI-generated or isolated evidence.");
++  if (dominant && dominant.weighted_share < 0.35) limitations.push("Evidence is mixed across domains, so signature remains intentionally neutral.");
++
++  return {
++    hierarchy: ["evidence_item", "observed_activity", "capability", "domain", "professional_signature"],
++    signature_text,
++    signature_mode,
++    dominant_domain: dominant ? dominant.domain : "uncertain",
++    secondary_domains: secondary.map(item => item.domain),
++    dominant_domain_share: dominant ? Number(dominant.weighted_share.toFixed(4)) : 0,
++    main_capabilities: capabilities,
++    attribution_note: "Attribution measures how directly evidence comes from user-authored messages versus pasted, AI-generated or external content.",
++    thresholds: {
++      min_supporting_evidence_items: 3,
++      min_distinct_conversations: 2,
++      min_direct_user_items: 2,
++      min_weighted_share: 0.25
++    },
++    domain_scores: domainWeighting.domains.map(item => ({
++      domain: item.domain,
++      weighted_score: Number(item.weighted_score.toFixed(4)),
++      weighted_share: Number(item.weighted_share.toFixed(4)),
++      supporting_evidence_items: item.supporting_evidence_items,
++      distinct_conversations: item.distinct_conversations,
++      direct_user_items: item.direct_user_items,
++      attributable_items: item.attributable_items,
++      diversity_count: item.diversity_count,
++      recurrence_factor: Number(item.recurrence_factor.toFixed(3)),
++      average_recency: Number(item.average_recency.toFixed(3)),
++      attribution_penalty: Number(item.attribution_penalty.toFixed(3)),
++      passes_threshold: item.passes_threshold,
++      evidence_ids: item.evidence_ids
++    })),
++    limitations
++  };
++}
++
++function buildProfessionalDomains(normalized, professionalPattern) {
++  if (professionalPattern && Array.isArray(professionalPattern.domain_scores) && professionalPattern.domain_scores.length) {
++    return professionalPattern.domain_scores
++      .slice(0, 5)
++      .map(item => item.domain);
++  }
++  const counts = normalized.reduce((acc, conversation) => {
++    const key = conversation.professional_category || "other";
++    acc[key] = (acc[key] || 0) + 1;
++    return acc;
++  }, {});
++  return Object.entries(counts)
++    .sort((a, b) => b[1] - a[1])
++    .slice(0, 5)
++    .map(([key]) => key);
++}
++
++function inferProfessionalIdentity(normalized, temporalMaturity, evidenceCoverage, professionalPattern) {
++  const messages = collectAttributableUserMessages(normalized);
++  const functionRanking = scoreTaxonomy(messages, professionalFunctions.filter(item => item !== "other"), professionalFunctionSignals, "function");
++  const archetypeRanking = scoreTaxonomy(messages, roleArchetypes.filter(item => item !== "other"), archetypeSignals, "archetype");
++  const workModeRanking = scoreTaxonomy(messages, workModes, workModeSignals, "work_mode");
++  const level = inferOperatingLevel(messages);
++  const topFunction = functionRanking[0];
++  const secondFunction = functionRanking[1];
++  const topArchetype = archetypeRanking[0];
++  const topWorkMode = workModeRanking[0];
++
++  const dominantDomain = professionalPattern && professionalPattern.dominant_domain;
++  const dominantDomainShare = professionalPattern && professionalPattern.dominant_domain_share || 0;
++  const mappedPrimaryFromDomain = dominantDomain && dominantDomain !== "uncertain" ? domainToFunction(dominantDomain) : "uncertain";
++  const primaryFunction = mappedPrimaryFromDomain !== "uncertain"
++    ? mappedPrimaryFromDomain
++    : (!topFunction || topFunction.score < 2 ? "uncertain" : topFunction.key);
++  const secondaryFunctions = functionRanking
++    .slice(1)
++    .filter(item => item.score >= 2 && (!topFunction || item.key !== topFunction.key))
++    .slice(0, 2)
++    .map(item => item.key);
++  const archetypeNeedsDominance = new Set(["hr_lead", "recruiter", "executive", "director", "partner"]);
++  const lowDomainDominance = dominantDomainShare < 0.35;
++  let observedArchetype = !topArchetype || topArchetype.score < 2 ? "uncertain" : topArchetype.key;
++  if (archetypeNeedsDominance.has(observedArchetype) && lowDomainDominance) observedArchetype = "uncertain";
++  if ((observedArchetype === "hr_lead" || observedArchetype === "recruiter") && dominantDomain !== "recruiting") observedArchetype = "uncertain";
++  if (professionalPattern && professionalPattern.signature_mode === "neutral_mixed" && topArchetype && topArchetype.score < 4) observedArchetype = "uncertain";
++  const workMode = !topWorkMode || topWorkMode.score < 2 ? "uncertain" : topWorkMode.key;
++
++  const attributionBase = Math.max(1, Number((evidenceCoverage && evidenceCoverage.total_evidence_items) || 0));
++  const directRatio = Number((evidenceCoverage && evidenceCoverage.direct_user_inputs) || 0) / attributionBase;
++  const evidencePool = [
++    ...(topFunction ? topFunction.evidence.map(item => item.id) : []),
++    ...(topArchetype ? topArchetype.evidence.map(item => item.id) : []),
++    ...(topWorkMode ? topWorkMode.evidence.map(item => item.id) : []),
++    ...level.supporting_evidence_ids
++  ];
++  const uniqueEvidence = Array.from(new Set(evidencePool)).slice(0, 14);
++  const topFunctionDominance = topFunction ? topFunction.score - ((secondFunction && secondFunction.score) || 0) : 0;
++  const confidenceScore =
++    (uniqueEvidence.length >= 8 ? 2 : uniqueEvidence.length >= 4 ? 1 : 0) +
++    (topFunctionDominance >= 2 ? 1 : 0) +
++    (directRatio >= 0.45 ? 1 : 0) +
++    (level.confidence === "high" ? 1 : level.confidence === "medium" ? 0.5 : 0);
++  const confidence = confidenceScore >= 4 ? "high" : confidenceScore >= 2 ? "medium" : "low";
++
++  const limitations = [];
++  if (primaryFunction === "uncertain") limitations.push("Insufficient direct evidence to infer a primary professional function.");
++  if (observedArchetype === "uncertain") limitations.push("Observed role archetype remains uncertain due to limited attributable role evidence.");
++  if (workMode === "uncertain") limitations.push("Work mode is uncertain because ownership and collaboration patterns are weakly evidenced.");
++  if (level.operating_level === "uncertain") limitations.push(...level.limitations);
++  if (directRatio < 0.35) limitations.push("Attribution quality is limited because direct user-authored evidence is a minority of the dataset.");
++  if (professionalPattern && Array.isArray(professionalPattern.limitations)) limitations.push(...professionalPattern.limitations.slice(0, 3));
++
++  return {
++    primary_function: primaryFunction,
++    secondary_functions: secondaryFunctions,
++    observed_archetype: observedArchetype,
++    operating_level: level.operating_level,
++    work_mode: workMode,
++    confidence,
++    supporting_evidence_ids: uniqueEvidence,
++    limitations
++  };
++}
++
++function buildDifferentiators(professionalIdentity, roleSpecificCapabilities, professionalDomains, evidenceCoverage) {
++  const items = [];
++  const strongest = roleSpecificCapabilities
++    .filter(capability => ["recurring", "strongly_supported"].includes(capability.evidence_status))
++    .sort((a, b) => (b.coverage || 0) - (a.coverage || 0));
++  if (strongest[0]) {
++    items.push({
++      label: strongest[0].label,
++      explanation: `Recurring attributable evidence suggests this capability is a distinctive pattern in the observed role profile.`,
++      supporting_evidence_ids: strongest[0].supporting_evidence_ids.slice(0, 6)
++    });
++  }
++  if (professionalDomains.length >= 2) {
++    items.push({
++      label: "Cross-domain operating span",
++      explanation: `Evidence spans multiple professional domains (${professionalDomains.slice(0, 3).join(", ")}), indicating non-single-lane contribution patterns.`,
++      supporting_evidence_ids: professionalIdentity.supporting_evidence_ids.slice(0, 6)
++    });
++  }
++  const attributableBase = Math.max(1, Number((evidenceCoverage && evidenceCoverage.total_evidence_items) || 0));
++  const directRatio = Number((evidenceCoverage && evidenceCoverage.direct_user_inputs) || 0) / attributableBase;
++  if (directRatio >= 0.55) {
++    items.push({
++      label: "High direct attribution",
++      explanation: "A large share of evidence is directly user-authored, increasing interpretability of the professional profile.",
++      supporting_evidence_ids: professionalIdentity.supporting_evidence_ids.slice(0, 5)
++    });
++  }
++  return items.slice(0, 4);
++}
++
++function dimensionByCanonical(temporalMaturity, canonical) {
++  return (temporalMaturity && temporalMaturity.dimensions || []).find(dimension =>
++    (dimension.canonical_dimension || dimension.id) === canonical
++  );
++}
++
++function buildWatchOuts(professionalIdentity, roleSpecificCapabilities, temporalMaturity, evidenceCoverage) {
++  const watchOuts = [];
++  const conversationBreadth = Number((evidenceCoverage && evidenceCoverage.total_professional_conversations) || 0);
++  if (conversationBreadth < 4) {
++    watchOuts.push({
++      label: "Limited evidence breadth",
++      explanation: "The profile is built on a narrow conversation base, so role inferences may shift with additional evidence.",
++      evidence_ids: professionalIdentity.supporting_evidence_ids.slice(0, 4),
++      severity: "medium"
++    });
++  }
++
++  const communication = dimensionByCanonical(temporalMaturity, "communication");
++  if (communication && communication.negative_count > communication.positive_count) {
++    watchOuts.push({
++      label: "Communication risk",
++      explanation: "Counter-evidence on communication outweighs supporting evidence in the selected period.",
++      evidence_ids: (communication.counter_evidence || []).map(item => item.id).slice(0, 6),
++      severity: "high"
++    });
++  }
++
++  const collaboration = dimensionByCanonical(temporalMaturity, "collaboration");
++  if (collaboration && collaboration.status === "insufficient_evidence") {
++    watchOuts.push({
++      label: "Collaboration evidence gap",
++      explanation: "There is not enough attributable evidence to assess collaboration behavior reliably.",
++      evidence_ids: (collaboration.uncertain_evidence || []).map(item => item.id).slice(0, 5),
++      severity: "low"
++    });
++  }
++
++  const weakRoleSpecific = roleSpecificCapabilities.filter(capability => capability.evidence_status === "insufficient_evidence").length;
++  if (weakRoleSpecific >= Math.ceil(Math.max(1, roleSpecificCapabilities.length) * 0.45)) {
++    watchOuts.push({
++      label: "Role-specific coverage is shallow",
++      explanation: "Many role-specific capabilities remain under-evidenced, so archetype conclusions should be treated as provisional.",
++      evidence_ids: professionalIdentity.supporting_evidence_ids.slice(0, 5),
++      severity: "medium"
++    });
++  }
++
++  return watchOuts.slice(0, 5);
++}
++
+ function includesAny(text, terms) {
+   return terms.some(term => text.includes(term.toLowerCase()));
+ }
+@@ -1863,6 +2643,12 @@ function buildReports(normalized, userInsights, reportConfig) {
+   const publicTemporalMaturity = extractTemporalEvidence(normalized, true);
+   const privateEvidenceCoverage = buildEvidenceCoverage(normalized, privateTemporalMaturity);
+   const publicEvidenceCoverage = buildEvidenceCoverage(normalized, publicTemporalMaturity);
++  const professionalPattern = buildProfessionalPattern(normalized, privateTemporalMaturity);
++  const professionalIdentity = inferProfessionalIdentity(normalized, privateTemporalMaturity, privateEvidenceCoverage, professionalPattern);
++  const professionalDomains = buildProfessionalDomains(normalized, professionalPattern);
++  const roleSpecificCapabilities = buildRoleSpecificCapabilities(normalized, professionalIdentity);
++  const differentiators = buildDifferentiators(professionalIdentity, roleSpecificCapabilities, professionalDomains, privateEvidenceCoverage);
++  const watchOuts = buildWatchOuts(professionalIdentity, roleSpecificCapabilities, privateTemporalMaturity, privateEvidenceCoverage);
+   const kpis = {
+     evidence_coverage: normalized.length,
+     months_covered: range.months_covered,
+@@ -1877,6 +2663,12 @@ function buildReports(normalized, userInsights, reportConfig) {
+   return {
+     normalized,
+     insights,
++    professional_pattern: professionalPattern,
++    professional_identity: professionalIdentity,
++    professional_domains: professionalDomains,
++    role_specific_capabilities: roleSpecificCapabilities,
++    differentiators: differentiators,
++    watch_outs: watchOuts,
+     skill_passport,
+     kpis,
+     report_config: config,
+@@ -1898,6 +2690,12 @@ function buildReports(normalized, userInsights, reportConfig) {
+         "Il profilo non e' una diagnosi psicologica e non deve essere usato come unico criterio di selezione."
+       ],
+       insights,
++      professional_pattern: professionalPattern,
++      professional_identity: professionalIdentity,
++      professional_domains: professionalDomains,
++      role_specific_capabilities: roleSpecificCapabilities,
++      differentiators,
++      watch_outs: watchOuts,
+       skill_passport,
+       kpis,
+       visual_profile: privateVisualProfile,
+@@ -1911,6 +2709,12 @@ function buildReports(normalized, userInsights, reportConfig) {
+       generated_at: kpis.generated_at,
+       period: config ? { from: config.period_from, to: config.period_to, selected_months: config.selected_months } : { first_data: range.first, last_data: range.last },
+       kpis,
++      professional_pattern: professionalPattern,
++      professional_identity: professionalIdentity,
++      professional_domains: professionalDomains,
++      role_specific_capabilities: roleSpecificCapabilities,
++      differentiators,
++      watch_outs: watchOuts,
+       skill_passport,
+       visual_profile: publicVisualProfile,
+       technology_reasoning: publicTechnologyReasoning,
+@@ -2093,7 +2897,7 @@ function buildCapabilityRows(axes, language = "en") {
+   return (axes || []).slice(0, 5).map(axis => {
+     const coverage = Number(axis.coverage || 0);
+     return {
+-      label: axis.label,
++      label: String(axis.label || "").split(/\s+/).slice(0, 2).join(" "),
+       maturity: axis.statusLabel || pdfStatusLabel(axis.level, language),
+       confidence: axis.confidenceLabel || pdfConfidenceLabel(axis.confidence, language),
+       coverage,
+@@ -2322,11 +3126,15 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
+       const rowY = capabilityY + 52 + index * 30;
+       drawRoundedPanel(doc, listX, rowY, listWidth, 26, { fill: "#f7faf9", stroke: "#d7e1de", radius: 10 });
+       doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(9.5).text(row.label, listX + 12, rowY + 7, { width: 150, lineBreak: false });
+-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(8)
+-        .text(`${language === "it" ? "Maturita evidenza" : "Evidence maturity"}: ${row.maturity}`, listX + 176, rowY + 6, { width: 145, lineBreak: false })
+-        .text(`${language === "it" ? "Confidenza AI" : "AI confidence"}: ${row.confidence}`, listX + 176, rowY + 16, { width: 145, lineBreak: false });
+-      doc.fillColor(row.coverageMeta.color).font("Helvetica-Bold").fontSize(8.5).text(row.coverageMeta.label, listX + listWidth - 132, rowY + 8, { width: 120, align: "right", lineBreak: false });
+-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(7.5).text(`${language === "it" ? "Copertura evidenza" : "Evidence coverage"}: ${row.coverage}/100`, listX + listWidth - 152, rowY + 18, { width: 140, align: "right", lineBreak: false });
++      const compactSummary = `${row.maturity} · ${row.coverageMeta.label} · AI ${row.confidence}`;
++      drawFittedText(doc, compactSummary, listX + 176, rowY + 7, listWidth - 188, 12, {
++        font: "Helvetica",
++        maxFontSize: 7.8,
++        minFontSize: 7,
++        color: "#5f6d69",
++        lineGap: 0
++      });
++      doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(7.5).text(`${language === "it" ? "Coverage" : "Coverage"} ${row.coverage}`, listX + listWidth - 70, rowY + 16, { width: 58, align: "right", lineBreak: false });
+     });
+ 
+     drawRoundedPanel(doc, margin, footerY, contentWidth, footerH, { fill: "#f7faf9", stroke: "#d7e1de", radius: 12 });
+@@ -2337,7 +3145,7 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
+     doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(8).text(`${weightedLabel}: ${attribution.weightedAttribution}%`, margin + footerColA - 118, footerY + 10, { width: 104, align: "right", lineBreak: false });
+     drawSegmentBar(doc, model.evidenceMix.segments || [], margin + 14, footerY + 23, footerColA - 28, 8);
+     attribution.lines.forEach((line, index) => {
+-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(7.5).text(line, margin + 14, footerY + 35 + index * 8, { width: footerColA - 28, lineBreak: false });
++      doc.fillColor("#5f6d69").font("Helvetica").fontSize(7.2).text(line, margin + 14, footerY + 34 + index * 7, { width: footerColA - 28, lineBreak: false });
+     });
+ 
+     const methodX = margin + footerColA + gap;
+@@ -2356,7 +3164,7 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
+ 
+     const disclaimerX = methodX + footerColB + gap;
+     doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(8.5).text(disclaimerTitle.toUpperCase(), disclaimerX, footerY + 10);
+-    drawFittedText(doc, footerDisclaimer, disclaimerX, footerY + 24, footerColC, 30, {
++    drawFittedText(doc, footerDisclaimer, disclaimerX, footerY + 24, footerColC, 20, {
+       font: "Helvetica",
+       maxFontSize: 7.5,
+       minFontSize: 7,
+@@ -2371,42 +3179,82 @@ async function renderAppendixPdf(snapshot, reportConfig) {
+   const model = validateSnapshotPayload(snapshot);
+   return pdfBuffer(doc => {
+     doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
++    const language = config.report_language || model.language || "en";
++    const representativeNote = language === "it"
++      ? "Gli estratti sono una selezione rappresentativa e non esaustiva del periodo analizzato."
++      : "Excerpts are representative selections and not a full transcript of the analyzed period.";
++    const verificationNote = language === "it"
++      ? "Nota di verifica: i contenuti derivano da input utente e possono includere materiale incollato o generato da AI; non sono verificati in modo indipendente."
++      : "Verification note: content is user-provided and may include pasted or AI-generated material; it is not independently verified.";
++    const cleanText = (value, fallback = "") => {
++      const normalized = String(value || "")
++        .replace(/\s+/g, " ")
++        .replace(/\bContent origin:\s*\.?/gi, "")
++        .trim();
++      return normalized || fallback;
++    };
+     const addHeader = () => {
+       doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(12).text(model.texts.appendixTitle, 34, 34);
+       doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(20).text(model.personName, 34, 52);
+-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(10).text(`${model.selectedConversationCount} ${model.texts.selectedConversations} ${model.texts.outOfAnalyzed} ${model.analyzedConversationCount} ${model.texts.analyzedLabel}`, 34, 78)
+-        .text(`${model.selectedExcerptCount} ${model.texts.selectedExcerpts} ${model.texts.outOfEvidence} ${model.totalEvidenceItemCount} ${model.texts.evidenceLabel}`, 34, 92);
+-      return 122;
++      doc.fillColor("#5f6d69").font("Helvetica").fontSize(10).text(cleanText(model.texts.appendixSubtitle || model.texts.appendixIntro), 34, 72, { width: doc.page.width - 68 });
++      doc.fillColor("#5f6d69").font("Helvetica").fontSize(10).text(`${model.selectedConversationCount} ${model.texts.selectedConversations} ${model.texts.outOfAnalyzed} ${model.analyzedConversationCount} ${model.texts.analyzedLabel}`, 34, 90)
++        .text(`${model.selectedExcerptCount} ${model.texts.selectedExcerpts} ${model.texts.outOfEvidence} ${model.totalEvidenceItemCount} ${model.texts.evidenceLabel}`, 34, 104);
++      return 142;
+     };
+     const drawCard = (title, meta, body, badge) => {
+       const width = doc.page.width - 68;
+-      const height = 82;
++      const titleText = cleanText(title, language === "it" ? "Conversazione" : "Conversation");
++      const metaText = cleanText(meta, language === "it" ? "Dettagli non disponibili" : "Details unavailable");
++      const bodyText = cleanText(body, language === "it" ? "Estratto non disponibile." : "Excerpt unavailable.");
++      const titleLine = truncateTextToHeight(doc, titleText, width - 140, 26, { font: "Helvetica-Bold", fontSize: 12, lineGap: 1 });
++      const metaLine = truncateTextToHeight(doc, metaText, width - 28, 14, { font: "Helvetica-Bold", fontSize: 9, lineGap: 1 });
++      const bodyLine = truncateTextToHeight(doc, bodyText, width - 28, 30, { font: "Helvetica", fontSize: 10, lineGap: 1 });
++      const titleHeight = measureTextHeight(doc, titleLine, width - 140, { font: "Helvetica-Bold", fontSize: 12, lineGap: 1 });
++      const metaHeight = measureTextHeight(doc, metaLine, width - 28, { font: "Helvetica-Bold", fontSize: 9, lineGap: 1 });
++      const bodyHeight = measureTextHeight(doc, bodyLine, width - 28, { font: "Helvetica", fontSize: 10, lineGap: 1 });
++      const height = Math.max(86, 16 + titleHeight + 4 + metaHeight + 6 + bodyHeight + 14);
+       if (cursorY + height > doc.page.height - 50) {
+         doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
+         cursorY = addHeader();
+       }
+       drawRoundedPanel(doc, 34, cursorY, width, height);
+-      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(12).text(title, 48, cursorY + 14, { width: width - 140 });
++      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(12).text(titleLine, 48, cursorY + 14, { width: width - 140 });
+       if (badge) {
+-        doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(badge, doc.page.width - 130, cursorY + 16, { width: 82, align: "right" });
++        doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(cleanText(badge), doc.page.width - 130, cursorY + 16, { width: 82, align: "right" });
+       }
+-      doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(9).text(meta, 48, cursorY + 32, { width: width - 28 });
+-      doc.fillColor("#1f2726").font("Helvetica").fontSize(10).text(body, 48, cursorY + 48, { width: width - 28, height: 24 });
++      const metaY = cursorY + 16 + titleHeight + 2;
++      const bodyY = metaY + metaHeight + 4;
++      doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(9).text(metaLine, 48, metaY, { width: width - 28 });
++      doc.fillColor("#1f2726").font("Helvetica").fontSize(10).text(bodyLine, 48, bodyY, { width: width - 28, height: bodyHeight + 2 });
+       cursorY += height + 10;
+     };
+ 
+     let cursorY = addHeader();
++    drawFittedText(doc, representativeNote, 34, cursorY, doc.page.width - 68, 16, {
++      font: "Helvetica",
++      maxFontSize: 8.8,
++      minFontSize: 8,
++      color: "#5f6d69",
++      lineGap: 0
++    });
++    cursorY += 20;
+     doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(11).text(model.texts.analyzedConversations, 34, cursorY);
+     cursorY += 18;
+     (model.analyzedConversations || []).forEach(item => {
+-      drawCard(item.title, `${item.date} · ${item.category}`, item.excerpt, null);
++      drawCard(item.title, `${cleanText(item.date, "-")} · ${cleanText(item.category, language === "it" ? "non classificata" : "uncategorized")}`, item.excerpt, null);
+     });
+     cursorY += 8;
+     doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(11).text(model.texts.evidenceItems, 34, cursorY);
+     cursorY += 18;
+     (model.evidenceHighlights || []).forEach(item => {
+-      drawCard(item.skill, `${item.group} · ${item.title}`, item.excerpt, item.confidence || "");
++      const meta = `${cleanText(item.group)} · ${cleanText(item.title)}${item.date ? ` · ${cleanText(String(item.date).slice(0, 10))}` : ""}`;
++      drawCard(item.skill, meta, item.excerpt, item.confidence || "");
+     });
++    if (cursorY + 24 > doc.page.height - 34) {
++      doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
++      cursorY = addHeader();
++    }
++    doc.fillColor("#5f6d69").font("Helvetica").fontSize(8.5).text(verificationNote, 34, cursorY + 8, { width: doc.page.width - 68 });
+   });
+ }
+ 
+diff --git a/tests/run-tests.js b/tests/run-tests.js
+index 5ad2d4c..b2b7a98 100644
+--- a/tests/run-tests.js
++++ b/tests/run-tests.js
+@@ -245,6 +245,49 @@ async function main() {
+   assert.ok(semantic.every(dimension => dimension.radar_eligible), "semantic radar dimensions are explicitly eligible");
+   assert.ok(surgeonReport.temporal_maturity.dimension_strategy.rejected_candidates.some(candidate => candidate.semantic_type === "specialization" && /robotic surgery/.test(candidate.candidate.toLowerCase())), "robotic surgery is specialization and rejected from radar");
+   assert.ok(surgeonReport.temporal_maturity.dimension_strategy.semantic_capability_dimensions >= 2, "dimension strategy exposes semantic count");
++
++  const mixedDominanceReport = buildReports(normalizeChatGptExport([
++    { id: "pt1", title: "Product roadmap", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Definisco roadmap, priorita di backlog e coordino stakeholder per delivery.", content_origin: { value: "original_user_input" } }] },
++    { id: "pt2", title: "Tech integration", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-03T00:00:00.000Z", text: "Valuto trade-off API, schema dati e integrazioni tra servizi.", content_origin: { value: "original_user_input" } }] },
++    { id: "pt3", title: "Execution", professional_category: "execution", messages: [{ author: "user", created_at: "2026-05-05T00:00:00.000Z", text: "Coordino dipendenze, milestone e consegna cross-functional.", content_origin: { value: "original_user_input" } }] },
++    { id: "pt4", title: "Data reasoning", professional_category: "data_analytics", messages: [{ author: "user", created_at: "2026-05-08T00:00:00.000Z", text: "Uso metric, KPI e validazione dati per prioritizzare.", content_origin: { value: "original_user_input" } }] },
++    { id: "pt5", title: "Stakeholder alignment", professional_category: "professional_communication", messages: [{ author: "user", created_at: "2026-05-10T00:00:00.000Z", text: "Allineo stakeholder e chiarisco decisioni operative.", content_origin: { value: "mixed_content" } }] },
++    { id: "pt6", title: "Delivery governance", professional_category: "project_management", messages: [{ author: "user", created_at: "2026-05-12T00:00:00.000Z", text: "Pianifico milestone, rischio e ownership di delivery.", content_origin: { value: "original_user_input" } }] },
++    { id: "pt7", title: "Product decision", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-14T00:00:00.000Z", text: "Prendo decisioni su scope MVP e backlog sequencing.", content_origin: { value: "original_user_input" } }] },
++    { id: "r1", title: "Interview prep", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-16T00:00:00.000Z", text: "Preparo domande colloquio e valutazione candidati.", content_origin: { value: "original_user_input" } }] },
++    { id: "r2", title: "Candidate screening", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-18T00:00:00.000Z", text: "Review CV e shortlist candidati per ruolo tecnico.", content_origin: { value: "mixed_content" } }] },
++    { id: "r3", title: "Recruiting support", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-20T00:00:00.000Z", text: "Supporto processo recruiting con feedback strutturato.", content_origin: { value: "original_user_input" } }] }
++  ]));
++  assert.notStrictEqual(mixedDominanceReport.professional_identity.observed_archetype, "hr_lead", "30% recruiting should not force HR lead archetype");
++  assert.notStrictEqual(mixedDominanceReport.professional_pattern.dominant_domain, "recruiting", "recruiting should not dominate 70/30 product-tech mix");
++
++  const oneRecruitingReport = buildReports(normalizeChatGptExport([
++    { id: "main1", title: "Product", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Definisco roadmap, backlog e stakeholder priorities.", content_origin: { value: "original_user_input" } }] },
++    { id: "main2", title: "Tech", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-03T00:00:00.000Z", text: "Valuto API, integrazioni e rischi tecnici.", content_origin: { value: "original_user_input" } }] },
++    { id: "main3", title: "Execution", professional_category: "execution", messages: [{ author: "user", created_at: "2026-05-05T00:00:00.000Z", text: "Coordino delivery con team cross-functional.", content_origin: { value: "original_user_input" } }] },
++    { id: "rec_once", title: "One recruiting task", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-08T00:00:00.000Z", text: "Una tantum preparo domande per colloquio tecnico.", content_origin: { value: "original_user_input" } }] }
++  ]));
++  const oneRecruitingDomain = oneRecruitingReport.professional_pattern.domain_scores.find(item => item.domain === "recruiting");
++  assert.ok(oneRecruitingDomain && !oneRecruitingDomain.passes_threshold, "single recruiting conversation should stay occasional");
++  assert.notStrictEqual(oneRecruitingReport.professional_pattern.dominant_domain, "recruiting", "single recruiting evidence must not become dominant domain");
++
++  const pastedDominanceReport = buildReports(normalizeChatGptExport([
++    { id: "jd1", title: "JD1", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Job description: architect profile with Kubernetes, APIs, leadership, hiring responsibilities.", content_origin: { value: "pasted_job_description" } }] },
++    { id: "jd2", title: "JD2", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-02T00:00:00.000Z", text: "External document: product leadership responsibilities and hiring ownership.", content_origin: { value: "pasted_external_document" } }] },
++    { id: "u_direct", title: "Direct user", professional_category: "execution", messages: [{ author: "user", created_at: "2026-05-03T00:00:00.000Z", text: "Coordino una delivery operativa con dipendenze e milestone.", content_origin: { value: "original_user_input" } }] }
++  ]));
++  const topPastedDomain = pastedDominanceReport.professional_pattern.domain_scores[0];
++  assert.ok(topPastedDomain.direct_user_items < 2 || !topPastedDomain.passes_threshold, "mostly pasted content should not pass direct-attribution threshold");
++  assert.ok(pastedDominanceReport.professional_pattern.limitations.some(item => /Attribution penalties|threshold/i.test(item)), "pasted-heavy profile should expose attribution limitations");
++
++  const mixedContentReport = buildReports(normalizeChatGptExport([
++    { id: "mix1", title: "Mixed A", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Valuto API trade-off ma allego blocchi AI-generated per bozza.", content_origin: { value: "mixed_content" } }] },
++    { id: "mix2", title: "Mixed B", professional_category: "product_management", messages: [{ author: "user", created_at: "2026-05-04T00:00:00.000Z", text: "Definisco backlog prioritization con supporto di testo esterno.", content_origin: { value: "mixed_content" } }] },
++    { id: "mix3", title: "AI block", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-07T00:00:00.000Z", text: "Architecture summary drafted by AI assistant pasted for review.", content_origin: { value: "ai_generated_text" } }] },
++    { id: "mix4", title: "External", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-05-09T00:00:00.000Z", text: "Pasted candidate rubric from external source.", content_origin: { value: "pasted_external_document" } }] }
++  ]));
++  assert.ok(["neutral_mixed", "dominant_domain_neutral", "insufficient_evidence"].includes(mixedContentReport.professional_pattern.signature_mode), "mixed content should avoid strong archetype signature");
++  assert.ok(mixedContentReport.professional_pattern.limitations.length >= 1, "mixed content should expose attribution limitations clearly");
+   console.log("All tests passed.");
+ }
+ 
