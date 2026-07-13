@@ -7,6 +7,11 @@ let state = {
   reportConfig: null
 };
 
+const PROMPT_PREFS_KEY = "aiWorkPassportPromptPrefsV1";
+const PromptBuilder = window.PromptBuilder || null;
+let promptGeneratedPayload = null;
+let promptGenerationAttempted = false;
+
 const $ = selector => document.querySelector(selector);
 const $$ = selector => Array.from(document.querySelectorAll(selector));
 
@@ -54,10 +59,14 @@ function sanitizedFilenameName(value) {
 function buildCurrentReportConfig() {
   const profileName = sanitizeProfileName($("#profileNameInput") ? $("#profileNameInput").value : "");
   const selectedMonths = Number($("#analysisPeriodSelect") ? $("#analysisPeriodSelect").value : 6);
+  const sourcePlatform = $("#aiSourceSelect") ? $("#aiSourceSelect").value : "";
+  const exportMode = $("#exportModeSelect") ? $("#exportModeSelect").value : "quick";
   const reportLanguage = $("#reportLanguageSelect") ? $("#reportLanguageSelect").value : (state.reportConfig && state.reportConfig.report_language) || "en";
   if (state.reportConfig &&
       sanitizeProfileName(state.reportConfig.profile_name) === profileName &&
       Number(state.reportConfig.selected_months) === selectedMonths &&
+      String(state.reportConfig.source_platform || "") === String(sourcePlatform || "") &&
+      String(state.reportConfig.export_mode || "quick") === String(exportMode || "quick") &&
       state.reportConfig.period_from &&
       state.reportConfig.period_to &&
       state.reportConfig.generated_at) {
@@ -75,6 +84,8 @@ function buildCurrentReportConfig() {
   return {
     profile_name: profileName,
     selected_months: selectedMonths,
+    source_platform: sourcePlatform,
+    export_mode: exportMode,
     period_from: periodFrom,
     period_to: periodTo,
     generated_at: generatedAt,
@@ -89,6 +100,8 @@ function applyReportConfig(config) {
   state.reportConfig = {
     profile_name: sanitizeProfileName(config.profile_name),
     selected_months: Math.max(1, Math.min(12, Number(config.selected_months || 6))),
+    source_platform: String(config.source_platform || ""),
+    export_mode: String(config.export_mode || "quick") === "complete" ? "complete" : "quick",
     period_from: config.period_from,
     period_to: config.period_to,
     generated_at: config.generated_at || todayIso(),
@@ -101,139 +114,176 @@ function getReportLanguage() {
   return (state.reportConfig && state.reportConfig.report_language) || ($("#reportLanguageSelect") && $("#reportLanguageSelect").value) || "en";
 }
 
+function getUiLocale() {
+  const lang = document.documentElement && document.documentElement.lang;
+  return String(lang || "en").toLowerCase().startsWith("it") ? "it" : "en";
+}
+
+function readPromptPreferences() {
+  try {
+    const raw = localStorage.getItem(PROMPT_PREFS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (error) {
+    return null;
+  }
+}
+
+function savePromptPreferences(config) {
+  try {
+    const payload = {
+      source_platform: String(config.source_platform || ""),
+      export_mode: String(config.export_mode || "quick") === "complete" ? "complete" : "quick",
+      selected_months: Math.max(1, Math.min(12, Number(config.selected_months || 6)))
+    };
+    localStorage.setItem(PROMPT_PREFS_KEY, JSON.stringify(payload));
+  } catch (error) {
+    // Ignore persistence errors in private browsing contexts.
+  }
+}
+
+function updateGeneratePromptButtonLabel() {
+  const button = $("#generatePromptBtn");
+  if (!button || !PromptBuilder) return;
+  button.textContent = PromptBuilder.getGeneratePromptButtonLabel(
+    $("#aiSourceSelect") ? $("#aiSourceSelect").value : "",
+    getUiLocale()
+  );
+}
+
+function setPromptActionsEnabled(enabled) {
+  if ($("#copyPromptBtn")) $("#copyPromptBtn").disabled = !enabled;
+  if ($("#downloadPromptBtn")) $("#downloadPromptBtn").disabled = !enabled;
+  if ($("#toggleInstructionsBtn")) $("#toggleInstructionsBtn").disabled = !enabled;
+  if ($("#importJsonBtn")) $("#importJsonBtn").disabled = !enabled;
+  if ($("#promptActions")) $("#promptActions").hidden = !enabled;
+}
+
+function renderPromptValidationErrors(errors) {
+  const box = $("#exportConfigError");
+  if (!box) return;
+  if (!errors || !errors.length) {
+    box.hidden = true;
+    box.textContent = "";
+    return;
+  }
+  box.hidden = false;
+  box.textContent = errors.join(" ");
+}
+
+function renderPromptInstructions(payload) {
+  const section = $("#promptInstructions");
+  const title = $("#promptInstructionsTitle");
+  const list = $("#promptInstructionsList");
+  const promptTitle = $("#promptTitle");
+  if (!section || !title || !list || !promptTitle || !payload) return;
+  title.textContent = payload.instructions_title;
+  list.innerHTML = (payload.instructions || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
+  section.hidden = true;
+  promptTitle.textContent = `${getUiLocale() === "it" ? "Prompt per" : "Prompt for"} ${payload.platform_name}`;
+}
+
+function clearGeneratedPrompt() {
+  promptGeneratedPayload = null;
+  const prompt = $("#evidencePrompt");
+  if (prompt) prompt.value = getUiLocale() === "it" ? "Configura i campi e genera il prompt." : "Configure fields and generate the prompt.";
+  if ($("#copyPromptStatus")) $("#copyPromptStatus").textContent = "";
+  if ($("#promptInstructions")) $("#promptInstructions").hidden = true;
+  if ($("#promptTitle")) $("#promptTitle").textContent = "Prompt";
+  setPromptActionsEnabled(false);
+}
+
 function updateExportPrompt() {
   const config = buildCurrentReportConfig();
   applyReportConfig(config.valid ? config : { ...config, profile_name: config.profile_name });
-  const prompt = $("#evidencePrompt");
-  const copyButton = $("#copyPromptBtn");
   const summary = $("#exportConfigSummary");
-  if (!prompt || !copyButton || !summary) return;
-  copyButton.disabled = !config.valid;
-  if (!config.valid) {
-    prompt.value = "Inserisci un nome profilo per generare il prompt.";
+  if (!summary) return;
+
+  updateGeneratePromptButtonLabel();
+  savePromptPreferences(config);
+
+  if (!config.profile_name || !config.valid) {
     summary.innerHTML = `
-      <strong>Export configuration required</strong>
-      <span>Profile name is required. Analysis period must be between 1 and 12 months.</span>
+      <strong>Export configuration</strong>
+      <span>${getUiLocale() === "it" ? "Inserisci i dati richiesti e genera il prompt." : "Fill required fields and generate the prompt."}</span>
     `;
-    persistState();
-    return;
+  } else {
+    const source = PromptBuilder ? PromptBuilder.platformDisplayName(config.source_platform) : (config.source_platform || "-");
+    const modeLabel = config.export_mode === "complete" ? "Complete" : "Quick";
+    summary.innerHTML = `
+      <strong>Profile: AI Work Passport - ${escapeHtml(config.profile_name)}</strong>
+      <span>Data analyzed: ${escapeHtml(config.period_from)} - ${escapeHtml(config.period_to)}</span>
+      <span>Observation window: ${config.selected_months} months · Source: ${escapeHtml(source)} · Mode: ${modeLabel}</span>
+    `;
   }
-  summary.innerHTML = `
-    <strong>Profile: AI Work Passport - ${escapeHtml(config.profile_name)}</strong>
-    <span>Data analyzed: ${escapeHtml(config.period_from)} - ${escapeHtml(config.period_to)}</span>
-    <span>Observation window: ${config.selected_months} months</span>
-  `;
-  prompt.value = buildEvidencePrompt(config);
+
+  if (!promptGeneratedPayload) {
+    clearGeneratedPrompt();
+  }
+
+  if (!promptGenerationAttempted) {
+    renderPromptValidationErrors([]);
+  }
+
   persistState();
 }
 
-function buildEvidencePrompt(config) {
-  const generatedFor = `AI Work Passport - ${config.profile_name}`;
-  return `Generate a Professional Evidence Pack for:
-
-${generatedFor}
-
-Analysis period:
-
-From ${config.period_from} to ${config.period_to}
-Selected window: ${config.selected_months} months
-
-Objective:
-Create a valid importable JSON file containing ONLY professional conversations or professional excerpts within the selected period.
-
-File output requirement:
-- Create a downloadable JSON file named: professional_evidence_pack_${config.sanitized_profile_name}_${config.generated_at}.json
-- If your environment supports file creation, generate and attach/download the .json file directly.
-- If file creation is not supported, return ONLY the valid JSON object content.
-- Prefer file output over plain text JSON whenever attachment/file creation is available.
-- If attachment is possible and no .json file is produced, treat the output as incomplete and retry in file mode.
-
-Trusted values calculated by the application:
-- profile_name: ${config.profile_name}
-- generated_at: ${config.generated_at}
-- period.from: ${config.period_from}
-- period.to: ${config.period_to}
-- selected_months: ${config.selected_months}
-
-Do not independently choose or modify profile name, generated_at, period.from, period.to or selected month window.
-
-Mandatory JSON header:
-{
-  "schema": "professional_evidence_pack_v1",
-  "generated_for": "${generatedFor}",
-  "generated_at": "${config.generated_at}",
-  "period": {
-    "from": "${config.period_from}",
-    "to": "${config.period_to}"
-  },
-  "source": {
-    "type": "chatgpt_user_generated_summary",
-    "verification": "user_provided_not_verified",
-    "limitations": [
-      "Generated by ChatGPT from available or pasted context",
-      "Not equivalent to the original ChatGPT export",
-      "User should review before analysis"
-    ]
+function generateEvidencePrompt() {
+  if (!PromptBuilder) {
+    renderPromptValidationErrors(["Prompt builder is not available."]);
+    return;
   }
+  promptGenerationAttempted = true;
+  const current = buildCurrentReportConfig();
+  const errors = PromptBuilder.validateEvidencePromptConfig(current);
+  if (errors.length) {
+    renderPromptValidationErrors(errors);
+    clearGeneratedPrompt();
+    persistState();
+    return;
+  }
+
+  renderPromptValidationErrors([]);
+  const payload = PromptBuilder.buildEvidencePrompt(current, getUiLocale());
+  promptGeneratedPayload = payload;
+  applyReportConfig({ ...current, ...payload.trusted });
+  $("#evidencePrompt").value = payload.prompt;
+  renderPromptInstructions(payload);
+  setPromptActionsEnabled(true);
+  if ($("#copyPromptStatus")) {
+    $("#copyPromptStatus").textContent = getUiLocale() === "it" ? "Prompt generato." : "Prompt generated.";
+  }
+  persistState();
 }
 
-Rules:
-- consider exclusively content between ${config.period_from} and ${config.period_to}, corresponding to the last ${config.selected_months} months selected by the user;
-- do not calculate or alter the date range;
-- include only content related to work, capabilities, problem solving, decisions, professional communication, leadership, product, technology, data, APIs, architecture, execution, collaboration or the user's specific professional domain;
-- exclude private life, family, health, mental health, sex, religion, politics, personal finance, minors' data, personal legal matters and sensitive third-party information;
-- anonymize names, emails, phones, confidential companies, tokens, passwords, credentials, addresses and identifying details;
-- do not invent evidence;
-- if unsure, mark the item as uncertain;
-- distinguish original user text, pasted third-party text, code, job descriptions, email or AI output;
-- do not attribute skills to the user based only on text copied from others;
-- flag counter-evidence and explicit limitations, such as reliance on specialists or low technical confidence;
-- separate observable professional concepts from specialization, role, actor, context, metadata or frequency;
-- use a canonical dimension only among: decision_making, problem_solving, communication, execution, leadership, collaboration, planning, learning, domain_knowledge, data_reasoning, risk_awareness, quality_improvement;
-- add a domain-aware display_label only when the candidate is capability, behavior or responsibility;
-- do not produce psychological diagnoses, rankings, hiring scores or absolute judgments about the person.
+function downloadPromptAsText() {
+  if (!promptGeneratedPayload || !PromptBuilder) return;
+  const config = buildCurrentReportConfig();
+  const filename = PromptBuilder.getPromptDownloadFilename(config);
+  const blob = new Blob([promptGeneratedPayload.prompt], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 200);
+}
 
-Return ONLY valid JSON or the requested .json file, with no Markdown and no text outside JSON.
+function togglePromptInstructions() {
+  const section = $("#promptInstructions");
+  if (!section || !promptGeneratedPayload) return;
+  section.hidden = !section.hidden;
+}
 
-Required schema:
-{
-  "schema": "professional_evidence_pack_v1",
-  "generated_for": "${generatedFor}",
-  "generated_at": "${config.generated_at}",
-  "period": {
-    "from": "${config.period_from}",
-    "to": "${config.period_to}"
-  },
-  "source": {
-    "type": "chatgpt_user_generated_summary",
-    "verification": "user_provided_not_verified",
-    "limitations": []
-  },
-  "conversations": [
-    {
-      "id": "pack_conv_001",
-      "title": "Short professional title",
-      "date": "YYYY-MM-DD",
-      "professional_category": "strategy|project_management|product_management|technology|programming|data_analytics|professional_communication|leadership|recruiting|negotiation|execution|learning|other",
-      "classification": "professional|mixed|uncertain",
-      "summary": "Brief neutral summary",
-      "content_origin_notes": "original_user_input|pasted_email|pasted_job_description|pasted_external_document|pasted_code|ai_generated_text|mixed_content|unknown",
-      "evidence": [
-        {
-          "dimension": "decision_making|problem_solving|communication|execution|leadership|collaboration|planning|learning|domain_knowledge|data_reasoning|risk_awareness|quality_improvement",
-          "candidate_concept": "Observed professional concept extracted from the user's claim or excerpt",
-          "candidate_type": "capability|behavior|responsibility|role|domain|specialization|activity|context|actor|provenance|frequency|metadata|unknown",
-          "display_label": "Domain-aware label only if candidate_type is capability, behavior or responsibility",
-          "claim": "Contextual, evidence-based observation",
-          "supporting_excerpt": "Short anonymized excerpt or paraphrase",
-          "counter_evidence": "Short counter-evidence or null",
-          "time_period": "YYYY-MM-DD",
-          "confidence": "low|medium|high"
-        }
-      ]
-    }
-  ]
-}`;
+function importPromptJsonFlow() {
+  setView("upload");
+}
+
+function buildEvidencePrompt() {
+  const config = buildCurrentReportConfig();
+  if (!PromptBuilder) return "";
+  const payload = PromptBuilder.buildEvidencePrompt(config, getUiLocale());
+  return payload.prompt;
 }
 
 function renderSummary() {
@@ -1667,7 +1717,18 @@ function bindSnapshotZoom() {
 
 function persistState() {
   try {
-    sessionStorage.setItem("professionalEvidenceProfileState", JSON.stringify(state));
+    const safeState = {
+      ...state,
+      reportConfig: state.reportConfig
+        ? {
+            ...state.reportConfig,
+            profile_name: "",
+            sanitized_profile_name: ""
+          }
+        : null
+    };
+    sessionStorage.setItem("professionalEvidenceProfileState", JSON.stringify(safeState));
+    savePromptPreferences(buildCurrentReportConfig());
   } catch (error) {
     console.warn("Unable to persist local session", error);
   }
@@ -1675,6 +1736,12 @@ function persistState() {
 
 function restoreState() {
   try {
+    const prefs = readPromptPreferences();
+    if (prefs) {
+      if ($("#analysisPeriodSelect") && prefs.selected_months) $("#analysisPeriodSelect").value = String(prefs.selected_months);
+      if ($("#aiSourceSelect")) $("#aiSourceSelect").value = String(prefs.source_platform || "");
+      if ($("#exportModeSelect")) $("#exportModeSelect").value = String(prefs.export_mode || "quick");
+    }
     const raw = sessionStorage.getItem("professionalEvidenceProfileState");
     if (!raw) {
       updateExportPrompt();
@@ -1691,10 +1758,14 @@ function restoreState() {
       reportConfig: restored.reportConfig || null
     };
     if (state.reportConfig) {
-      if ($("#profileNameInput")) $("#profileNameInput").value = state.reportConfig.profile_name || "";
+      if ($("#profileNameInput")) $("#profileNameInput").value = "";
       if ($("#analysisPeriodSelect")) $("#analysisPeriodSelect").value = String(state.reportConfig.selected_months || 6);
+      if ($("#aiSourceSelect")) $("#aiSourceSelect").value = String(state.reportConfig.source_platform || ($("#aiSourceSelect").value || ""));
+      if ($("#exportModeSelect")) $("#exportModeSelect").value = String(state.reportConfig.export_mode || ($("#exportModeSelect").value || "quick"));
       if ($("#reportLanguageSelect")) $("#reportLanguageSelect").value = state.reportConfig.report_language || "en";
     }
+    promptGeneratedPayload = null;
+    promptGenerationAttempted = false;
     updateExportPrompt();
     $("#deleteBtn").disabled = !state.sessionId;
     if (state.summary) renderSummary();
@@ -2449,25 +2520,55 @@ $("#sampleBtn").addEventListener("click", async () => {
   await uploadFile(file);
 });
 
+$("#generatePromptBtn").addEventListener("click", () => {
+  generateEvidencePrompt();
+});
+
 $("#copyPromptBtn").addEventListener("click", async () => {
-  updateExportPrompt();
-  if ($("#copyPromptBtn").disabled) {
-    $("#copyPromptStatus").textContent = "Inserisci prima un nome profilo valido.";
+  if (!promptGeneratedPayload || $("#copyPromptBtn").disabled) {
+    $("#copyPromptStatus").textContent = getUiLocale() === "it" ? "Genera prima il prompt." : "Generate the prompt first.";
     return;
   }
-  const prompt = $("#evidencePrompt").value;
+  const prompt = promptGeneratedPayload.prompt;
   try {
     await navigator.clipboard.writeText(prompt);
-    $("#copyPromptStatus").textContent = "Prompt copiato.";
+    $("#copyPromptStatus").textContent = getUiLocale() === "it" ? "Prompt copiato." : "Prompt copied.";
   } catch (error) {
     $("#evidencePrompt").select();
     document.execCommand("copy");
-    $("#copyPromptStatus").textContent = "Prompt selezionato e copiato.";
+    $("#copyPromptStatus").textContent = getUiLocale() === "it" ? "Prompt selezionato e copiato." : "Prompt selected and copied.";
   }
 });
 
-$("#profileNameInput").addEventListener("input", updateExportPrompt);
-$("#analysisPeriodSelect").addEventListener("change", updateExportPrompt);
+$("#downloadPromptBtn").addEventListener("click", () => {
+  downloadPromptAsText();
+});
+
+$("#toggleInstructionsBtn").addEventListener("click", () => {
+  togglePromptInstructions();
+});
+
+$("#importJsonBtn").addEventListener("click", () => {
+  importPromptJsonFlow();
+});
+
+$("#profileNameInput").addEventListener("input", () => {
+  if (promptGenerationAttempted) renderPromptValidationErrors([]);
+  updateExportPrompt();
+});
+$("#analysisPeriodSelect").addEventListener("change", () => {
+  updateExportPrompt();
+});
+if ($("#aiSourceSelect")) {
+  $("#aiSourceSelect").addEventListener("change", () => {
+    updateExportPrompt();
+  });
+}
+if ($("#exportModeSelect")) {
+  $("#exportModeSelect").addEventListener("change", () => {
+    updateExportPrompt();
+  });
+}
 if ($("#reportLanguageSelect")) {
   $("#reportLanguageSelect").addEventListener("change", () => {
     const config = buildCurrentReportConfig();
@@ -2610,6 +2711,9 @@ $("#deleteBtn").addEventListener("click", async () => {
   if ($("#downloadAppendixPdf")) $("#downloadAppendixPdf").disabled = true;
   $("#regenerateReport").disabled = true;
   $("#uploadStatus").textContent = "Sessione cancellata.";
+  promptGeneratedPayload = null;
+  promptGenerationAttempted = false;
+  updateExportPrompt();
   setView("upload");
 });
 

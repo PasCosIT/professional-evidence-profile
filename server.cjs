@@ -1055,7 +1055,9 @@ function normalizeEvidencePack(pack) {
       source: {
         schema: pack.schema,
         generated_for: pack.generated_for,
-        verification: pack.source && pack.source.verification ? pack.source.verification : "user_provided_not_verified"
+        verification: pack.source && pack.source.verification ? pack.source.verification : "user_provided_not_verified",
+        platform: pack.source && pack.source.platform ? String(pack.source.platform) : null,
+        export_mode: pack.source && pack.source.export_mode ? String(pack.source.export_mode) : null
       }
     };
     const classified = classifyConversation(normalized);

@@ -12,6 +12,7 @@ const {
   scanSummary,
   redactText
 } = require("../server.cjs");
+const PromptBuilder = require("../public/prompt-builder.js");
 
 const root = path.join(__dirname, "..");
 const serverPath = path.join(root, "server.cjs");
@@ -88,6 +89,61 @@ async function main() {
   const sample = JSON.parse(fs.readFileSync(samplePath, "utf8"));
   assert.ok(Array.isArray(sample), "sample is an array");
   assert.ok(sample.length >= 5, "sample has conversations");
+
+  const quickInput = {
+    profile_name: "Mario Rossi",
+    selected_months: 6,
+    source_platform: "chatgpt",
+    export_mode: "quick",
+    now: "2026-07-13T09:00:00.000Z"
+  };
+  const claudeQuickInput = { ...quickInput, source_platform: "claude" };
+  const claudeCompleteInput = { ...quickInput, source_platform: "claude", export_mode: "complete" };
+
+  const chatGptQuick = PromptBuilder.buildEvidencePrompt(quickInput, "en");
+  const claudeQuick = PromptBuilder.buildEvidencePrompt(claudeQuickInput, "en");
+  const claudeComplete = PromptBuilder.buildEvidencePrompt(claudeCompleteInput, "en");
+
+  assert.ok(chatGptQuick.prompt.includes("Create and attach a downloadable JSON file when file creation is supported. Otherwise return only the valid JSON content."), "chatgpt quick includes downloadable file instruction");
+  assert.ok(chatGptQuick.prompt.includes("Maximum 40 strongest professional evidence items."), "quick mode enforces 40 evidence cap");
+  assert.ok(chatGptQuick.prompt.includes("\"platform\": \"chatgpt\""), "chatgpt quick includes source platform");
+  assert.ok(chatGptQuick.prompt.includes("\"export_mode\": \"quick\""), "chatgpt quick includes export mode");
+
+  assert.ok(claudeQuick.prompt.includes("Claude procedural instructions:"), "claude quick includes procedural section");
+  assert.ok(claudeQuick.prompt.includes("maximum 40 evidence items"), "claude quick includes explicit 40 limit");
+  assert.ok(claudeComplete.prompt.includes("Complete mode:"), "claude complete includes complete mode section");
+  assert.ok(claudeComplete.prompt.includes("Up to 100 professional evidence items"), "claude complete allows up to 100 evidence items");
+  assert.notStrictEqual(chatGptQuick.prompt, claudeQuick.prompt, "chatgpt and claude prompts are effectively different");
+  assert.ok(claudeQuick.prompt.length < chatGptQuick.prompt.length, "claude prompt is shorter than chatgpt prompt");
+
+  const trusted = PromptBuilder.buildTrustedConfig(quickInput);
+  assert.strictEqual(trusted.generated_at, "2026-07-13", "trusted generated_at date is correct");
+  assert.strictEqual(trusted.period_from, "2026-01-13", "trusted period from subtracts months correctly");
+  assert.strictEqual(trusted.period_to, "2026-07-13", "trusted period to matches generated_at");
+
+  const validationAllMissing = PromptBuilder.validateEvidencePromptConfig({ profile_name: "", source_platform: "", selected_months: 13 });
+  assert.ok(validationAllMissing.includes("Profile name is required."), "validation requires profile name");
+  assert.ok(validationAllMissing.includes("Select the AI source."), "validation requires ai source");
+  assert.ok(validationAllMissing.includes("Analysis period must be between 1 and 12 months."), "validation validates month range");
+
+  const escapedProfilePrompt = PromptBuilder.buildEvidencePrompt({
+    profile_name: 'Mario "M" Rossi',
+    selected_months: 6,
+    source_platform: "chatgpt",
+    export_mode: "quick",
+    now: "2026-07-13T09:00:00.000Z"
+  }, "en").prompt;
+  assert.ok(escapedProfilePrompt.includes('AI Work Passport - Mario \\"M\\" Rossi'), "profile name is escaped correctly inside JSON context");
+
+  const promptFilename = PromptBuilder.getPromptDownloadFilename({
+    profile_name: "Mario Rossi",
+    selected_months: 6,
+    source_platform: "claude",
+    export_mode: "quick",
+    now: "2026-07-13T09:00:00.000Z"
+  });
+  assert.ok(promptFilename.endsWith(".txt"), "prompt download filename is .txt");
+  assert.ok(promptFilename.includes("claude-quick"), "prompt download filename includes source and mode");
 
   const conversations = normalizeChatGptExport(sample);
   const summary = scanSummary(conversations);
@@ -209,6 +265,67 @@ async function main() {
   assert.strictEqual(packConversations.length, 1, "evidence pack imports conversations");
   assert.strictEqual(packConversations[0].source.verification, "user_provided_not_verified", "evidence pack is marked unverified");
   assert.strictEqual(packConversations[0].professional_category, "technology", "evidence pack category preserved");
+
+  const sourceAwarePack = {
+    schema: "professional_evidence_pack_v1",
+    generated_for: "AI Work Passport - Source Test",
+    generated_at: "2026-07-13",
+    period: { from: "2026-01-13", to: "2026-07-13" },
+    source: {
+      verification: "user_provided_not_verified",
+      platform: "claude",
+      export_mode: "quick"
+    },
+    conversations: [
+      {
+        id: "pack_source_1",
+        title: "Source platform test",
+        date: "2026-06-10",
+        professional_category: "technology",
+        classification: "professional",
+        summary: "Synthetic summary",
+        content_origin_notes: "original_user_input",
+        evidence: [
+          {
+            dimension: "execution",
+            candidate_concept: "Delivery coordination",
+            candidate_type: "capability",
+            claim: "Coordinates technical delivery",
+            supporting_excerpt: "Coordinates release activities",
+            confidence: "medium"
+          }
+        ]
+      }
+    ]
+  };
+  const sourceAwareConversations = normalizeChatGptExport(sourceAwarePack);
+  assert.strictEqual(sourceAwareConversations[0].source.platform, "claude", "source.platform is preserved when present");
+  assert.strictEqual(sourceAwareConversations[0].source.export_mode, "quick", "source.export_mode is preserved when present");
+
+  const legacyPack = {
+    schema: "professional_evidence_pack_v1",
+    generated_for: "AI Work Passport - Legacy",
+    generated_at: "2026-07-13",
+    period: { from: "2026-01-13", to: "2026-07-13" },
+    source: {
+      verification: "user_provided_not_verified"
+    },
+    conversations: [
+      {
+        id: "pack_legacy_1",
+        title: "Legacy pack",
+        date: "2026-06-11",
+        professional_category: "project_management",
+        classification: "professional",
+        summary: "Legacy summary",
+        content_origin_notes: "mixed_content",
+        evidence: []
+      }
+    ]
+  };
+  const legacyPackConversations = normalizeChatGptExport(legacyPack);
+  assert.strictEqual(legacyPackConversations.length, 1, "legacy pack without source platform remains compatible");
+  assert.strictEqual(legacyPackConversations[0].source.platform, null, "legacy pack sets source platform to null");
 
   const temporalSample = normalizeChatGptExport([
     {

@@ -229,7 +229,7 @@ h1 {
 
 .export-config {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 180px;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
   gap: 12px;
 }
 
@@ -268,6 +268,16 @@ h1 {
   display: block;
 }
 
+.export-config-error {
+  padding: 10px 12px;
+  border: 1px solid #ebc9c9;
+  border-radius: 8px;
+  background: #fff2f2;
+  color: #8f1f1f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .prompt-head {
   display: flex;
   align-items: center;
@@ -291,6 +301,56 @@ h1 {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.prompt-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prompt-actions button {
+  min-height: 40px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.prompt-instructions {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px;
+}
+
+.prompt-instructions h5 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.prompt-instructions ol {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+}
+
+.technical-details {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px;
+}
+
+.technical-details > summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: #22322f;
+}
+
+.info-grid-secondary {
+  margin-top: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .copy-status {
@@ -2435,6 +2495,8 @@ input[type="file"] {
   .review-summary-panel,
   .review-summary-metrics,
   .export-config,
+  .info-grid-secondary,
+  .prompt-actions,
   .appendix-list,
   .skill-group-grid,
   .bottom-grid {
