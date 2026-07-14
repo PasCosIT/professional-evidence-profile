@@ -297,6 +297,7 @@ async function main() {
     }
   })).model;
   assert.ok(Array.isArray(canonicalVm.metrics) && canonicalVm.metrics.length === 4, "canonical vm exposes four top metrics");
+  assert.ok(canonicalVm.capabilities.length > 0, "canonical vm retains assessed capabilities even without positive_count");
   assert.strictEqual(canonicalVm.metrics[0].label, "Professional conversations", "canonical vm metrics preserve label contract");
   assert.strictEqual(canonicalVmFixture.metrics[3].label, "Mixed attribution", "direct share KPI is replaced when direct evidence is zero");
   assert.ok(!canonicalVmFixture.metrics.some(metric => metric && metric.label === "Direct evidence share"), "no direct evidence share metric when direct evidence is zero");

@@ -336,6 +336,7 @@ function renderReview() {
       </div>
     </details>
   `;
+  bindConversationControls();
   bindClusterControls();
   $("#analyzeBtn").disabled = false;
 }
@@ -440,7 +441,28 @@ function setClusterIncluded(classification, category, include) {
   $$(".conversation").forEach(card => {
     if (card.dataset.classification === classification && card.dataset.category === category) {
       card.querySelector(".include").checked = include;
+      const conversation = state.conversations.find(item => String(item.id) === String(card.dataset.id));
+      if (conversation) conversation.approved = include;
     }
+  });
+  persistState();
+  renderReview();
+  if (state.reports) renderReports();
+}
+
+function bindConversationControls() {
+  $$(".conversation .include").forEach(input => {
+    input.addEventListener("change", () => {
+      const card = input.closest(".conversation");
+      if (!card) return;
+      const conversation = state.conversations.find(item => String(item.id) === String(card.dataset.id));
+      if (conversation) {
+        conversation.approved = input.checked;
+      }
+      persistState();
+      renderReview();
+      if (state.reports) renderReports();
+    });
   });
 }
 
@@ -2570,15 +2592,28 @@ if ($("#exportModeSelect")) {
 $("#selectProfessional").addEventListener("click", () => {
   $$(".conversation").forEach(card => {
     const classification = card.dataset.classification;
-    card.querySelector(".include").checked = classification === "professional";
+    const include = classification === "professional";
+    card.querySelector(".include").checked = include;
+    const conversation = state.conversations.find(item => String(item.id) === String(card.dataset.id));
+    if (conversation) conversation.approved = include;
   });
+  persistState();
+  renderReview();
+  if (state.reports) renderReports();
 });
 
 $("#excludeSensitive").addEventListener("click", () => {
   $$(".conversation").forEach(card => {
     const danger = card.querySelector(".pill.danger");
-    if (danger) card.querySelector(".include").checked = false;
+    if (danger) {
+      card.querySelector(".include").checked = false;
+      const conversation = state.conversations.find(item => String(item.id) === String(card.dataset.id));
+      if (conversation) conversation.approved = false;
+    }
   });
+  persistState();
+  renderReview();
+  if (state.reports) renderReports();
 });
 
 $("#analyzeBtn").addEventListener("click", async () => {

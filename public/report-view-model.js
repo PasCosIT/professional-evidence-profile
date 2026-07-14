@@ -66,8 +66,12 @@
     var candidate = cleanText(text);
     if (!candidate) return false;
     var lower = candidate.toLowerCase();
+    var finalWord = lower.replace(/[.!?]+$/g, "").split(/\s+/).pop();
     for (var ending of INVALID_SENTENCE_ENDINGS) {
       if (lower.endsWith(ending)) return false;
+    }
+    if (!finalWord || finalWord.length <= 3 || ["the", "and", "or", "for", "with", "through", "of", "to", "a", "an"].includes(finalWord)) {
+      return false;
     }
     if (!/[.!?]$/.test(candidate)) return false;
     return true;
@@ -82,6 +86,7 @@
       candidate = (splitAt > 20 ? clipped.slice(0, splitAt) : clipped).trim();
     }
     if (!/[.!?]$/.test(candidate)) candidate += ".";
+    if (candidate.length < Math.max(40, Math.floor(maxChars * 0.45))) return sentenceFallback(fallbackKind);
     if (!validateGeneratedSentence(candidate)) return sentenceFallback(fallbackKind);
     return candidate;
   }
@@ -200,18 +205,20 @@
  
      var capabilities = (source.axes || [])
        .map(function (axis) {
-         var evidenceItemCount = Number(axis && (axis.positive_count != null ? axis.positive_count : axis.evidenceItemCount));
-         var conversationCount = Number(axis && (axis.unique_conversation_count != null ? axis.unique_conversation_count : axis.conversationCount));
-         var hasEvidenceCount = !Number.isNaN(evidenceItemCount) && evidenceItemCount > 0;
-         var hasConversationCount = !Number.isNaN(conversationCount) && conversationCount > 0;
-         if (!hasEvidenceCount) return null;
+        var evidenceItemCount = Number(axis && (axis.positive_count != null ? axis.positive_count : axis.evidenceItemCount));
+        var conversationCount = Number(axis && (axis.unique_conversation_count != null ? axis.unique_conversation_count : axis.conversationCount));
+        var coverage = Number(axis && (axis.coverage != null ? axis.coverage : axis.evidence_coverage));
+        var assessed = axis && axis.assessed !== false && (axis.strength != null || coverage > 0);
+        var hasEvidenceContext = assessed || coverage >= 35 || (!Number.isNaN(evidenceItemCount) && evidenceItemCount > 0) || (!Number.isNaN(conversationCount) && conversationCount > 0);
+        if (!hasEvidenceContext) return null;
          return {
            label: capabilityDisplayLabel(axis.label || axis.canonical_dimension || axis.dimension),
            evidenceStrength: strengthLabel(axis.level),
-           evidenceCoverage: coverageLabel(axis.coverage),
+          evidenceCoverage: coverageLabel(coverage),
            attribution: dominantAttribution(axis.source_breakdown || {}, attribution),
-           evidenceItemCount: hasEvidenceCount ? evidenceItemCount : null,
-           conversationCount: hasConversationCount ? conversationCount : null,
+          evidenceItemCount: !Number.isNaN(evidenceItemCount) && evidenceItemCount > 0 ? evidenceItemCount : null,
+          conversationCount: !Number.isNaN(conversationCount) && conversationCount > 0 ? conversationCount : null,
+          assessed: assessed,
            confidence: cleanText(axis.confidence || "Medium") || "Medium"
          };
        })

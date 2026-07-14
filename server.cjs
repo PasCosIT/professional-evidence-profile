@@ -3548,7 +3548,7 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
     drawRoundedPanel(doc, margin, y, contentWidth, headerH, { fill: "#0f3e3a", stroke: "#0f3e3a", radius: 10 });
     doc.fillColor("#d2ece7").font("Helvetica-Bold").fontSize(11).text("Workproof Snapshot", margin + 14, y + 10);
     doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(18).text(sanitizeReportText(vm.profile, { maxChars: 72, isTitle: true, fallback: "Professional profile" }), margin + 14, y + 26, { width: 320, lineBreak: false });
-    drawFittedText(doc, sanitizeReportText(vm.headline, { maxChars: 180, fallback: "The analyzed evidence shows recurring professional signals across multiple work contexts." }), margin + 14, y + 48, 520, 16, { font: "Helvetica", maxFontSize: 8.4, minFontSize: 7.8, color: "#f0f6f5", lineGap: 0 });
+    drawFittedText(doc, sanitizeReportText(vm.headline, { maxChars: 180, fallback: "The analyzed evidence shows recurring professional signals across multiple work contexts." }), margin + 14, y + 48, 520, 22, { font: "Helvetica", maxFontSize: 8.1, minFontSize: 7.4, color: "#f0f6f5", lineGap: 0 });
     doc.fillColor("#d2ece7").font("Helvetica").fontSize(8.5)
       .text(`Observation period: ${sanitizeReportText(vm.period && vm.period.label, { maxChars: 32, isTitle: true, fallback: "-" })}`, margin + 540, y + 12, { width: 190, align: "right" })
       .text(`Period analyzed: ${sanitizeReportText(vm.period && vm.period.range, { maxChars: 52, isTitle: true, fallback: "-" })}`, margin + 540, y + 26, { width: 190, align: "right" })
