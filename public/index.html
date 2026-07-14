@@ -1,79 +1,92 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AI Work Passport</title>
+    <title>Workproof — Verified professional evidence from AI-assisted work</title>
+    <meta name="description" content="Workproof transforms AI-assisted professional work into explainable, evidence-backed profiles of demonstrated capabilities and growth.">
+    <meta property="og:title" content="Workproof">
+    <meta property="og:description" content="Turn AI-assisted work into verified professional evidence.">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <main class="shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Local MVP</p>
-          <h1>AI Work Passport</h1>
+          <p class="eyebrow">Professional evidence for AI-assisted work</p>
+          <h1>Workproof</h1>
         </div>
-        <button id="deleteBtn" class="icon danger" title="Cancella sessione" disabled>Delete</button>
+        <button id="deleteBtn" class="icon danger" title="Delete session" disabled>Delete</button>
       </header>
 
       <section class="hero">
         <div>
-          <h2>Costruisci una narrativa professionale verificabile dal lavoro che hai gia' fatto con l'AI.</h2>
-          <p>Importi conversazioni selezionate, rivedi cosa includere, il sistema anonimizza i contenuti e genera un work passport privato o condivisibile basato su evidenze.</p>
+          <p class="eyebrow">Professional evidence for AI-assisted work</p>
+          <h2>Turn AI-assisted work into verified professional evidence</h2>
+          <p>Workproof transforms professional evidence from AI-assisted work into explainable profiles of demonstrated activities, capabilities and growth.</p>
+          <div class="hero-actions">
+            <button id="createProfileCta" class="primary-action" type="button">Create your Workproof Profile</button>
+            <button id="seeHowItWorksCta" class="secondary-action" type="button">See how it works</button>
+          </div>
+          <p class="trust-line">Private by design. User controlled. Evidence based.</p>
         </div>
         <div class="method">
-          <span>Solo contenuti professionali approvati</span>
-          <span>Redazione locale prima dell'analisi</span>
-          <span>Nessuna API esterna in questo MVP</span>
+          <span>Only approved professional content</span>
+          <span>Local redaction before analysis</span>
+          <span>No external APIs in this MVP</span>
         </div>
       </section>
 
       <section class="explain">
         <div class="explain-intro">
-          <p class="eyebrow">COME FUNZIONA</p>
-          <h3>Dalle interazioni con l'AI a un Work Passport verificabile</h3>
-          <p>AI Work Passport non prova a definire la tua personalita'. Organizza pattern professionali osservabili nelle conversazioni che scegli di includere da ChatGPT, Claude, Gemini o altri assistenti AI.</p>
+          <p class="eyebrow">How it works</p>
+          <h3>Explainable analysis for evidence-backed professional profiles</h3>
+          <p>Workproof provides an explainable analysis focused on professional evidence, demonstrated capability signals, confidence level, evidence coverage, and source attribution from AI-assisted work.</p>
         </div>
         <div class="info-grid">
           <article class="info-block">
-            <h4>Informazioni che raccogliamo</h4>
+            <h4>What we collect</h4>
             <ul>
-              <li>File export AI ZIP o conversations.json.</li>
-              <li>Titolo, data e messaggi delle conversazioni.</li>
-              <li>Autore del messaggio: utente, assistente o sconosciuto.</li>
-              <li>Segnali professionali, temporali e tecnici estratti dal testo approvato.</li>
+              <li>AI export ZIP files or conversations.json.</li>
+              <li>Conversation titles, dates, and messages.</li>
+              <li>Message author: user, assistant, or unknown.</li>
+              <li>Professional, temporal, and technical signals extracted from approved text.</li>
             </ul>
           </article>
           <article class="info-block">
-            <h4>Cosa escludiamo o proteggiamo</h4>
+            <h4>What we exclude or protect</h4>
             <ul>
-              <li>Conversazioni personali, sensibili o incerte vengono escluse per default.</li>
-              <li>Email, telefoni, token, password, codici fiscali e nomi vengono redatti.</li>
-              <li>Testi copiati da terzi non sono attribuiti automaticamente all'utente.</li>
-              <li>Le conversazioni originali non sono mostrate nel profilo pubblico.</li>
+              <li>Personal, sensitive, or uncertain conversations are excluded by default.</li>
+              <li>Emails, phone numbers, tokens, passwords, and names are redacted.</li>
+              <li>Copied third-party content is not automatically attributed to the user.</li>
+              <li>Original conversations are not exposed in the public profile.</li>
             </ul>
           </article>
           <article class="info-block">
-            <h4>Output generati</h4>
+            <h4>Generated outputs</h4>
             <ul>
-              <li>Data scan con categorie e contenuti esclusi.</li>
-              <li>Review manuale prima dell'analisi.</li>
-              <li>Private Mirror completo con evidenze e contro-evidenze.</li>
-              <li>Public Passport filtrato solo sugli insight condivisibili.</li>
+              <li>Data scan with categories and excluded content.</li>
+              <li>Manual review before analysis.</li>
+              <li>Workproof Snapshot supported by evidence.</li>
+              <li>Workproof Evidence Report with Evidence Appendix.</li>
             </ul>
           </article>
         </div>
+        <article class="info-block">
+          <h4>Your evidence. Your control.</h4>
+          <p>Workproof analyses only the professional evidence intentionally provided by the user. Personal and sensitive content should be excluded before the profile is generated. Every evidence item can be reviewed, removed or marked as uncertain.</p>
+        </article>
         <section class="quick-pack">
           <div>
             <p class="eyebrow">Quick Evidence Pack</p>
-            <h3>Genera un Evidence Pack dalla tua AI</h3>
-            <p>Configura nome, fonte e periodo di analisi. L'app genera un prompt ottimizzato per l'assistente AI selezionato, che dovra' estrarre esclusivamente evidenze professionali.</p>
+            <h3>Create your Workproof Profile</h3>
+            <p>Import a Professional Evidence Pack generated from the AI platform you use most. Workproof will analyse only the professional evidence included in the file.</p>
           </div>
           <div class="prompt-card">
             <div class="export-config">
               <label>
                 Profile name
-                <input id="profileNameInput" type="text" maxlength="120" placeholder="Es. Maria Rossi" autocomplete="name">
+                <input id="profileNameInput" type="text" maxlength="120" placeholder="e.g. Maria Rossi" autocomplete="name">
               </label>
               <label>
                 AI source
@@ -117,9 +130,9 @@
             <div id="exportConfigError" class="export-config-error" hidden></div>
             <div class="prompt-head">
               <h4 id="promptTitle">Prompt</h4>
-              <button id="generatePromptBtn" type="button">Genera prompt personalizzato</button>
+              <button id="generatePromptBtn" type="button">Generate custom prompt</button>
             </div>
-            <textarea id="evidencePrompt" readonly>Configura i campi e genera il prompt.</textarea>
+            <textarea id="evidencePrompt" readonly>Configure fields and generate the prompt.</textarea>
             <div id="promptActions" class="prompt-actions" hidden>
               <button id="copyPromptBtn" type="button" disabled>Copy prompt</button>
               <button id="downloadPromptBtn" type="button" disabled>Download prompt as .txt</button>
@@ -134,24 +147,24 @@
           </div>
         </section>
         <details class="technical-details">
-          <summary>Dettagli tecnici e privacy</summary>
+          <summary>Technical and privacy details</summary>
           <div class="info-grid info-grid-secondary">
             <article class="info-block">
-              <h4>API gestite dal prototipo</h4>
+              <h4>Prototype API endpoints</h4>
               <ul>
-                <li>POST /api/import: carica e normalizza il file.</li>
-                <li>POST /api/analyze: genera insight, radar, timeline e Technology Reasoning.</li>
-                <li>POST /api/report: rigenera i report dopo le scelte di visibilita'.</li>
-                <li>POST /api/delete: elimina la sessione in memoria.</li>
+                <li>POST /api/import: upload and normalize file.</li>
+                <li>POST /api/analyze: generate insights, radar, timeline, and Technology Reasoning.</li>
+                <li>POST /api/report: regenerate reports after visibility decisions.</li>
+                <li>POST /api/delete: remove the in-memory session.</li>
               </ul>
             </article>
             <article class="info-block">
-              <h4>Principi privacy MVP</h4>
+              <h4>MVP privacy principles</h4>
               <ul>
-                <li>Solo contenuti professionali approvati.</li>
-                <li>Redazione locale prima dell'analisi.</li>
-                <li>Nessuna API esterna in questo MVP.</li>
-                <li>Le conversazioni originali non sono mostrate nel profilo pubblico.</li>
+                <li>Only approved professional content.</li>
+                <li>Local redaction before analysis.</li>
+                <li>No external APIs in this MVP.</li>
+                <li>Original conversations are not shown in the public profile.</li>
               </ul>
             </article>
           </div>
@@ -167,8 +180,8 @@
 
       <section id="upload" class="panel view active">
         <div class="panel-head">
-          <h3>Upload</h3>
-          <p>Carica un export AI .zip, conversations.json o un Evidence Pack JSON.</p>
+          <h3>Create your Workproof Profile</h3>
+          <p>Import a Professional Evidence Pack generated from the AI platform you use most. Workproof will analyse only the professional evidence included in the file.</p>
         </div>
         <form id="uploadForm" class="upload-box">
           <input id="fileInput" type="file" accept=".json,.zip,application/json,application/zip">
@@ -176,7 +189,7 @@
         </form>
         <div class="sample-row">
           <button id="sampleBtn" type="button">Load synthetic sample</button>
-          <span>Usalo per testare senza dati reali.</span>
+          <span>Use it to test without real data.</span>
         </div>
         <pre id="uploadStatus" class="status"></pre>
       </section>
@@ -184,7 +197,7 @@
       <section id="scan" class="panel view">
         <div class="panel-head">
           <h3>Data scan</h3>
-          <p>Panoramica prudente prima di ogni analisi.</p>
+          <p>Conservative overview before every analysis.</p>
         </div>
         <div id="summaryGrid" class="summary-grid"></div>
       </section>
@@ -192,7 +205,7 @@
       <section id="review" class="panel view">
         <div class="panel-head">
           <h3>Review</h3>
-          <p>Controlla il dataset e genera lo snapshot. Le conversazioni personali restano escluse.</p>
+          <p>Review the dataset and generate the snapshot. Personal conversations stay excluded.</p>
         </div>
         <div class="toolbar">
           <button id="selectProfessional" class="secondary-action" type="button">Use recommended selection</button>
@@ -204,20 +217,27 @@
 
       <section id="report" class="panel view">
         <div class="panel-head">
-          <h3>AI Work Passport</h3>
-          <p>Una pagina visuale, esportabile in PDF, basata solo sulle conversazioni professionali analizzate.</p>
+          <h3>Workproof Profile</h3>
+          <p>An evidence-backed view of demonstrated professional capabilities.</p>
+        </div>
+        <div class="report-copy-grid">
+          <article class="info-block">
+            <h4>Workproof Snapshot</h4>
+            <p>A concise view of the strongest professional signals supported by the available evidence.</p>
+          </article>
+          <article class="info-block">
+            <h4>Workproof Evidence Report</h4>
+            <p>A detailed and explainable analysis of professional evidence.</p>
+          </article>
+          <article class="info-block">
+            <h4>Evidence Appendix</h4>
+            <p>The evidence supporting the activities, capabilities and professional patterns identified in the report.</p>
+          </article>
         </div>
         <div class="report-actions snapshot-actions">
-          <label class="report-language-control">
-            Report language
-            <select id="reportLanguageSelect">
-              <option value="en" selected>English</option>
-              <option value="it">Italiano</option>
-            </select>
-          </label>
-          <button id="downloadSnapshotPdf" disabled>Download PDF</button>
-          <button id="downloadAppendixPdf" disabled>Detailed Evidence Appendix</button>
-          <button id="downloadCombinedPdf" disabled>Combined Report PDF</button>
+          <button id="downloadSnapshotPdf" disabled>Download Workproof Snapshot (PDF)</button>
+          <button id="downloadAppendixPdf" disabled>Download Evidence Appendix</button>
+          <button id="downloadCombinedPdf" disabled>Download Workproof Evidence Report (PDF)</button>
           <button id="regenerateReport" disabled>Regenerate report</button>
           <button id="changePeriod" type="button">Change analysis period</button>
         </div>
@@ -226,8 +246,12 @@
         <div id="visualProfile" class="visual-profile legacy-hidden"></div>
         <div id="insights" class="insights legacy-hidden"></div>
       </section>
+      <footer class="app-footer">
+        <p>Workproof · Turn AI-assisted work into verified professional evidence</p>
+      </footer>
     </main>
     <script src="/prompt-builder.js?v=2026-07-13-multi-ai-v1"></script>
+    <script src="/report-view-model.js?v=2026-07-14-vm"></script>
     <script src="/app.js?v=2026-07-13-multi-ai-v1"></script>
   </body>
 </html>

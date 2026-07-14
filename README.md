@@ -1,6 +1,8 @@
-# AI Work Passport
+# Workproof
 
-Local MVP to import a ChatGPT export, classify work-related conversations, redact sensitive data, review the selection manually, and generate an evidence-backed AI Work Passport.
+Turn AI-assisted work into verified professional evidence.
+
+Local MVP to import AI-assisted work exports, classify work-related conversations, redact sensitive data, review inclusion manually, and generate evidence-backed Workproof outputs.
 
 ## What this MVP does
 
@@ -9,8 +11,8 @@ Local MVP to import a ChatGPT export, classify work-related conversations, redac
 - Classifies conversations as `professional`, `personal`, `mixed`, `uncertain`, or `excluded_sensitive`.
 - Detects pasted external content heuristically.
 - Redacts names, emails, phones, API keys, credentials, addresses, and sensitive terms.
-- Lets the user include, exclude, or reclassify conversations.
-- Generates a normalized JSON, methodology KPIs, a private AI Work Passport, a shareable public version, and evidence-backed observed skills.
+- Lets the user include or exclude conversations.
+- Generates a normalized JSON, methodology KPIs, a Workproof Profile, a Workproof Snapshot, a Workproof Evidence Report, and an Evidence Appendix.
 - Deletes all in-memory session data with one action.
 
 ## What it intentionally does not do
@@ -62,14 +64,14 @@ node tests/run-tests.js
 
 ## Sample data
 
-Use `samples/synthetic-conversations.json` to try the flow without real data.
+Use `public/samples/synthetic-conversations.json` to try the flow without real data.
 
 ## Positioning in this prototype
 
 This prototype is designed as an evidence-backed professional profile for the user, not as an automated hiring decision system.
 
 - It summarizes observable work patterns from approved conversations.
-- It can highlight supported skills, examples, limitations, and areas with insufficient evidence.
+- It can highlight demonstrated capability signals, examples, limitations, and areas with insufficient evidence.
 - It does not produce candidate rankings or replace human evaluation.
 
 ## Privacy model in this prototype

@@ -14,6 +14,7 @@ const {
   redactText
 } = require("../server.cjs");
 const PromptBuilder = require("../public/prompt-builder.js");
+const ReportViewModel = require("../public/report-view-model.js");
 
 const root = path.join(__dirname, "..");
 const serverPath = path.join(root, "server.cjs");
@@ -134,7 +135,7 @@ async function main() {
     export_mode: "quick",
     now: "2026-07-13T09:00:00.000Z"
   }, "en").prompt;
-  assert.ok(escapedProfilePrompt.includes('AI Work Passport - Mario \\"M\\" Rossi'), "profile name is escaped correctly inside JSON context");
+  assert.ok(escapedProfilePrompt.includes('Workproof Profile - Mario \\"M\\" Rossi'), "profile name is escaped correctly inside JSON context");
 
   const promptFilename = PromptBuilder.getPromptDownloadFilename({
     profile_name: "Mario Rossi",
@@ -188,7 +189,7 @@ async function main() {
     observedDomains: ["program management", "technology integrations", "data and reporting"],
     typicalContribution: "Typically turns priorities into coordinated actions, clearer requirements and shared delivery across program management and technology integrations.",
     texts: {
-      snapshotTitle: "Professional Evidence Snapshot",
+      snapshotTitle: "Workproof Snapshot",
       signatureLabel: "Professional signature",
       domainsLabel: "Professional domains observed",
       contributionLabel: "Typical professional contribution",
@@ -210,7 +211,7 @@ async function main() {
       selectedExcerpts: "selected excerpts",
       outOfEvidence: "out of",
       evidenceLabel: "evidence items",
-      appendixTitle: "Detailed Evidence Appendix"
+      appendixTitle: "Evidence Appendix"
     },
     kpis: [
       { value: "10", label: "Professional conversations analyzed", note: "Retained for this snapshot" },
@@ -256,14 +257,14 @@ async function main() {
   const normalizedSnapshotText = snapshotText.replace(/\s+/g, " ").trim();
   const normalizedAppendixText = appendixText.replace(/\s+/g, " ").trim();
   assert.strictEqual(parsedSnapshot.total, 1, "snapshot pdf reports exactly one page via parser");
-  assert.ok(normalizedSnapshotText.includes("Professional Evidence Snapshot"), "snapshot pdf includes title");
-  assert.ok(normalizedSnapshotText.includes("Direct user evidence: 50%"), "snapshot pdf includes direct attribution line");
+  assert.ok(normalizedSnapshotText.includes("Workproof Snapshot"), "snapshot pdf includes title");
+  assert.ok(normalizedSnapshotText.includes("Direct evidence: 50%"), "snapshot pdf includes direct attribution line");
   assert.ok(normalizedSnapshotText.includes("Mixed attribution: 20%"), "snapshot pdf includes mixed attribution line");
-  assert.ok(normalizedSnapshotText.includes("External/AI context: 30%"), "snapshot pdf includes contextual attribution line");
+  assert.ok(normalizedSnapshotText.includes("External or AI context: 30%"), "snapshot pdf includes contextual attribution line");
   assert.ok(normalizedSnapshotText.includes("Methodology and verification"), "snapshot pdf includes methodology footer");
-  assert.ok(normalizedSnapshotText.includes("Evidence KPIs"), "snapshot pdf includes KPI section");
-  assert.ok(normalizedSnapshotText.includes("Section F - Not Assessed"), "snapshot pdf includes not assessed section");
-  assert.ok(normalizedAppendixText.includes("Detailed Evidence Appendix"), "appendix pdf includes title");
+  assert.ok(normalizedSnapshotText.includes("Evidence Overview"), "snapshot pdf includes KPI section");
+  assert.ok(normalizedSnapshotText.includes("Not Assessed"), "snapshot pdf includes not assessed section");
+  assert.ok(normalizedAppendixText.includes("Evidence Appendix"), "appendix pdf includes title");
   assert.ok(normalizedAppendixText.includes("Conversations"), "appendix includes conversation section");
   assert.ok(normalizedAppendixText.includes("Evidence cards"), "appendix includes evidence card section");
   assert.ok(parsedCombined.total >= parsedAppendix.total + parsedSnapshot.total, "combined pdf includes snapshot and appendix pages");
@@ -281,6 +282,38 @@ async function main() {
   assert.ok((pdfSnapshot.axes || []).slice(0, 5).length <= 5, "snapshot capabilities do not exceed 5");
   assert.ok(String(pdfSnapshot.professionalSignature || "").length <= 280, "summary sentence stays bounded");
   assert.ok(pdfConfig.period_from <= pdfConfig.period_to, "trusted period dates remain coherent");
+
+  const canonicalVm = ReportViewModel.validateReportViewModel(ReportViewModel.buildReportViewModel(pdfSnapshot)).model;
+  const canonicalVmFixture = ReportViewModel.validateReportViewModel(ReportViewModel.buildReportViewModel({
+    ...pdfSnapshot,
+    evidenceMix: {
+      attributable: 0,
+      segments: [
+        { tone: "direct", value: 0 },
+        { tone: "mixed", value: 60 },
+        { tone: "external", value: 20 },
+        { tone: "ai", value: 20 }
+      ]
+    }
+  })).model;
+  assert.ok(Array.isArray(canonicalVm.metrics) && canonicalVm.metrics.length === 4, "canonical vm exposes four top metrics");
+  assert.strictEqual(canonicalVm.metrics[0].label, "Professional conversations", "canonical vm metrics preserve label contract");
+  assert.strictEqual(canonicalVmFixture.metrics[3].label, "Mixed attribution", "direct share KPI is replaced when direct evidence is zero");
+  assert.ok(!canonicalVmFixture.metrics.some(metric => metric && metric.label === "Direct evidence share"), "no direct evidence share metric when direct evidence is zero");
+
+  const canonicalHtml = ReportViewModel.renderSnapshotHtml(canonicalVm);
+  const canonicalFixtureHtml = ReportViewModel.renderSnapshotHtml(canonicalVmFixture);
+  const normalizedCanonicalHtml = canonicalHtml.replace(/\s+/g, " ").trim();
+  const normalizedFixtureHtml = canonicalFixtureHtml.replace(/\s+/g, " ").trim();
+  assert.ok(normalizedCanonicalHtml.includes("Evidence Overview"), "preview html includes canonical section naming");
+  assert.ok(normalizedCanonicalHtml.includes("Supported Capabilities"), "preview html includes capability section");
+  assert.ok(!normalizedFixtureHtml.includes("0 evidence items across 0 conversations"), "preview html omits invalid zero-zero capability count line");
+  assert.ok(!normalizedFixtureHtml.includes("Direct evidence share"), "preview html hides direct evidence share when direct attribution is zero");
+  const forbiddenHtmlTokens = ["undefined", "null", "nan", "mixed_content", "user_instruction", "candidate_type"];
+  const normalizedFixtureLower = normalizedFixtureHtml.toLowerCase();
+  for (const token of forbiddenHtmlTokens) {
+    assert.ok(!normalizedFixtureLower.includes(token), `preview html must not include forbidden token ${token}`);
+  }
 
   const pdfFixtures = [
     { ...pdfSnapshot, personName: "A" },
@@ -310,7 +343,7 @@ async function main() {
 
   const sourceAwarePack = {
     schema: "professional_evidence_pack_v1",
-    generated_for: "AI Work Passport - Source Test",
+    generated_for: "Workproof Profile - Source Test",
     generated_at: "2026-07-13",
     period: { from: "2026-01-13", to: "2026-07-13" },
     source: {
@@ -346,7 +379,7 @@ async function main() {
 
   const legacyPack = {
     schema: "professional_evidence_pack_v1",
-    generated_for: "AI Work Passport - Legacy",
+    generated_for: "Workproof Profile - Legacy",
     generated_at: "2026-07-13",
     period: { from: "2026-01-13", to: "2026-07-13" },
     source: {

@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const zlib = require("zlib");
 const PDFDocument = require("pdfkit");
 const { PDFDocument: PDFLibDocument } = require("pdf-lib");
+const ReportViewModel = require("./public/report-view-model.js");
 
 const IS_VERCEL = Boolean(process.env.VERCEL);
 const PORT = process.env.PORT || 4173;
@@ -45,7 +46,7 @@ function logStartupDiagnostics() {
     publicDirExists: fs.existsSync(PUBLIC_DIR),
     publicIndexExists: fs.existsSync(path.join(PUBLIC_DIR, "index.html"))
   };
-  console.log("[startup] AI Work Passport diagnostics", diagnostics);
+  console.log("[startup] Workproof diagnostics", diagnostics);
 }
 
 function requestMeta(req) {
@@ -627,9 +628,7 @@ function isIsoDate(value) {
 function normalizeReportConfig(input = {}) {
   const profileName = sanitizeProfileName(input.profile_name);
   const selectedMonths = Number(input.selected_months);
-  const reportLanguage = ["it", "en"].includes(String(input.report_language || "").toLowerCase())
-    ? String(input.report_language).toLowerCase()
-    : "en";
+  const reportLanguage = "en";
   const generatedAt = isIsoDate(input.generated_at) ? input.generated_at : new Date().toISOString().slice(0, 10);
   const periodTo = isIsoDate(input.period_to) ? input.period_to : generatedAt;
   const periodFrom = isIsoDate(input.period_from) ? input.period_from : null;
@@ -643,7 +642,7 @@ function normalizeReportConfig(input = {}) {
     period_to: periodTo,
     generated_at: generatedAt,
     report_language: reportLanguage,
-    generated_for: `AI Work Passport - ${profileName}`,
+    generated_for: `Workproof Profile - ${profileName}`,
     sanitized_profile_name: sanitizedFilenameName(profileName)
   };
 }
@@ -1506,8 +1505,8 @@ function buildSkillPassport(normalized) {
   }).filter(group => group.skills.length);
 
   return {
-    title: "AI Work Passport",
-    subtitle: "Evidence-backed professional profile built from approved conversations.",
+    title: "Workproof Profile",
+    subtitle: "An evidence-backed view of demonstrated professional capabilities.",
     groups,
     strengths: groups
       .flatMap(group => group.skills.map(skill => ({ group: group.title, ...skill })))
@@ -1565,7 +1564,7 @@ function buildTechnologyReasoning(normalized, insights, publicOnly = false) {
   const observed = signals.filter(signal => signal.evidence_count > 0);
   return {
     title: "Technology Reasoning",
-    scope: "Basato solo su conversazioni approvate e anonimizzate. Non accede a repository e non copia codice proprietario.",
+    scope: "Based only on approved and anonymized conversations. It does not access repositories and does not copy proprietary code.",
     signals,
     observed_count: observed.length,
     evidence_count: observed.reduce((sum, signal) => sum + signal.evidence_count, 0),
@@ -3134,20 +3133,20 @@ function buildReports(normalized, userInsights, reportConfig) {
     report_config: config,
     analysis_notes: normalized.length
       ? []
-      : ["Nessuna conversazione analizzabile selezionata. In Review includi almeno una conversazione professionale o mista."],
+      : ["No analyzable conversation selected. In Review, include at least one professional or mixed conversation."],
     visual_profile: privateVisualProfile,
     technology_reasoning: privateTechnologyReasoning,
     temporal_maturity: privateTemporalMaturity,
     evidence_coverage_detail: privateEvidenceCoverage,
     private_report: {
-      title: config ? `AI Work Passport - ${config.profile_name}` : "Private AI Work Passport",
+      title: config ? `Workproof Profile - ${config.profile_name}` : "Workproof Profile (Private)",
       report_config: config,
       generated_at: kpis.generated_at,
       period: config ? { from: config.period_from, to: config.period_to, selected_months: config.selected_months } : { first_data: range.first, last_data: range.last },
       limits: [
-        "Le conversazioni AI rappresentano solo una parte del comportamento professionale.",
-        "Le inferenze possono essere errate e richiedono revisione umana.",
-        "Il profilo non e' una diagnosi psicologica e non deve essere usato come unico criterio di selezione."
+        "AI-assisted conversations represent only a partial view of professional behavior.",
+        "Inferences can be wrong and require human review.",
+        "This profile is not a psychological diagnosis and must not be used as a sole decision criterion."
       ],
       insights,
       professional_pattern: professionalPattern,
@@ -3168,7 +3167,7 @@ function buildReports(normalized, userInsights, reportConfig) {
       evidence_coverage_detail: privateEvidenceCoverage
     },
     public_report: {
-      title: config ? `AI Work Passport - ${config.profile_name}` : "Shareable AI Work Passport",
+      title: config ? `Workproof Profile - ${config.profile_name}` : "Workproof Profile (Shareable)",
       report_config: config,
       generated_at: kpis.generated_at,
       period: config ? { from: config.period_from, to: config.period_to, selected_months: config.selected_months } : { first_data: range.first, last_data: range.last },
@@ -3201,7 +3200,7 @@ function buildReports(normalized, userInsights, reportConfig) {
 
 function pdfBuffer(render) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ autoFirstPage: false, compress: false, info: { Producer: "AI Work Passport" } });
+    const doc = new PDFDocument({ autoFirstPage: false, compress: false, info: { Producer: "Workproof" } });
     const chunks = [];
     doc.on("data", chunk => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
@@ -3521,145 +3520,117 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
   const model = validateSnapshotPayload(snapshot);
   return pdfBuffer(doc => {
     doc.addPage({ size: "A4", layout: "landscape", margins: { top: 36, bottom: 36, left: 40, right: 40 } });
-    const language = config.report_language || "en";
     const margin = 40;
-    const gap = 8;
+    const gap = 10;
     const pageWidth = doc.page.width;
     const contentWidth = pageWidth - margin * 2;
 
-    const oneLineSummary = sanitizeReportText(model.summary || model.professionalSignature, {
-      maxChars: 160,
-      fallback: "The analyzed evidence suggests recurring professional patterns, with prudent interpretation due to evidence limits.",
-      sentenceAware: true
-    });
-    const patternText = sanitizeReportText(
-      (model.professionalPattern && model.professionalPattern.observed_professional_pattern) || model.professionalSignature,
-      { maxChars: 260, fallback: "No recurring professional pattern could be assessed with sufficient confidence." }
-    );
-    const contributionText = sanitizeReportText(model.typicalContribution, {
-      maxChars: 220,
-      fallback: "No recurring contribution pattern could be assessed with sufficient confidence."
-    });
-    const contexts = (model.observedDomains || []).map(item => sanitizeReportText(item, { maxChars: 44, isTitle: true, fallback: "Professional context" })).slice(0, 4);
-    const notAssessed = ((model.notAssessed || [])
-      .concat(((model.axes || []).filter(axis => axis.assessed === false || Number(axis.coverage || 0) < 35).map(axis => axis.label))))
-      .map(item => sanitizeReportText(item, { maxChars: 38, isTitle: true, fallback: "Dimension" }))
-      .filter((item, index, arr) => arr.indexOf(item) === index)
-      .slice(0, 3);
+    const vmCandidate = model.reportViewModel && typeof model.reportViewModel === "object"
+      ? model.reportViewModel
+      : ReportViewModel.buildReportViewModel(model);
+    const vm = ReportViewModel.validateReportViewModel(vmCandidate).model;
+    const contexts = (vm.contexts || []).slice(0, 4);
+    const capabilityRows = (vm.capabilities || []).slice(0, 5);
+    const metrics = (vm.metrics || []).slice(0, 4);
+    const notAssessed = (vm.notAssessed && vm.notAssessed.items) || [];
+    const notAssessedText = notAssessed.length
+      ? `${notAssessed.join(" · ")}${vm.notAssessed.additional ? ` · +${vm.notAssessed.additional} additional dimensions` : ""}`
+      : "All eligible dimensions had sufficient evidence for assessment.";
 
-    const attribution = buildAttributionSummary(model.evidenceMix || {}, language);
-    const directShare = `${attribution.directShare}%`;
-    const capabilityRows = buildCapabilityRows((model.axes || []).map(axis => ({
-      ...axis,
-      assessed: axis.assessed !== false && typeof axis.strength === "number"
-    })), language);
-    const capabilitySupportedCount = capabilityRows.length;
-    const kpis = [
-      { value: String(model.analyzedConversationCount || 0), label: "Professional conversations", note: "Conversations included in the analysis." },
-      { value: String(model.totalEvidenceItemCount || 0), label: "Evidence items", note: "Supporting, uncertain and counter evidence." },
-      { value: String(capabilitySupportedCount), label: "Capabilities supported", note: "Capabilities with sufficient coverage." },
-      { value: directShare, label: "Direct evidence share", note: "Direct user evidence over all evidence items." }
-    ];
-
-    const headerH = 66;
-    const row1H = 88;
-    const kpiH = 66;
-    const bodyH = 196;
-    const footerH = 46;
+    const headerH = 70;
+    const topRowH = 96;
+    const kpiH = 82;
+    const bottomRowH = 196;
+    const footerH = 34;
 
     let y = margin;
 
     drawRoundedPanel(doc, margin, y, contentWidth, headerH, { fill: "#0f3e3a", stroke: "#0f3e3a", radius: 10 });
-    doc.fillColor("#d2ece7").font("Helvetica-Bold").fontSize(11).text("Professional Evidence Snapshot", margin + 14, y + 10);
-    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(18).text(sanitizeReportText(model.personName, { maxChars: 70, isTitle: true, fallback: "Professional profile" }), margin + 14, y + 26, { width: 300, lineBreak: false });
-    drawFittedText(doc, oneLineSummary, margin + 14, y + 46, 520, 14, { font: "Helvetica", maxFontSize: 8.4, minFontSize: 7.8, color: "#f0f6f5", lineGap: 0 });
+    doc.fillColor("#d2ece7").font("Helvetica-Bold").fontSize(11).text("Workproof Snapshot", margin + 14, y + 10);
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(18).text(sanitizeReportText(vm.profile, { maxChars: 72, isTitle: true, fallback: "Professional profile" }), margin + 14, y + 26, { width: 320, lineBreak: false });
+    drawFittedText(doc, sanitizeReportText(vm.headline, { maxChars: 180, fallback: "The analyzed evidence shows recurring professional signals across multiple work contexts." }), margin + 14, y + 48, 520, 16, { font: "Helvetica", maxFontSize: 8.4, minFontSize: 7.8, color: "#f0f6f5", lineGap: 0 });
     doc.fillColor("#d2ece7").font("Helvetica").fontSize(8.5)
-      .text(`Observed period: ${sanitizeReportText(model.observationPeriod, { maxChars: 28, isTitle: true, fallback: "-" })}`, margin + 540, y + 13, { width: 190, align: "right" })
-      .text(`Data range: ${sanitizeReportText(model.dataRange, { maxChars: 50, isTitle: true, fallback: "-" })}`, margin + 540, y + 27, { width: 190, align: "right" })
-      .text(`Extracted: ${safeDate(model.extractedDate)}`, margin + 540, y + 41, { width: 190, align: "right" });
+      .text(`Observation period: ${sanitizeReportText(vm.period && vm.period.label, { maxChars: 32, isTitle: true, fallback: "-" })}`, margin + 540, y + 12, { width: 190, align: "right" })
+      .text(`Period analyzed: ${sanitizeReportText(vm.period && vm.period.range, { maxChars: 52, isTitle: true, fallback: "-" })}`, margin + 540, y + 26, { width: 190, align: "right" })
+      .text(`Generated: ${sanitizeReportText(vm.period && vm.period.generated, { maxChars: 28, isTitle: true, fallback: "-" })}`, margin + 540, y + 40, { width: 190, align: "right" });
 
     y += headerH + gap;
-    const patternW = 322;
-    const contextW = 172;
+    const patternW = 330;
+    const contextW = 188;
     const contributionW = contentWidth - patternW - contextW - gap * 2;
-    drawRoundedPanel(doc, margin, y, patternW, row1H, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section A - Professional Pattern", margin + 10, y + 8);
-    drawFittedText(doc, patternText, margin + 10, y + 22, patternW - 20, 44, { font: "Helvetica", maxFontSize: 9.3, minFontSize: 8.3, color: "#163331" });
-    doc.fillColor("#4e6662").font("Helvetica").fontSize(7.8).text(
-      `Evidence basis: ${model.analyzedConversationCount || 0} conversations · ${model.totalEvidenceItemCount || 0} evidence items · ${sanitizeReportText(model.observationPeriod, { maxChars: 30, isTitle: true, fallback: "-" })}`,
-      margin + 10,
-      y + 69,
-      { width: patternW - 20 }
-    );
+    drawRoundedPanel(doc, margin, y, patternW, topRowH, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.8).text("Professional Pattern", margin + 10, y + 8);
+    drawFittedText(doc, sanitizeReportText(vm.professionalPattern, { maxChars: 260, fallback: "The evidence suggests a professional profile with recurring cross-functional coordination and execution signals." }), margin + 10, y + 24, patternW - 20, 62, { font: "Helvetica", maxFontSize: 9.2, minFontSize: 8.3, color: "#163331" });
 
     const contextX = margin + patternW + gap;
-    drawRoundedPanel(doc, contextX, y, contextW, row1H, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section B - Contexts", contextX + 10, y + 8);
-    drawChipRow(doc, contexts.length ? contexts : ["No recurring context observed"], contextX + 10, y + 24, contextW - 20, { fontSize: 7.8, chipHeight: 13, gap: 3, maxRows: 4 });
+    drawRoundedPanel(doc, contextX, y, contextW, topRowH, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.8).text("Professional Contexts", contextX + 10, y + 8);
+    drawChipRow(doc, contexts.length ? contexts : ["No recurring context observed"], contextX + 10, y + 26, contextW - 20, { fontSize: 8.2, chipHeight: 15, gap: 4, maxRows: 4 });
 
     const contributionX = contextX + contextW + gap;
-    drawRoundedPanel(doc, contributionX, y, contributionW, row1H, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section C - Typical Contribution", contributionX + 10, y + 8);
-    drawFittedText(doc, contributionText, contributionX + 10, y + 24, contributionW - 20, 48, { font: "Helvetica", maxFontSize: 9.2, minFontSize: 8.1, color: "#163331" });
+    drawRoundedPanel(doc, contributionX, y, contributionW, topRowH, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.8).text("Typical Contribution", contributionX + 10, y + 8);
+    drawFittedText(doc, sanitizeReportText(vm.typicalContribution, { maxChars: 220, fallback: "No recurring contribution pattern could be identified with sufficient confidence." }), contributionX + 10, y + 24, contributionW - 20, 60, { font: "Helvetica", maxFontSize: 9.2, minFontSize: 8.3, color: "#163331" });
 
-    y += row1H + gap;
+    y += topRowH + gap;
     drawRoundedPanel(doc, margin, y, contentWidth, kpiH, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section D - Evidence KPIs", margin + 10, y + 8);
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.8).text("Evidence Overview", margin + 10, y + 8);
     const kpiGap = 8;
     const kpiWidth = (contentWidth - 20 - kpiGap * 3) / 4;
-    kpis.forEach((kpi, index) => {
+    metrics.forEach((kpi, index) => {
       const x = margin + 10 + index * (kpiWidth + kpiGap);
-      drawRoundedPanel(doc, x, y + 20, kpiWidth, 38, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 7 });
-      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(12).text(kpi.value, x + 7, y + 24, { width: kpiWidth - 14, lineBreak: false });
-      drawFittedText(doc, kpi.label, x + 7, y + 37, kpiWidth - 14, 9, { font: "Helvetica-Bold", maxFontSize: 7.2, minFontSize: 6.8, color: "#1d3b38" });
-      drawFittedText(doc, kpi.note, x + 7, y + 46, kpiWidth - 14, 8, { font: "Helvetica", maxFontSize: 6.3, minFontSize: 6.1, color: "#5b7470" });
+      drawRoundedPanel(doc, x, y + 22, kpiWidth, 50, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 7 });
+      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(12).text(String(kpi.value), x + 7, y + 26, { width: kpiWidth - 14, lineBreak: false });
+      drawFittedText(doc, sanitizeReportText(kpi.label, { maxChars: 38, isTitle: true, fallback: "Metric" }), x + 7, y + 40, kpiWidth - 14, 10, { font: "Helvetica-Bold", maxFontSize: 7.5, minFontSize: 7, color: "#1d3b38" });
+      drawFittedText(doc, sanitizeReportText(kpi.helper, { maxChars: 50, fallback: "" }), x + 7, y + 52, kpiWidth - 14, 18, { font: "Helvetica", maxFontSize: 6.9, minFontSize: 6.5, color: "#5b7470" });
     });
 
     y += kpiH + gap;
-    const capW = 500;
+    const capW = 502;
     const rightW = contentWidth - capW - gap;
-    drawRoundedPanel(doc, margin, y, capW, bodyH, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section E - Supported Capabilities", margin + 10, y + 8);
+    drawRoundedPanel(doc, margin, y, capW, bottomRowH, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.8).text("Supported Capabilities", margin + 10, y + 8);
     if (!capabilityRows.length) {
-      doc.fillColor("#4e6662").font("Helvetica").fontSize(9).text("No capability reached sufficient coverage in the observed period.", margin + 10, y + 30);
+      doc.fillColor("#4e6662").font("Helvetica").fontSize(9).text("Not enough evidence to assess this capability.", margin + 10, y + 30);
     } else {
       capabilityRows.forEach((row, index) => {
         const cardY = y + 24 + index * 33;
         drawRoundedPanel(doc, margin + 10, cardY, capW - 20, 28, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 6 });
-        doc.fillColor("#163331").font("Helvetica-Bold").fontSize(8.7).text(row.label, margin + 16, cardY + 6, { width: 140, lineBreak: false });
-        drawFittedText(doc, `${row.strength} · ${row.coverageMeta.label} coverage · ${row.attribution}`, margin + 164, cardY + 6, 208, 10, { font: "Helvetica", maxFontSize: 7.4, minFontSize: 6.8, color: "#4f6763" });
-        drawFittedText(doc, `${row.evidenceItems} evidence items across ${row.conversationCount} conversations`, margin + 375, cardY + 6, 120, 10, { font: "Helvetica", maxFontSize: 7.2, minFontSize: 6.6, align: "right", color: "#4f6763" });
+        doc.fillColor("#163331").font("Helvetica-Bold").fontSize(8.7).text(sanitizeReportText(row.label, { maxChars: 44, isTitle: true, fallback: "Capability" }), margin + 16, cardY + 6, { width: 165, lineBreak: false });
+        drawFittedText(doc, `${row.evidenceStrength} · ${row.evidenceCoverage} · ${row.attribution} attribution`, margin + 186, cardY + 6, 210, 10, { font: "Helvetica", maxFontSize: 7.3, minFontSize: 6.8, color: "#4f6763" });
+        const countLine = row.evidenceItemCount && row.conversationCount
+          ? `${row.evidenceItemCount} evidence items across ${row.conversationCount} conversations`
+          : "";
+        drawFittedText(doc, countLine, margin + 398, cardY + 6, 95, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.6, align: "right", color: "#4f6763" });
       });
     }
 
     const rightX = margin + capW + gap;
     drawRoundedPanel(doc, rightX, y, rightW, 68, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section F - Not Assessed", rightX + 10, y + 8);
-    const notAssessedText = notAssessed.length
-      ? `Not assessed due to insufficient evidence: ${notAssessed.join(" · ")}`
-      : "All displayed dimensions reached the minimum evidence threshold.";
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.8).text("Not Assessed", rightX + 10, y + 8);
     drawFittedText(doc, notAssessedText, rightX + 10, y + 24, rightW - 20, 36, { font: "Helvetica", maxFontSize: 8.2, minFontSize: 7.4, color: "#4f6763" });
 
-    drawRoundedPanel(doc, rightX, y + 76, rightW, bodyH - 76, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.3).text("Methodology and verification", rightX + 10, y + 84);
-    attribution.lines.forEach((line, index) => {
-      doc.fillColor("#4f6763").font("Helvetica").fontSize(7.1).text(line, rightX + 10, y + 96 + index * 8, { width: rightW - 20, lineBreak: false });
-    });
+    drawRoundedPanel(doc, rightX, y + 76, rightW, bottomRowH - 76, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.6).text("Methodology and verification", rightX + 10, y + 84);
     drawFittedText(
       doc,
-      "AI-assisted evidence analysis based on user-provided content. Not independently verified. Coverage reflects availability and recurrence of evidence, not professional performance.",
+      sanitizeReportText(vm.verification, { maxChars: 260, fallback: "AI-assisted analysis based on user-provided content. The evidence has not been independently verified." }),
       rightX + 10,
-      y + 124,
+      y + 98,
       rightW - 20,
-      34,
-      { font: "Helvetica", maxFontSize: 7, minFontSize: 6.6, color: "#4f6763" }
+      52,
+      { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.7, color: "#4f6763" }
     );
+    doc.fillColor("#4f6763").font("Helvetica").fontSize(7)
+      .text(`Direct evidence: ${vm.attribution.directPercent}%`, rightX + 10, y + 152, { width: rightW - 20 })
+      .text(`Mixed attribution: ${vm.attribution.mixedPercent}%`, rightX + 10, y + 160, { width: rightW - 20 })
+      .text(`External or AI context: ${vm.attribution.contextualPercent}%`, rightX + 10, y + 168, { width: rightW - 20 });
 
-    y += bodyH + gap;
+    y += bottomRowH + gap;
     drawRoundedPanel(doc, margin, y, contentWidth, footerH, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
     doc.fillColor("#4f6763").font("Helvetica").fontSize(7.3)
-      .text(`Report ID: ${sanitizeReportText(config.sanitized_profile_name, { maxChars: 32, isTitle: true, fallback: "profile" })}-${config.generated_at}`, margin + 12, y + 14, { width: 280 })
-      .text(`Methodology version: snapshot-v11 · ${APP_VERSION}`, margin + 530, y + 14, { width: 200, align: "right" });
+      .text(`Report ID: ${sanitizeReportText(config.sanitized_profile_name, { maxChars: 32, isTitle: true, fallback: "profile" })}-${config.generated_at}`, margin + 12, y + 10, { width: 280 })
+      .text(`Methodology version: ${sanitizeReportText(vm.methodologyVersion, { maxChars: 24, isTitle: true, fallback: "snapshot-v11" })}`, margin + 530, y + 10, { width: 200, align: "right" });
   });
 }
 
@@ -3675,7 +3646,7 @@ async function renderAppendixPdf(snapshot, reportConfig) {
     const addPage = () => {
       doc.addPage({ size: "A4", margins: { top: 52, bottom: 52, left: margin, right: margin } });
       pageNumber += 1;
-      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(11).text("Detailed Evidence Appendix", margin, 42, { width: maxWidth });
+      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(11).text("Evidence Appendix", margin, 42, { width: maxWidth });
       doc.fillColor("#4f6763").font("Helvetica").fontSize(8)
         .text(`${sanitizeReportText(model.personName, { maxChars: 64, isTitle: true, fallback: "Professional profile" })} · ${safeDate(model.extractedDate)} · page ${pageNumber}`, margin, 56, { width: maxWidth });
       return 86;
@@ -3750,13 +3721,13 @@ async function renderAppendixPdf(snapshot, reportConfig) {
 
     let cursorY = addPage();
     drawRoundedPanel(doc, margin, cursorY, maxWidth, 96, { fill: "#f5faf9", stroke: "#cadbd8", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(14).text("Detailed Evidence Appendix", margin + 12, cursorY + 12);
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(14).text("Evidence Appendix", margin + 12, cursorY + 12);
     doc.fillColor("#1f3432").font("Helvetica-Bold").fontSize(10).text(sanitizeReportText(model.personName, { maxChars: 70, isTitle: true, fallback: "Professional profile" }), margin + 12, cursorY + 32);
     doc.fillColor("#4f6763").font("Helvetica").fontSize(8.7)
       .text(`Observation period: ${sanitizeReportText(model.observationPeriod, { maxChars: 30, isTitle: true, fallback: "-" })}`, margin + 12, cursorY + 48)
       .text(`Extracted: ${safeDate(model.extractedDate)}`, margin + 12, cursorY + 60)
-      .text(`${model.analyzedConversationCount || 0} conversations · ${model.totalEvidenceItemCount || 0} evidence items`, margin + 12, cursorY + 72);
-    drawFittedText(doc, "AI-assisted evidence analysis based on user-provided content. Not independently verified.", margin + 250, cursorY + 48, 230, 30, { font: "Helvetica", maxFontSize: 8.4, minFontSize: 8, color: "#4f6763" });
+      .text(`${Number(model.analyzedConversationCount || 0) > 0 ? `${model.analyzedConversationCount} conversations` : "Insufficient evidence"} · ${Number(model.totalEvidenceItemCount || 0) > 0 ? `${model.totalEvidenceItemCount} evidence items` : "Not enough evidence to assess this capability"}`, margin + 12, cursorY + 72);
+    drawFittedText(doc, "The evidence supporting the activities, capabilities and professional patterns identified in the report.", margin + 250, cursorY + 48, 230, 30, { font: "Helvetica", maxFontSize: 8.4, minFontSize: 8, color: "#4f6763" });
     cursorY += 108;
 
     doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(10).text("Conversations", margin, cursorY);
@@ -3872,21 +3843,21 @@ async function handleApi(req, res) {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const buffer = await renderSnapshotPdf(payload.snapshot, payload.reportConfig);
       const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
-      sendPdf(res, `professional-evidence-snapshot-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
+      sendPdf(res, `workproof-snapshot-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
       return;
     }
     if (req.method === "POST" && requestPath === "/api/export/appendix-pdf") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const buffer = await renderAppendixPdf(payload.snapshot, payload.reportConfig);
       const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
-      sendPdf(res, `detailed-evidence-appendix-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
+      sendPdf(res, `workproof-evidence-appendix-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
       return;
     }
     if (req.method === "POST" && requestPath === "/api/export/combined-pdf") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
       const buffer = await renderCombinedPdf(payload.snapshot, payload.reportConfig);
-      sendPdf(res, `professional-evidence-report-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
+      sendPdf(res, `workproof-evidence-report-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
       return;
     }
     if (req.method === "POST" && requestPath === "/api/delete") {
@@ -3920,7 +3891,7 @@ const server = http.createServer(handleRequest);
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    console.log(`AI Work Passport running at http://localhost:${PORT}`);
+    console.log(`Workproof running at http://localhost:${PORT}`);
   });
 }
 

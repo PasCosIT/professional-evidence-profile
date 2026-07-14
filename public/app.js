@@ -61,7 +61,7 @@ function buildCurrentReportConfig() {
   const selectedMonths = Number($("#analysisPeriodSelect") ? $("#analysisPeriodSelect").value : 6);
   const sourcePlatform = $("#aiSourceSelect") ? $("#aiSourceSelect").value : "";
   const exportMode = $("#exportModeSelect") ? $("#exportModeSelect").value : "quick";
-  const reportLanguage = $("#reportLanguageSelect") ? $("#reportLanguageSelect").value : (state.reportConfig && state.reportConfig.report_language) || "en";
+  const reportLanguage = "en";
   if (state.reportConfig &&
       sanitizeProfileName(state.reportConfig.profile_name) === profileName &&
       Number(state.reportConfig.selected_months) === selectedMonths &&
@@ -105,18 +105,17 @@ function applyReportConfig(config) {
     period_from: config.period_from,
     period_to: config.period_to,
     generated_at: config.generated_at || todayIso(),
-    report_language: config.report_language || "en",
+    report_language: "en",
     sanitized_profile_name: sanitizedFilenameName(config.profile_name)
   };
 }
 
 function getReportLanguage() {
-  return (state.reportConfig && state.reportConfig.report_language) || ($("#reportLanguageSelect") && $("#reportLanguageSelect").value) || "en";
+  return "en";
 }
 
 function getUiLocale() {
-  const lang = document.documentElement && document.documentElement.lang;
-  return String(lang || "en").toLowerCase().startsWith("it") ? "it" : "en";
+  return "en";
 }
 
 function readPromptPreferences() {
@@ -180,13 +179,13 @@ function renderPromptInstructions(payload) {
   title.textContent = payload.instructions_title;
   list.innerHTML = (payload.instructions || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
   section.hidden = true;
-  promptTitle.textContent = `${getUiLocale() === "it" ? "Prompt per" : "Prompt for"} ${payload.platform_name}`;
+  promptTitle.textContent = `Prompt for ${payload.platform_name}`;
 }
 
 function clearGeneratedPrompt() {
   promptGeneratedPayload = null;
   const prompt = $("#evidencePrompt");
-  if (prompt) prompt.value = getUiLocale() === "it" ? "Configura i campi e genera il prompt." : "Configure fields and generate the prompt.";
+  if (prompt) prompt.value = "Configure fields and generate the prompt.";
   if ($("#copyPromptStatus")) $("#copyPromptStatus").textContent = "";
   if ($("#promptInstructions")) $("#promptInstructions").hidden = true;
   if ($("#promptTitle")) $("#promptTitle").textContent = "Prompt";
@@ -205,13 +204,13 @@ function updateExportPrompt() {
   if (!config.profile_name || !config.valid) {
     summary.innerHTML = `
       <strong>Export configuration</strong>
-      <span>${getUiLocale() === "it" ? "Inserisci i dati richiesti e genera il prompt." : "Fill required fields and generate the prompt."}</span>
+      <span>Fill required fields and generate the prompt.</span>
     `;
   } else {
     const source = PromptBuilder ? PromptBuilder.platformDisplayName(config.source_platform) : (config.source_platform || "-");
     const modeLabel = config.export_mode === "complete" ? "Complete" : "Quick";
     summary.innerHTML = `
-      <strong>Profile: AI Work Passport - ${escapeHtml(config.profile_name)}</strong>
+      <strong>Profile: Workproof Profile - ${escapeHtml(config.profile_name)}</strong>
       <span>Data analyzed: ${escapeHtml(config.period_from)} - ${escapeHtml(config.period_to)}</span>
       <span>Observation window: ${config.selected_months} months · Source: ${escapeHtml(source)} · Mode: ${modeLabel}</span>
     `;
@@ -251,7 +250,7 @@ function generateEvidencePrompt() {
   renderPromptInstructions(payload);
   setPromptActionsEnabled(true);
   if ($("#copyPromptStatus")) {
-    $("#copyPromptStatus").textContent = getUiLocale() === "it" ? "Prompt generato." : "Prompt generated.";
+    $("#copyPromptStatus").textContent = "Prompt generated.";
   }
   persistState();
 }
@@ -290,14 +289,14 @@ function renderSummary() {
   const summary = state.summary;
   if (!summary) return;
   $("#summaryGrid").innerHTML = [
-    metric("Conversazioni", summary.total_conversations),
-    metric("Messaggi", summary.total_messages),
-    metric("Professionali", summary.counts.professional || 0),
-    metric("Miste", summary.counts.mixed || 0),
-    metric("Personali", summary.counts.personal || 0),
-    metric("Incerte", summary.counts.uncertain || 0),
-    metric("Dal", summary.period.first || "-"),
-    metric("Al", summary.period.last || "-")
+    metric("Conversations", summary.total_conversations),
+    metric("Messages", summary.total_messages),
+    metric("Professional", summary.counts.professional || 0),
+    metric("Mixed", summary.counts.mixed || 0),
+    metric("Personal", summary.counts.personal || 0),
+    metric("Uncertain", summary.counts.uncertain || 0),
+    metric("From", summary.period.first || "-"),
+    metric("To", summary.period.last || "-")
   ].join("");
 }
 
@@ -385,8 +384,8 @@ function renderCluster(cluster) {
           <span class="pill">${escapeHtml(cluster.category)}</span>
           ${cluster.sensitive_count ? `<span class="pill danger">${cluster.sensitive_count} sensitive</span>` : ""}
         </div>
-        <h4>${cluster.count} conversazioni</h4>
-        <p>${cluster.first} - ${cluster.last} · conf. media ${cluster.avg_confidence.toFixed(2)} · ${cluster.approved_count} incluse</p>
+        <h4>${cluster.count} conversations</h4>
+        <p>${cluster.first} - ${cluster.last} · avg confidence ${cluster.avg_confidence.toFixed(2)} · ${cluster.approved_count} included</p>
         <p>${cluster.sample_titles.map(escapeHtml).join(" · ")}</p>
       </div>
       <div class="cluster-actions">
@@ -401,7 +400,7 @@ function renderConversationCard(conversation) {
     const flags = conversation.sensitive_flags || [];
     const includeChecked = conversation.approved ? "checked" : "";
     const firstUser = conversation.messages.find(message => message.author === "user");
-    const excerpt = firstUser ? firstUser.text.slice(0, 120) : "Nessun messaggio utente trovato.";
+    const excerpt = firstUser ? firstUser.text.slice(0, 120) : "No user message found.";
     const date = (conversation.created_at || conversation.updated_at || "").slice(0, 10) || "-";
     return `
       <article class="conversation" data-id="${conversation.id}" data-classification="${conversation.classification}" data-category="${conversation.professional_category}">
@@ -417,11 +416,6 @@ function renderConversationCard(conversation) {
         </div>
         <div class="controls">
           <label class="include-toggle">Include <input type="checkbox" class="include" ${includeChecked}></label>
-          <select class="classification">
-            ${["professional", "personal", "mixed", "uncertain", "excluded_sensitive"].map(item =>
-              `<option value="${item}" ${item === conversation.classification ? "selected" : ""}>${item}</option>`
-            ).join("")}
-          </select>
         </div>
       </article>
     `;
@@ -461,10 +455,10 @@ function renderReports() {
 
 function renderEmptySnapshot() {
   const hasConversations = state.conversations && state.conversations.length;
-  const title = hasConversations ? "Report non ancora generato" : "Nessun dataset caricato";
+  const title = hasConversations ? "Report not generated yet" : "No dataset uploaded";
   const message = hasConversations
-    ? "Vai in Review e premi Generate profile. Dopo l'analisi comparira' qui la pagina PDF."
-    : "Carica prima un export o un Professional Evidence Pack, poi conferma le conversazioni in Review.";
+    ? "Go to Review and click Generate snapshot. The report preview will appear here after analysis."
+    : "Upload an export or a Professional Evidence Pack first, then confirm included conversations in Review.";
   $("#snapshotPreviewHost").innerHTML = `
     <article class="snapshot-empty-state">
       <h4>${escapeHtml(title)}</h4>
@@ -482,14 +476,11 @@ function renderEmptySnapshot() {
 
 function renderSnapshotPreview() {
   const snapshot = buildSnapshotData();
-  const direct = Number((snapshot.evidenceMix.segments.find(item => item.tone === "direct") || {}).value || 0);
-  const mixed = Number((snapshot.evidenceMix.segments.find(item => item.tone === "mixed") || {}).value || 0);
-  const contextual = Number((snapshot.evidenceMix.segments.find(item => ["external", "ai", "unknown"].includes(item.tone)) || []).reduce ? 0 : 0);
-  const contextualShare = snapshot.evidenceMix.segments
-    .filter(item => ["external", "ai", "unknown"].includes(item.tone))
-    .reduce((sum, item) => sum + Number(item.value || 0), 0);
-  const supportedCapabilities = snapshot.axes.filter(axis => axis.assessed && Number(axis.coverage || 0) >= 35).slice(0, 5);
-  const notAssessed = (snapshot.notAssessed || []).slice(0, 3);
+  const vm = snapshot.reportViewModel || null;
+  if (!vm || !window.ReportViewModel || typeof window.ReportViewModel.renderSnapshotHtml !== "function") {
+    $("#snapshotPreviewHost").innerHTML = `<div class="snapshot-empty">Snapshot model unavailable.</div>`;
+    return;
+  }
   $("#snapshotPreviewHost").innerHTML = `
     <div class="snapshot-zoom-row" aria-label="Preview zoom">
       <span>Preview</span>
@@ -497,84 +488,7 @@ function renderSnapshotPreview() {
       <strong id="snapshotZoomValue">100%</strong>
     </div>
     <div class="snapshot-page-shell" style="--snapshot-zoom: 1">
-      <article id="snapshotPage" class="snapshot-page">
-        <header class="snapshot-header">
-          <div>
-            <p>Professional Evidence Snapshot</p>
-            <h1>${escapeHtml(snapshot.personName)}</h1>
-            <p class="snapshot-signature-line">${escapeHtml(snapshot.professionalSignature)}</p>
-          </div>
-          <dl>
-            <div><dt>Extracted</dt><dd>${escapeHtml(snapshot.extractedDate)}</dd></div>
-            <div><dt>Data analyzed</dt><dd>${escapeHtml(snapshot.dataRange)}</dd></div>
-            <div><dt>Observation period</dt><dd>${escapeHtml(snapshot.observationPeriod)}</dd></div>
-          </dl>
-        </header>
-        <section class="snapshot-identity-row" style="grid-template-columns:1fr;gap:8px;">
-          <article class="snapshot-card identity-mini">
-            <p class="snapshot-eyebrow">Section A - Professional Pattern</p>
-            <p class="clamp-3">${escapeHtml(snapshot.professionalSignature)}</p>
-            <p style="margin-top:6px;color:#5f6d69;font-size:11px;">Evidence basis: ${escapeHtml(String(snapshot.analyzedConversationCount || 0))} professional conversations · ${escapeHtml(String(snapshot.totalEvidenceItemCount || 0))} evidence items · ${escapeHtml(snapshot.observationPeriod)}</p>
-          </article>
-        </section>
-        <section class="snapshot-identity-row">
-          <article class="snapshot-card identity-mini">
-            <p class="snapshot-eyebrow">Section B - Primary Professional Contexts</p>
-            <div class="identity-chip-row">
-              ${snapshot.observedDomains.slice(0, 4).map(domain => `<span>${escapeHtml(domain)}</span>`).join("")}
-            </div>
-          </article>
-          <article class="snapshot-card identity-mini">
-            <p class="snapshot-eyebrow">Section C - Typical Contribution</p>
-            <p class="clamp-3">${escapeHtml(snapshot.typicalContribution)}</p>
-          </article>
-        </section>
-        <section class="snapshot-kpi-row">
-          <p class="snapshot-eyebrow" style="margin:0 0 6px;">Section D - Evidence KPIs</p>
-          <div class="snapshot-kpis">
-            ${[
-              { value: String(snapshot.analyzedConversationCount || 0), label: "Professional conversations", note: "Conversations included in the analysis.", meter: 40 },
-              { value: String(snapshot.totalEvidenceItemCount || 0), label: "Evidence items", note: "Supporting, uncertain and counter evidence.", meter: 55 },
-              { value: String(supportedCapabilities.length), label: "Capabilities supported", note: "Capabilities with sufficient coverage.", meter: 60 },
-              { value: `${direct}%`, label: "Direct evidence share", note: "Direct user evidence over all evidence items.", meter: direct }
-            ].map(kpi => renderSnapshotKpi(kpi)).join("")}
-          </div>
-        </section>
-        <section class="snapshot-card profile-card">
-          <div class="profile-card-head">
-            <div>
-              <p class="snapshot-eyebrow">Section E - Supported Capabilities</p>
-              <h2>Supported capability cards</h2>
-            </div>
-            <span>${supportedCapabilities.length} cards</span>
-          </div>
-          <div class="snapshot-radar-panel" style="display:grid;gap:8px;">
-            ${supportedCapabilities.map(axis => `
-              <article class="snapshot-kpi" style="display:grid;gap:4px;">
-                <strong>${escapeHtml(axis.label)}</strong>
-                <span>${escapeHtml(displayStatus(axis.level))} · ${escapeHtml(Number(axis.coverage || 0) >= 75 ? "High" : Number(axis.coverage || 0) >= 45 ? "Moderate" : "Limited")} coverage · ${escapeHtml(axis.source_breakdown && Number(axis.source_breakdown.mixed_content || 0) > Number(axis.source_breakdown.original_user_input || 0) ? "Mixed" : "Direct")}</span>
-                <p>${escapeHtml(String(axis.positive_count || 0))} evidence items across ${escapeHtml(String(axis.unique_conversation_count || 0))} conversations</p>
-              </article>
-            `).join("")}
-          </div>
-        </section>
-        <section class="snapshot-card identity-mini">
-          <p class="snapshot-eyebrow">Section F - Not Assessed</p>
-          <p>${notAssessed.length ? `Not assessed due to insufficient evidence: ${escapeHtml(notAssessed.join(" · "))}` : "All displayed dimensions reached the minimum evidence threshold."}</p>
-        </section>
-        <footer class="snapshot-footer">
-          <article class="snapshot-card footer-card">
-            <p class="snapshot-eyebrow">Attribution summary</p>
-            <p>${escapeHtml(`Direct user evidence: ${direct}%`)}</p>
-            <p>${escapeHtml(`Mixed attribution: ${mixed}%`)}</p>
-            <p>${escapeHtml(`External/AI context: ${contextualShare}%`)}</p>
-          </article>
-          <article class="snapshot-card footer-card">
-            <p class="snapshot-eyebrow">Methodology and verification</p>
-            <p>AI-assisted evidence analysis based on user-provided content. Not independently verified.</p>
-          </article>
-        </footer>
-      </article>
+      ${window.ReportViewModel.renderSnapshotHtml(vm)}
     </div>
   `;
   bindSnapshotZoom();
@@ -645,7 +559,7 @@ const MIN_RADAR_EVIDENCE_COVERAGE = 40;
 function reportText(language) {
   if (language === "it") {
     return {
-      snapshotTitle: "Professional Evidence Snapshot",
+      snapshotTitle: "Workproof Snapshot",
       extractedLabel: "Estratto",
       dataAnalyzedLabel: "Dati analizzati",
       observationPeriodLabel: "Periodo di osservazione",
@@ -670,7 +584,7 @@ function reportText(language) {
       notAssessed: "Non valutata — evidenza insufficiente",
       snapshotFooterA: "Disponibilita di evidenze, non punteggio di skill.",
       snapshotFooterB: "Profilo basato su conversazioni approvate, non verificato in modo indipendente.",
-      appendixTitle: "Detailed Evidence Appendix",
+      appendixTitle: "Evidence Appendix",
       appendixSubtitle: "Evidenze professionali rappresentative estratte dal periodo analizzato.",
       appendixIntro: "Conversazioni ed estratti selezionati per supportare lo snapshot.",
       selectedConversations: "conversazioni selezionate",
@@ -695,7 +609,7 @@ function reportText(language) {
     };
   }
   return {
-    snapshotTitle: "Professional Evidence Snapshot",
+    snapshotTitle: "Workproof Snapshot",
     extractedLabel: "Extracted",
     dataAnalyzedLabel: "Data analyzed",
     observationPeriodLabel: "Observation period",
@@ -720,7 +634,7 @@ function reportText(language) {
     notAssessed: "Not assessed — insufficient evidence",
     snapshotFooterA: "Coverage means evidence availability, not a skill score.",
     snapshotFooterB: "Profile built from approved conversations and not independently verified.",
-    appendixTitle: "Detailed Evidence Appendix",
+    appendixTitle: "Evidence Appendix",
     appendixSubtitle: "Representative professional evidence extracted from the analyzed period.",
     appendixIntro: "Selected conversations and excerpts supporting the snapshot.",
     selectedConversations: "selected conversations",
@@ -1135,7 +1049,7 @@ function buildSnapshotData() {
   const fallbackDomains = categoryBreakdown.slice(0, 4).map(item => item.raw || item.label);
   const observedDomains = ((professionalPattern && professionalPattern.professional_domains_observed) || (identityDomains.length ? identityDomains : fallbackDomains))
     .slice(0, 5)
-    .map(domain => limitChars(professionalCategoryLabel(domain, language), 24));
+    .map(domain => professionalCategoryLabel(domain, language));
   const professionalSignature = buildProfessionalSignature(professionalIdentity, axes, categoryBreakdown, professionalPattern, language);
   const typicalContribution = (professionalPattern && professionalPattern.typical_professional_contribution)
     ? limitWords(String(professionalPattern.typical_professional_contribution), 26)
@@ -1147,7 +1061,7 @@ function buildSnapshotData() {
     ? "AI-assisted report · Synthetic test data · Not independently verified"
     : "AI-assisted report · User-provided content · Not independently verified";
 
-  return {
+  const rawSnapshot = {
     language,
     texts,
     personName: config.profile_name || "Professional profile",
@@ -1192,6 +1106,20 @@ function buildSnapshotData() {
     analyzedConversationCount: professionalConversations,
     selectedExcerptCount: evidenceHighlights.length,
     totalEvidenceItemCount: evidenceItems
+  };
+
+  const reportVmApi = window.ReportViewModel;
+  if (!reportVmApi || typeof reportVmApi.buildReportViewModel !== "function" || typeof reportVmApi.validateReportViewModel !== "function") {
+    return rawSnapshot;
+  }
+  const candidateVm = reportVmApi.buildReportViewModel(rawSnapshot);
+  const vmValidation = reportVmApi.validateReportViewModel(candidateVm);
+  if (vmValidation.warnings && vmValidation.warnings.length) {
+    console.warn("[snapshot-vm] validation warnings", vmValidation.warnings);
+  }
+  return {
+    ...rawSnapshot,
+    reportViewModel: vmValidation.model
   };
 }
 
@@ -1482,7 +1410,7 @@ function buildPrintableReportHtml(snapshot, config) {
       <section class="pdf-page">
         <header class="pdf-header">
           <div>
-            <p>AI Work Passport</p>
+            <p>Workproof Snapshot</p>
             <h1>${escapeHtml(snapshot.personName)}</h1>
             <p>${escapeHtml(snapshot.summary)}</p>
           </div>
@@ -1532,8 +1460,8 @@ function buildPrintableReportHtml(snapshot, config) {
         <header class="pdf-header">
           <div>
             <p>Observed skill groups</p>
-            <h1>What was analyzed</h1>
-            <p>Observed skills, approved conversations and attributable excerpts included in this report.</p>
+            <h1>Workproof Evidence Report</h1>
+            <p>A detailed and explainable analysis of professional evidence.</p>
           </div>
           <div class="pdf-meta">
             <span>Skill groups <strong>${escapeHtml(String(snapshot.skillGroups.length))}</strong></span>
@@ -1587,7 +1515,7 @@ function openPrintableReport(snapshot, config) {
     const printWindow = frame.contentWindow;
     if (!printWindow) {
       frame.remove();
-      alert("Impossibile inizializzare la stampa del PDF.");
+      alert("Unable to initialize PDF printing.");
       return;
     }
 
@@ -1607,7 +1535,7 @@ function openPrintableReport(snapshot, config) {
   const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
   if (!doc) {
     frame.remove();
-    alert("Impossibile preparare il documento PDF.");
+    alert("Unable to prepare the PDF document.");
     return;
   }
   doc.open();
@@ -1820,7 +1748,6 @@ function restoreState() {
       if ($("#analysisPeriodSelect")) $("#analysisPeriodSelect").value = String(state.reportConfig.selected_months || 6);
       if ($("#aiSourceSelect")) $("#aiSourceSelect").value = String(state.reportConfig.source_platform || ($("#aiSourceSelect").value || ""));
       if ($("#exportModeSelect")) $("#exportModeSelect").value = String(state.reportConfig.export_mode || ($("#exportModeSelect").value || "quick"));
-      if ($("#reportLanguageSelect")) $("#reportLanguageSelect").value = state.reportConfig.report_language || "en";
     }
     promptGeneratedPayload = null;
     promptGenerationAttempted = false;
@@ -1848,7 +1775,7 @@ function renderVisualProfile() {
     ? (state.reports.public_report && state.reports.public_report.evidence_coverage_detail) || state.reports.evidence_coverage_detail
     : state.reports.evidence_coverage_detail;
   const axes = buildRadarAxesFromTemporal(temporalMaturity);
-  const modeLabel = state.reportMode === "public" ? "Public Passport" : "Private Mirror";
+  const modeLabel = state.reportMode === "public" ? "Workproof Profile (Public)" : "Workproof Profile (Private)";
   $("#visualProfile").innerHTML = `
     ${renderEvidenceCoverage(evidenceCoverage)}
     <section class="visual-grid">
@@ -2245,7 +2172,7 @@ function radarTooltip(axis) {
 
 function renderTimeline(temporalMaturity) {
   if (!temporalMaturity || !temporalMaturity.years || !temporalMaturity.years.length) {
-    return `<div class="empty-visual">Servono evidenze con data per costruire la timeline.</div>`;
+    return `<div class="empty-visual">Dated evidence is required to build the timeline.</div>`;
   }
   const preferredCore = ["decision_making", "problem_solving", "communication", "execution", "leadership", "collaboration", "planning", "learning", "domain_knowledge", "data_reasoning", "risk_awareness", "quality_improvement"];
   const dimensions = temporalMaturity.dimensions
@@ -2282,14 +2209,14 @@ function renderTimeline(temporalMaturity) {
   return `
     <div class="maturity-wrap">
       <p class="timeline-scope">${escapeHtml(temporalMaturity.scope)}</p>
-      ${temporalMaturity.dimension_strategy ? `<p class="timeline-scope">Il radar usa dimensioni professionali standard e mostra solo quelle con almeno due evidenze da due conversazioni diverse. Quando il file contiene concetti professionali piu' specifici, li usa come etichette contestuali.</p>` : ""}
+      ${temporalMaturity.dimension_strategy ? `<p class="timeline-scope">The radar uses standard professional dimensions and shows only those with at least two evidence items from two different conversations. When the file contains more specific professional concepts, they are used as contextual labels.</p>` : ""}
       <div class="evidence-key compact">
         <span><strong>Positive</strong> supports the dimension.</span>
         <span><strong>Counter</strong> explicit limitation or dependency.</span>
         <span><strong>Uncertain</strong> weak or non-attributable source.</span>
       </div>
       <table class="maturity-table">
-        <thead><tr><th>Dimensione</th>${header}</tr></thead>
+        <thead><tr><th>Dimension</th>${header}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
       ${renderDimensionDetails(dimensions)}
@@ -2316,16 +2243,16 @@ function renderRejectedCandidates(candidates) {
 
 function semanticTypeLabel(type) {
   const labels = {
-    specialization: "specializzazione o contesto",
-    metadata: "metadato",
-    role: "ruolo",
-    domain: "dominio",
-    actor: "attore",
-    frequency: "frequenza",
-    provenance: "provenienza",
-    unknown: "non classificato"
+    specialization: "specialization or context",
+    metadata: "metadata",
+    role: "role",
+    domain: "domain",
+    actor: "actor",
+    frequency: "frequency",
+    provenance: "provenance",
+    unknown: "unclassified"
   };
-  return labels[type] || String(type || "elemento");
+  return labels[type] || String(type || "item");
 }
 
 function renderDimensionDetails(dimensions) {
@@ -2337,8 +2264,8 @@ function renderDimensionDetails(dimensions) {
             <strong>${escapeHtml(dimension.label)}</strong>
             <span>${escapeHtml(displayStatus(dimension.status))}</span>
           </div>
-          <div class="dimension-origin">${dimension.derivation === "semantic_capability_extraction" ? "Etichetta contestuale estratta" : "Dimensione professionale standard"}</div>
-          ${dimension.canonical_dimension ? `<div class="source-line user-facing-source">Area standard: ${escapeHtml(dimension.canonical_dimension)} - Evidenza: ${escapeHtml(dimension.semantic_type || "capability")}</div>` : ""}
+          <div class="dimension-origin">${dimension.derivation === "semantic_capability_extraction" ? "Extracted contextual label" : "Standard professional dimension"}</div>
+          ${dimension.canonical_dimension ? `<div class="source-line user-facing-source">Standard area: ${escapeHtml(dimension.canonical_dimension)} - Evidence: ${escapeHtml(dimension.semantic_type || "capability")}</div>` : ""}
           ${dimension.canonical_dimension ? `<div class="source-line">Canonical: ${escapeHtml(dimension.canonical_dimension)} · Type: ${escapeHtml(dimension.semantic_type || "n/a")}</div>` : ""}
           ${dimension.discovered_from ? `<div class="source-line">Display label source: ${escapeHtml(dimension.discovered_from.term)} · ${dimension.discovered_from.conversation_count} conversations</div>` : ""}
           <p>${escapeHtml(dimension.interpretation || dimension.description || "")}</p>
@@ -2406,7 +2333,7 @@ function renderTechnologyReasoning(insights) {
       </div>
       <div class="signal-meter">
         <div class="bar"><i style="width:${signal.strength}%"></i></div>
-        <em>${signal.evidence_count} evidenze</em>
+        <em>${signal.evidence_count} evidence items</em>
       </div>
     </article>
   `).join("");
@@ -2424,13 +2351,13 @@ function renderTechnologyReasoning(insights) {
       <div class="visual-head">
         <div>
           <p class="eyebrow">Technology Reasoning</p>
-          <h4>Ragionamento tecnico osservabile</h4>
+          <h4>Observable technical reasoning</h4>
         </div>
-        <span class="pill">${observed.length} segnali osservati</span>
+        <span class="pill">${observed.length} observed signals</span>
       </div>
-      <p class="tech-scope">Basato solo su conversazioni approvate e anonimizzate. Non accede a repository, non copia codice proprietario e non certifica seniority.</p>
+      <p class="tech-scope">Based only on approved and anonymized conversations. It does not access repositories, copy proprietary code, or certify seniority.</p>
       <div class="tech-grid">${signalCards}</div>
-      ${evidencePreview ? `<ul class="tech-evidence">${evidencePreview}</ul>` : `<div class="empty-visual small">Nessuna evidenza tecnica nella vista corrente.</div>`}
+      ${evidencePreview ? `<ul class="tech-evidence">${evidencePreview}</ul>` : `<div class="empty-visual small">No technical evidence in the current view.</div>`}
     </section>
   `;
 }
@@ -2453,7 +2380,7 @@ function collectDecisions() {
   return $$(".conversation").map(card => ({
     id: card.dataset.id,
     include: card.querySelector(".include").checked,
-    classification: card.querySelector(".classification").value
+    classification: (state.conversations.find(conversation => String(conversation.id) === String(card.dataset.id)) || {}).classification || card.dataset.classification || "professional"
   }));
 }
 
@@ -2474,12 +2401,12 @@ function collectInsights() {
 
 async function uploadFile(file) {
   const config = buildCurrentReportConfig();
-  if (!config.valid) throw new Error("Inserisci un nome profilo valido e scegli un periodo tra 1 e 12 mesi.");
+  if (!config.valid) throw new Error("Enter a valid profile name and choose an analysis period between 1 and 12 months.");
   applyReportConfig(config);
   const form = new FormData();
   form.append("file", file);
   form.append("reportConfig", JSON.stringify(state.reportConfig));
-  $("#uploadStatus").textContent = "Parsing e classificazione in corso...";
+  $("#uploadStatus").textContent = "Parsing and classification in progress...";
   const response = await fetch("/api/import", { method: "POST", body: form });
   const payload = await readJsonResponse(response, "Import failed");
   if (!response.ok) throw new Error(payload.error || "Import failed");
@@ -2491,7 +2418,7 @@ async function uploadFile(file) {
   renderSummary();
   renderReview();
   persistState();
-  $("#uploadStatus").textContent = "Import completato. Passa a Data scan o Review.";
+  $("#uploadStatus").textContent = "Import completed. Continue with Data scan or Review.";
   setView("scan");
 }
 
@@ -2561,7 +2488,7 @@ $("#uploadForm").addEventListener("submit", async event => {
   event.preventDefault();
   const file = $("#fileInput").files[0];
   if (!file) {
-    $("#uploadStatus").textContent = "Seleziona prima un file.";
+    $("#uploadStatus").textContent = "Select a file first.";
     return;
   }
   try {
@@ -2578,23 +2505,36 @@ $("#sampleBtn").addEventListener("click", async () => {
   await uploadFile(file);
 });
 
+if ($("#createProfileCta")) {
+  $("#createProfileCta").addEventListener("click", () => setView("upload"));
+}
+
+if ($("#seeHowItWorksCta")) {
+  $("#seeHowItWorksCta").addEventListener("click", () => {
+    const target = document.querySelector(".explain");
+    if (target && typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+}
+
 $("#generatePromptBtn").addEventListener("click", () => {
   generateEvidencePrompt();
 });
 
 $("#copyPromptBtn").addEventListener("click", async () => {
   if (!promptGeneratedPayload || $("#copyPromptBtn").disabled) {
-    $("#copyPromptStatus").textContent = getUiLocale() === "it" ? "Genera prima il prompt." : "Generate the prompt first.";
+    $("#copyPromptStatus").textContent = "Generate the prompt first.";
     return;
   }
   const prompt = promptGeneratedPayload.prompt;
   try {
     await navigator.clipboard.writeText(prompt);
-    $("#copyPromptStatus").textContent = getUiLocale() === "it" ? "Prompt copiato." : "Prompt copied.";
+    $("#copyPromptStatus").textContent = "Prompt copied.";
   } catch (error) {
     $("#evidencePrompt").select();
     document.execCommand("copy");
-    $("#copyPromptStatus").textContent = getUiLocale() === "it" ? "Prompt selezionato e copiato." : "Prompt selected and copied.";
+    $("#copyPromptStatus").textContent = "Prompt selected and copied.";
   }
 });
 
@@ -2627,18 +2567,9 @@ if ($("#exportModeSelect")) {
     updateExportPrompt();
   });
 }
-if ($("#reportLanguageSelect")) {
-  $("#reportLanguageSelect").addEventListener("change", () => {
-    const config = buildCurrentReportConfig();
-    applyReportConfig(config);
-    persistState();
-    if (state.reports) renderReports();
-  });
-}
-
 $("#selectProfessional").addEventListener("click", () => {
   $$(".conversation").forEach(card => {
-    const classification = card.querySelector(".classification").value;
+    const classification = card.dataset.classification;
     card.querySelector(".include").checked = classification === "professional";
   });
 });
@@ -2673,7 +2604,7 @@ $("#downloadSnapshotPdf").addEventListener("click", () => {
   const config = buildCurrentReportConfig();
   applyReportConfig(config);
   const snapshot = buildSnapshotData();
-  exportPdf("/api/export/snapshot-pdf", snapshot, config, `professional-evidence-snapshot-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}.pdf`)
+  exportPdf("/api/export/snapshot-pdf", snapshot, config, `workproof-snapshot-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at}.pdf`)
     .catch(error => alert(error.message));
 });
 
@@ -2682,7 +2613,7 @@ if ($("#downloadAppendixPdf")) {
     const config = buildCurrentReportConfig();
     applyReportConfig(config);
     const snapshot = buildSnapshotData();
-    exportPdf("/api/export/appendix-pdf", snapshot, config, `detailed-evidence-appendix-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}.pdf`)
+    exportPdf("/api/export/appendix-pdf", snapshot, config, `workproof-evidence-appendix-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at}.pdf`)
       .catch(error => alert(error.message));
   });
 }
@@ -2692,7 +2623,7 @@ if ($("#downloadCombinedPdf")) {
     const config = buildCurrentReportConfig();
     applyReportConfig(config);
     const snapshot = buildSnapshotData();
-    exportPdf("/api/export/combined-pdf", snapshot, config, `professional-evidence-report-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}.pdf`)
+    exportPdf("/api/export/combined-pdf", snapshot, config, `workproof-evidence-report-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at}.pdf`)
       .catch(error => alert(error.message));
   });
 }
@@ -2779,7 +2710,7 @@ $("#deleteBtn").addEventListener("click", async () => {
   if ($("#downloadAppendixPdf")) $("#downloadAppendixPdf").disabled = true;
   if ($("#downloadCombinedPdf")) $("#downloadCombinedPdf").disabled = true;
   $("#regenerateReport").disabled = true;
-  $("#uploadStatus").textContent = "Sessione cancellata.";
+  $("#uploadStatus").textContent = "Session deleted.";
   promptGeneratedPayload = null;
   promptGenerationAttempted = false;
   updateExportPrompt();
