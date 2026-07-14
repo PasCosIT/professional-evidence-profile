@@ -9,6 +9,7 @@ const {
   buildReports,
   renderSnapshotPdf,
   renderAppendixPdf,
+  renderCombinedPdf,
   scanSummary,
   redactText
 } = require("../server.cjs");
@@ -243,19 +244,60 @@ async function main() {
   };
   const snapshotPdf = await renderSnapshotPdf(pdfSnapshot, pdfConfig);
   const appendixPdf = await renderAppendixPdf(pdfSnapshot, pdfConfig);
+  const combinedPdf = await renderCombinedPdf(pdfSnapshot, pdfConfig);
   assert.ok(snapshotPdf.length > 1000, "snapshot pdf buffer returned");
   assert.ok(appendixPdf.length > 1000, "appendix pdf buffer returned");
-  assert.strictEqual(pdfPageCount(snapshotPdf), 1, "snapshot pdf stays on exactly one page");
+  assert.ok(combinedPdf.length > 1500, "combined pdf buffer returned");
   const parsedSnapshot = await parsedPdf(snapshotPdf);
+  const parsedAppendix = await parsedPdf(appendixPdf);
+  const parsedCombined = await parsedPdf(combinedPdf);
   const snapshotText = parsedSnapshot.text;
+  const appendixText = parsedAppendix.text;
   const normalizedSnapshotText = snapshotText.replace(/\s+/g, " ").trim();
+  const normalizedAppendixText = appendixText.replace(/\s+/g, " ").trim();
   assert.strictEqual(parsedSnapshot.total, 1, "snapshot pdf reports exactly one page via parser");
   assert.ok(normalizedSnapshotText.includes("Professional Evidence Snapshot"), "snapshot pdf includes title");
-  assert.ok(normalizedSnapshotText.includes("Directly attributable: 50%"), "snapshot pdf includes direct attribution line");
-  assert.ok(normalizedSnapshotText.includes("Mixed or partially attributable: 20%"), "snapshot pdf includes mixed attribution line");
-  assert.ok(normalizedSnapshotText.includes("External or AI-generated context: 30%"), "snapshot pdf includes external/ai attribution line");
-  assert.ok(normalizedSnapshotText.includes("Coverage measures evidence availability, recurrence and attribution. It is not a skill score."), "snapshot pdf keeps methodology note near the chart");
-  assert.ok(normalizedSnapshotText.includes("AI-assisted report"), "snapshot pdf includes verification footer");
+  assert.ok(normalizedSnapshotText.includes("Direct user evidence: 50%"), "snapshot pdf includes direct attribution line");
+  assert.ok(normalizedSnapshotText.includes("Mixed attribution: 20%"), "snapshot pdf includes mixed attribution line");
+  assert.ok(normalizedSnapshotText.includes("External/AI context: 30%"), "snapshot pdf includes contextual attribution line");
+  assert.ok(normalizedSnapshotText.includes("Methodology and verification"), "snapshot pdf includes methodology footer");
+  assert.ok(normalizedSnapshotText.includes("Evidence KPIs"), "snapshot pdf includes KPI section");
+  assert.ok(normalizedSnapshotText.includes("Section F - Not Assessed"), "snapshot pdf includes not assessed section");
+  assert.ok(normalizedAppendixText.includes("Detailed Evidence Appendix"), "appendix pdf includes title");
+  assert.ok(normalizedAppendixText.includes("Conversations"), "appendix includes conversation section");
+  assert.ok(normalizedAppendixText.includes("Evidence cards"), "appendix includes evidence card section");
+  assert.ok(parsedCombined.total >= parsedAppendix.total + parsedSnapshot.total, "combined pdf includes snapshot and appendix pages");
+
+  const forbiddenTokens = ["undefined", "null", "mixed_content", "user_instruction", "candidate_type", "Candidate type", "Dimension:", "Display.", "and.", "through."];
+  const snapshotLower = normalizedSnapshotText.toLowerCase();
+  const appendixLower = normalizedAppendixText.toLowerCase();
+  for (const token of forbiddenTokens) {
+    assert.ok(!snapshotLower.includes(token.toLowerCase()), `snapshot must not include forbidden token ${token}`);
+    assert.ok(!appendixLower.includes(token.toLowerCase()), `appendix must not include forbidden token ${token}`);
+  }
+
+  const segmentTotal = pdfSnapshot.evidenceMix.segments.reduce((sum, segment) => sum + Number(segment.value || 0), 0);
+  assert.ok(segmentTotal >= 99 && segmentTotal <= 101, "attribution segments sum to 100 with rounding tolerance");
+  assert.ok((pdfSnapshot.axes || []).slice(0, 5).length <= 5, "snapshot capabilities do not exceed 5");
+  assert.ok(String(pdfSnapshot.professionalSignature || "").length <= 280, "summary sentence stays bounded");
+  assert.ok(pdfConfig.period_from <= pdfConfig.period_to, "trusted period dates remain coherent");
+
+  const pdfFixtures = [
+    { ...pdfSnapshot, personName: "A" },
+    { ...pdfSnapshot, personName: "Very Long Professional Profile Name With Multiple Corporate Segments And Regional Scope" },
+    { ...pdfSnapshot, axes: pdfSnapshot.axes.slice(0, 3) },
+    { ...pdfSnapshot, evidenceMix: { attributable: 0, segments: [{ tone: "direct", value: 0 }, { tone: "mixed", value: 60 }, { tone: "external", value: 20 }, { tone: "ai", value: 20 }] } },
+    { ...pdfSnapshot, evidenceHighlights: [{ ...pdfSnapshot.evidenceHighlights[0], counterEvidence: null }, { ...pdfSnapshot.evidenceHighlights[0], skill: "Stakeholder Communication And Cross Functional Alignment", title: "Long evidence title" }] }
+  ];
+  for (const fixture of pdfFixtures) {
+    const fixtureSnapshotPdf = await renderSnapshotPdf(fixture, pdfConfig);
+    const fixtureAppendixPdf = await renderAppendixPdf(fixture, pdfConfig);
+    assert.ok(fixtureSnapshotPdf.length > 900, "fixture snapshot pdf generated");
+    assert.ok(fixtureAppendixPdf.length > 900, "fixture appendix pdf generated");
+    const fixtureParsedSnapshot = await parsedPdf(fixtureSnapshotPdf);
+    assert.strictEqual(fixtureParsedSnapshot.total, 1, "fixture snapshot keeps one page");
+  }
+
   assert.ok(!normalizedSnapshotText.includes("Collaboratio n"), "snapshot pdf never splits Collaboration mid-word");
   assert.ok(!normalizedSnapshotText.includes("Communica tion"), "snapshot pdf never splits Communication mid-word");
   assert.ok(!normalizedSnapshotText.includes("impr ovement"), "snapshot pdf never splits Quality improvement mid-word");

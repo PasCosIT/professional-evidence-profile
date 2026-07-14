@@ -455,6 +455,7 @@ function renderReports() {
   renderSnapshotPreview();
   $("#downloadSnapshotPdf").disabled = false;
   if ($("#downloadAppendixPdf")) $("#downloadAppendixPdf").disabled = false;
+  if ($("#downloadCombinedPdf")) $("#downloadCombinedPdf").disabled = false;
   $("#regenerateReport").disabled = false;
 }
 
@@ -473,6 +474,7 @@ function renderEmptySnapshot() {
   `;
   $("#downloadSnapshotPdf").disabled = true;
   if ($("#downloadAppendixPdf")) $("#downloadAppendixPdf").disabled = true;
+  if ($("#downloadCombinedPdf")) $("#downloadCombinedPdf").disabled = true;
   $("#regenerateReport").disabled = true;
   const action = $("#emptySnapshotAction");
   if (action) action.addEventListener("click", () => setView(hasConversations ? "review" : "upload"));
@@ -480,6 +482,14 @@ function renderEmptySnapshot() {
 
 function renderSnapshotPreview() {
   const snapshot = buildSnapshotData();
+  const direct = Number((snapshot.evidenceMix.segments.find(item => item.tone === "direct") || {}).value || 0);
+  const mixed = Number((snapshot.evidenceMix.segments.find(item => item.tone === "mixed") || {}).value || 0);
+  const contextual = Number((snapshot.evidenceMix.segments.find(item => ["external", "ai", "unknown"].includes(item.tone)) || []).reduce ? 0 : 0);
+  const contextualShare = snapshot.evidenceMix.segments
+    .filter(item => ["external", "ai", "unknown"].includes(item.tone))
+    .reduce((sum, item) => sum + Number(item.value || 0), 0);
+  const supportedCapabilities = snapshot.axes.filter(axis => axis.assessed && Number(axis.coverage || 0) >= 35).slice(0, 5);
+  const notAssessed = (snapshot.notAssessed || []).slice(0, 3);
   $("#snapshotPreviewHost").innerHTML = `
     <div class="snapshot-zoom-row" aria-label="Preview zoom">
       <span>Preview</span>
@@ -490,56 +500,80 @@ function renderSnapshotPreview() {
       <article id="snapshotPage" class="snapshot-page">
         <header class="snapshot-header">
           <div>
-            <p>${escapeHtml(snapshot.texts.snapshotTitle)}</p>
+            <p>Professional Evidence Snapshot</p>
             <h1>${escapeHtml(snapshot.personName)}</h1>
             <p class="snapshot-signature-line">${escapeHtml(snapshot.professionalSignature)}</p>
           </div>
           <dl>
-            <div><dt>${escapeHtml(snapshot.texts.extractedLabel)}</dt><dd>${escapeHtml(snapshot.extractedDate)}</dd></div>
-            <div><dt>${escapeHtml(snapshot.texts.dataAnalyzedLabel)}</dt><dd>${escapeHtml(snapshot.dataRange)}</dd></div>
-            <div><dt>${escapeHtml(snapshot.texts.observationPeriodLabel)}</dt><dd>${escapeHtml(snapshot.observationPeriod)}</dd></div>
+            <div><dt>Extracted</dt><dd>${escapeHtml(snapshot.extractedDate)}</dd></div>
+            <div><dt>Data analyzed</dt><dd>${escapeHtml(snapshot.dataRange)}</dd></div>
+            <div><dt>Observation period</dt><dd>${escapeHtml(snapshot.observationPeriod)}</dd></div>
           </dl>
         </header>
+        <section class="snapshot-identity-row" style="grid-template-columns:1fr;gap:8px;">
+          <article class="snapshot-card identity-mini">
+            <p class="snapshot-eyebrow">Section A - Professional Pattern</p>
+            <p class="clamp-3">${escapeHtml(snapshot.professionalSignature)}</p>
+            <p style="margin-top:6px;color:#5f6d69;font-size:11px;">Evidence basis: ${escapeHtml(String(snapshot.analyzedConversationCount || 0))} professional conversations · ${escapeHtml(String(snapshot.totalEvidenceItemCount || 0))} evidence items · ${escapeHtml(snapshot.observationPeriod)}</p>
+          </article>
+        </section>
         <section class="snapshot-identity-row">
           <article class="snapshot-card identity-mini">
-            <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.signatureLabel)}</p>
-            <p class="clamp-3">${escapeHtml(snapshot.professionalSignature)}</p>
-          </article>
-          <article class="snapshot-card identity-mini">
-            <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.domainsLabel)}</p>
+            <p class="snapshot-eyebrow">Section B - Primary Professional Contexts</p>
             <div class="identity-chip-row">
               ${snapshot.observedDomains.slice(0, 4).map(domain => `<span>${escapeHtml(domain)}</span>`).join("")}
             </div>
           </article>
           <article class="snapshot-card identity-mini">
-            <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.contributionLabel)}</p>
+            <p class="snapshot-eyebrow">Section C - Typical Contribution</p>
             <p class="clamp-3">${escapeHtml(snapshot.typicalContribution)}</p>
           </article>
         </section>
         <section class="snapshot-kpi-row">
+          <p class="snapshot-eyebrow" style="margin:0 0 6px;">Section D - Evidence KPIs</p>
           <div class="snapshot-kpis">
-            ${snapshot.kpis.map(kpi => renderSnapshotKpi(kpi)).join("")}
+            ${[
+              { value: String(snapshot.analyzedConversationCount || 0), label: "Professional conversations", note: "Conversations included in the analysis.", meter: 40 },
+              { value: String(snapshot.totalEvidenceItemCount || 0), label: "Evidence items", note: "Supporting, uncertain and counter evidence.", meter: 55 },
+              { value: String(supportedCapabilities.length), label: "Capabilities supported", note: "Capabilities with sufficient coverage.", meter: 60 },
+              { value: `${direct}%`, label: "Direct evidence share", note: "Direct user evidence over all evidence items.", meter: direct }
+            ].map(kpi => renderSnapshotKpi(kpi)).join("")}
           </div>
         </section>
         <section class="snapshot-card profile-card">
           <div class="profile-card-head">
             <div>
-              <p class="snapshot-eyebrow">${escapeHtml(snapshot.texts.capabilityTitle)}</p>
-              <h2>${escapeHtml(snapshot.texts.radarQuestion)}</h2>
+              <p class="snapshot-eyebrow">Section E - Supported Capabilities</p>
+              <h2>Supported capability cards</h2>
             </div>
-            <span>${snapshot.axes.length} ${escapeHtml(snapshot.texts.areasLabel)}</span>
+            <span>${supportedCapabilities.length} cards</span>
           </div>
-          <p class="profile-subtitle">${escapeHtml(snapshot.texts.capabilitySubtitle)}</p>
-          <div class="snapshot-radar-panel">
-            ${renderRadar(snapshot.axes, snapshot.texts)}
+          <div class="snapshot-radar-panel" style="display:grid;gap:8px;">
+            ${supportedCapabilities.map(axis => `
+              <article class="snapshot-kpi" style="display:grid;gap:4px;">
+                <strong>${escapeHtml(axis.label)}</strong>
+                <span>${escapeHtml(displayStatus(axis.level))} · ${escapeHtml(Number(axis.coverage || 0) >= 75 ? "High" : Number(axis.coverage || 0) >= 45 ? "Moderate" : "Limited")} coverage · ${escapeHtml(axis.source_breakdown && Number(axis.source_breakdown.mixed_content || 0) > Number(axis.source_breakdown.original_user_input || 0) ? "Mixed" : "Direct")}</span>
+                <p>${escapeHtml(String(axis.positive_count || 0))} evidence items across ${escapeHtml(String(axis.unique_conversation_count || 0))} conversations</p>
+              </article>
+            `).join("")}
           </div>
-          <div class="axis-pill-row">
-            ${snapshot.axes.slice(0, 2).map(axis => `<span title="${escapeHtml(axis.label)}">${escapeHtml(axis.label)}</span>`).join("")}
-            ${snapshot.axes.length > 2 ? `<span title="${escapeHtml(snapshot.axes.slice(2).map(axis => axis.label).join(", "))}">+${snapshot.axes.length - 2} more</span>` : ""}
-          </div>
-          ${renderTechnicalSignalsCompact(snapshot.technicalSignalsObserved, snapshot.language)}
         </section>
-        ${renderSnapshotFooter(snapshot)}
+        <section class="snapshot-card identity-mini">
+          <p class="snapshot-eyebrow">Section F - Not Assessed</p>
+          <p>${notAssessed.length ? `Not assessed due to insufficient evidence: ${escapeHtml(notAssessed.join(" · "))}` : "All displayed dimensions reached the minimum evidence threshold."}</p>
+        </section>
+        <footer class="snapshot-footer">
+          <article class="snapshot-card footer-card">
+            <p class="snapshot-eyebrow">Attribution summary</p>
+            <p>${escapeHtml(`Direct user evidence: ${direct}%`)}</p>
+            <p>${escapeHtml(`Mixed attribution: ${mixed}%`)}</p>
+            <p>${escapeHtml(`External/AI context: ${contextualShare}%`)}</p>
+          </article>
+          <article class="snapshot-card footer-card">
+            <p class="snapshot-eyebrow">Methodology and verification</p>
+            <p>AI-assisted evidence analysis based on user-provided content. Not independently verified.</p>
+          </article>
+        </footer>
       </article>
     </div>
   `;
@@ -1062,12 +1096,16 @@ function buildSnapshotData() {
       .replace(/\s+/g, " ")
       .replace(/\bContent origin:\s*\.?/gi, "")
       .trim();
+    const origin = (firstUser && firstUser.content_origin && firstUser.content_origin.value) || "unknown";
     return {
       id: conversation.id,
       title: conversation.title,
       category: professionalCategoryLabel(conversation.professional_category || "uncategorized", language),
       date: (conversation.created_at || conversation.updated_at || "").slice(0, 10) || "-",
-      excerpt: limitWords(cleanExcerpt || "No attributable user excerpt available.", 22)
+      excerpt: limitWords(cleanExcerpt || "No attributable user excerpt available.", 22),
+      summary: limitWords(cleanExcerpt || "No attributable user excerpt available.", 28),
+      provenance: originLabel(origin),
+      classification: conversation.classification === "professional" ? "Professional" : conversation.classification === "mixed" ? "Mixed" : "Uncertain"
     };
   });
   const evidenceHighlights = allDimensions
@@ -1086,6 +1124,11 @@ function buildSnapshotData() {
       confidenceScore: Number(entry.dimension.capability_score || entry.dimension.evidence_coverage || 0),
       evidenceType: entry.type,
       excerpt: limitWords(String(entry.item.excerpt || "").replace(/\s+/g, " ").replace(/\bContent origin:\s*\.?/gi, "").trim(), 24),
+      claim: limitWords(String(entry.item.excerpt || "").replace(/\s+/g, " ").trim(), 28),
+      supportingExcerpt: limitWords(String(entry.item.excerpt || "").replace(/\s+/g, " ").trim(), 32),
+      counterEvidence: entry.type === "counter" ? limitWords(String(entry.item.excerpt || "").replace(/\s+/g, " ").trim(), 24) : null,
+      attribution: originLabel((entry.item.source && entry.item.source.value) || "mixed_content"),
+      candidateConcept: canonicalDimensionLabel(entry.dimension.canonical_dimension || entry.dimension.id || entry.dimension.label, language),
       title: entry.item.conversation_title || "Conversation",
       date: entry.item.date || ""
     }));
@@ -1141,6 +1184,7 @@ function buildSnapshotData() {
     typicalContribution,
     verificationLabel,
     evidenceMix,
+    notAssessed,
     categoryBreakdown,
     analyzedConversations,
     evidenceHighlights,
@@ -1149,6 +1193,20 @@ function buildSnapshotData() {
     selectedExcerptCount: evidenceHighlights.length,
     totalEvidenceItemCount: evidenceItems
   };
+}
+
+function originLabel(value) {
+  const map = {
+    original_user_input: "Direct user evidence",
+    user_instruction: "Direct user instruction",
+    mixed_content: "Mixed attribution",
+    pasted_email: "Pasted professional email",
+    pasted_code: "Code or technical material",
+    ai_generated_text: "AI-assisted content",
+    pasted_external_document: "External professional document",
+    unknown: "Unclear provenance"
+  };
+  return map[String(value || "").toLowerCase()] || "Unclear provenance";
 }
 
 function buildEvidenceMix(source, evidenceItems, attributablePercentage) {
@@ -2629,6 +2687,16 @@ if ($("#downloadAppendixPdf")) {
   });
 }
 
+if ($("#downloadCombinedPdf")) {
+  $("#downloadCombinedPdf").addEventListener("click", () => {
+    const config = buildCurrentReportConfig();
+    applyReportConfig(config);
+    const snapshot = buildSnapshotData();
+    exportPdf("/api/export/combined-pdf", snapshot, config, `professional-evidence-report-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}.pdf`)
+      .catch(error => alert(error.message));
+  });
+}
+
 $("#regenerateReport").addEventListener("click", async () => {
   if (!state.sessionId || !state.reports) return;
   const config = buildCurrentReportConfig();
@@ -2709,6 +2777,7 @@ $("#deleteBtn").addEventListener("click", async () => {
   $("#snapshotPreviewHost").innerHTML = "";
   $("#downloadSnapshotPdf").disabled = true;
   if ($("#downloadAppendixPdf")) $("#downloadAppendixPdf").disabled = true;
+  if ($("#downloadCombinedPdf")) $("#downloadCombinedPdf").disabled = true;
   $("#regenerateReport").disabled = true;
   $("#uploadStatus").textContent = "Sessione cancellata.";
   promptGeneratedPayload = null;

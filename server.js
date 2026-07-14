@@ -4,12 +4,86 @@ const path = require("path");
 const crypto = require("crypto");
 const zlib = require("zlib");
 const PDFDocument = require("pdfkit");
+const { PDFDocument: PDFLibDocument } = require("pdf-lib");
 
+const IS_VERCEL = Boolean(process.env.VERCEL);
 const PORT = process.env.PORT || 4173;
 const MAX_UPLOAD_BYTES = 40 * 1024 * 1024;
-const PUBLIC_DIR = path.join(process.cwd(), "public");
+const PUBLIC_DIR = resolvePublicDir();
 const APP_VERSION = "2026-07-07-snapshot-v10";
 const sessions = new Map();
+
+registerProcessErrorHandlers();
+logStartupDiagnostics();
+
+function resolvePublicDir() {
+  const candidates = [
+    path.join(process.cwd(), "public"),
+    path.join(__dirname, "public")
+  ];
+  return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
+}
+
+function registerProcessErrorHandlers() {
+  if (globalThis.__AI_WORK_PASSPORT_ERROR_HANDLERS__) return;
+  process.on("uncaughtException", error => {
+    logError("uncaughtException", error);
+  });
+  process.on("unhandledRejection", reason => {
+    const error = reason instanceof Error ? reason : new Error(String(reason));
+    logError("unhandledRejection", error);
+  });
+  globalThis.__AI_WORK_PASSPORT_ERROR_HANDLERS__ = true;
+}
+
+function logStartupDiagnostics() {
+  const diagnostics = {
+    runtime: IS_VERCEL ? "vercel" : "local",
+    cwd: process.cwd(),
+    dirname: __dirname,
+    publicDir: PUBLIC_DIR,
+    publicDirExists: fs.existsSync(PUBLIC_DIR),
+    publicIndexExists: fs.existsSync(path.join(PUBLIC_DIR, "index.html"))
+  };
+  console.log("[startup] AI Work Passport diagnostics", diagnostics);
+}
+
+function requestMeta(req) {
+  return {
+    method: req && req.method,
+    url: req && req.url,
+    runtime: IS_VERCEL ? "vercel" : "local"
+  };
+}
+
+function logError(context, error, meta = {}) {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  console.error(`[${context}]`, {
+    message: normalized.message,
+    stack: normalized.stack,
+    ...meta
+  });
+}
+
+function getRequestPath(req) {
+  const rawUrl = req && typeof req.url === "string" && req.url ? req.url : "/";
+  const parsed = new URL(rawUrl, "http://localhost");
+  return parsed.pathname || "/";
+}
+
+function sendError(res, status, error, meta = {}) {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  logError("request_error", normalized, meta);
+  if (res.headersSent) {
+    res.end();
+    return;
+  }
+  sendJson(res, status, {
+    error: normalized.message,
+    stack: process.env.NODE_ENV === "production" ? normalized.stack : normalized.stack,
+    runtime: IS_VERCEL ? "vercel" : "local"
+  });
+}
 
 const professionalKeywords = {
   strategy: ["strategia", "strategy", "roadmap", "priorit", "obiettivo", "stakeholder", "market"],
@@ -746,7 +820,8 @@ function sendJson(res, status, payload) {
 }
 
 function serveStatic(req, res) {
-  const urlPath = req.url === "/" ? "/index.html" : decodeURIComponent(req.url.split("?")[0]);
+  const requestPath = getRequestPath(req);
+  const urlPath = requestPath === "/" ? "/index.html" : safeDecodePath(requestPath);
   const filePath = path.normalize(path.join(PUBLIC_DIR, urlPath));
   if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403);
@@ -755,6 +830,25 @@ function serveStatic(req, res) {
   }
   fs.readFile(filePath, (err, data) => {
     if (err) {
+      if (err.code !== "ENOENT") {
+        sendError(res, 500, err, { ...requestMeta(req), filePath });
+        return;
+      }
+      if (!path.extname(urlPath)) {
+        const indexPath = path.join(PUBLIC_DIR, "index.html");
+        fs.readFile(indexPath, (indexErr, indexData) => {
+          if (indexErr) {
+            sendError(res, 500, indexErr, { ...requestMeta(req), indexPath });
+            return;
+          }
+          res.writeHead(200, {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "no-store, max-age=0"
+          });
+          res.end(indexData);
+        });
+        return;
+      }
       res.writeHead(404);
       res.end("Not found");
       return;
@@ -772,6 +866,14 @@ function serveStatic(req, res) {
     });
     res.end(data);
   });
+}
+
+function safeDecodePath(requestPath) {
+  try {
+    return decodeURIComponent(requestPath);
+  } catch (error) {
+    throw new Error(`Invalid request path: ${requestPath}`);
+  }
 }
 
 function readBody(req) {
@@ -954,7 +1056,9 @@ function normalizeEvidencePack(pack) {
       source: {
         schema: pack.schema,
         generated_for: pack.generated_for,
-        verification: pack.source && pack.source.verification ? pack.source.verification : "user_provided_not_verified"
+        verification: pack.source && pack.source.verification ? pack.source.verification : "user_provided_not_verified",
+        platform: pack.source && pack.source.platform ? String(pack.source.platform) : null,
+        export_mode: pack.source && pack.source.export_mode ? String(pack.source.export_mode) : null
       }
     };
     const classified = classifyConversation(normalized);
@@ -3201,21 +3305,131 @@ function drawFittedText(doc, text, x, y, width, height, style = {}) {
   doc.restore();
 }
 
-function compactPdfLabel(label) {
-  const words = String(label || "").split(/\s+/).filter(Boolean);
-  if (words.length <= 1) return [String(label || "")];
-  if (String(label || "").length <= 16) return [String(label || "")];
-  let firstLine = [];
-  let secondLine = [];
-  for (const word of words) {
-    if (!firstLine.length || `${firstLine.join(" ")} ${word}`.trim().length <= 16) firstLine.push(word);
-    else secondLine.push(word);
+const ORIGIN_LABELS = {
+  original_user_input: "Direct user evidence",
+  user_instruction: "Direct user instruction",
+  mixed_content: "Mixed attribution",
+  pasted_email: "Pasted professional email",
+  pasted_code: "Code or technical material",
+  ai_generated_text: "AI-assisted content",
+  pasted_external_document: "External professional document",
+  unknown: "Unclear provenance"
+};
+
+const INVALID_SENTENCE_ENDINGS = new Set(["and", "through", "with", "for", "candidate", "display"]);
+
+function humanizeEnum(value) {
+  return String(value || "")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function truncateAtSentence(text, maxChars, options = {}) {
+  const allowEllipsis = options.allowEllipsis !== false;
+  const source = String(text || "").replace(/\s+/g, " ").trim();
+  if (!source) return "";
+  if (source.length <= maxChars) return source;
+
+  const partial = source.slice(0, maxChars + 1);
+  const sentenceMatches = partial.match(/[^.!?]+[.!?]/g) || [];
+  if (sentenceMatches.length) {
+    const candidate = sentenceMatches.join(" ").replace(/\s+/g, " ").trim();
+    if (candidate.length >= Math.floor(maxChars * 0.55)) return candidate;
   }
-  if (!secondLine.length) {
-    const middle = Math.ceil(words.length / 2);
-    return [words.slice(0, middle).join(" "), words.slice(middle).join(" ")];
+
+  const words = partial.split(/\s+/).filter(Boolean);
+  while (words.length > 2) {
+    const candidate = words.join(" ").trim();
+    if (candidate.length <= maxChars) {
+      return allowEllipsis ? `${candidate}...` : candidate;
+    }
+    words.pop();
   }
-  return [firstLine.join(" "), secondLine.join(" ")];
+  return allowEllipsis ? `${partial.slice(0, maxChars - 1).trim()}...` : partial.slice(0, maxChars).trim();
+}
+
+function sanitizeReportText(text, options = {}) {
+  const fallback = options.fallback || "Not available.";
+  const maxChars = options.maxChars || 260;
+  const isTitle = Boolean(options.isTitle);
+  const sentenceAware = options.sentenceAware !== false;
+  const source = String(text || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\b(candidate_type|candidate type|dimension|display|mixed_content|user_instruction|generated_at|generated_for|source|schema)\s*:\s*[^.]*\.?/gi, " ")
+    .replace(/\b(null|undefined)\b/gi, " ")
+    .replace(/[_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!source) return fallback;
+
+  const normalized = source
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/\b(and|through|with|for|candidate|display)\.$/i, "")
+    .trim();
+
+  if (!normalized) return fallback;
+
+  let candidate = sentenceAware
+    ? truncateAtSentence(normalized, maxChars, { allowEllipsis: !isTitle })
+    : normalized.length > maxChars
+      ? `${normalized.slice(0, Math.max(8, maxChars - 1)).trim()}${isTitle ? "" : "…"}`
+      : normalized;
+
+  if (isTitle) candidate = candidate.replace(/…/g, "");
+  candidate = candidate.replace(/\s+/g, " ").trim();
+  if (!candidate) return fallback;
+
+  const lastWord = candidate.toLowerCase().replace(/[.?!…]+$/, "").split(/\s+/).pop();
+  if (INVALID_SENTENCE_ENDINGS.has(lastWord)) {
+    const clipped = candidate.replace(/\b(and|through|with|for|candidate|display)[.?!…]*$/i, "").trim();
+    candidate = clipped || fallback;
+  }
+
+  if (!isTitle && !/[.?!…]$/.test(candidate)) candidate = `${candidate}.`;
+  return candidate;
+}
+
+function safeDate(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
+}
+
+function majorAttributionTone(sourceBreakdown = {}) {
+  const direct = Number(sourceBreakdown.original_user_input || sourceBreakdown.user_provided || 0);
+  const mixed = Number(sourceBreakdown.mixed_content || 0);
+  const contextual = Number(sourceBreakdown.external_content || sourceBreakdown.ai_generated_text || sourceBreakdown.pasted_external_document || sourceBreakdown.unknown || 0);
+  if (direct >= mixed && direct >= contextual) return "Direct";
+  if (mixed >= direct && mixed >= contextual) return "Mixed";
+  return "Contextual";
+}
+
+function normalizeAttributionSegments(rawSegments = []) {
+  const values = {
+    direct: 0,
+    mixed: 0,
+    contextual: 0
+  };
+  for (const segment of rawSegments) {
+    const tone = String(segment.tone || "").toLowerCase();
+    const value = Number(segment.value || 0);
+    if (tone === "direct") values.direct += value;
+    else if (tone === "mixed") values.mixed += value;
+    else values.contextual += value;
+  }
+  const sum = values.direct + values.mixed + values.contextual;
+  if (!sum) return { direct: 0, mixed: 0, contextual: 100 };
+  const normalized = {
+    direct: Math.round((values.direct / sum) * 100),
+    mixed: Math.round((values.mixed / sum) * 100),
+    contextual: Math.round((values.contextual / sum) * 100)
+  };
+  const total = normalized.direct + normalized.mixed + normalized.contextual;
+  if (total !== 100) normalized.contextual += 100 - total;
+  return normalized;
 }
 
 function pdfStatusLabel(status, language = "en") {
@@ -3248,98 +3462,52 @@ function pdfConfidenceLabel(confidence, language = "en") {
 
 function pdfCoverageMeta(value, language = "en") {
   const score = Number(value || 0);
-  if (score >= 75) return { label: language === "it" ? "Alta copertura" : "High coverage", color: "#136f63" };
-  if (score >= 45) return { label: language === "it" ? "Copertura media" : "Medium coverage", color: "#8d6a1b" };
-  return { label: language === "it" ? "Copertura limitata" : "Limited coverage", color: "#b64f35" };
+  if (score >= 75) return { label: language === "it" ? "Alta" : "High", color: "#136f63" };
+  if (score >= 45) return { label: language === "it" ? "Moderata" : "Moderate", color: "#8d6a1b" };
+  return { label: language === "it" ? "Limitata" : "Limited", color: "#b64f35" };
 }
 
-function pdfSegmentValue(mix, tone) {
-  return Number(((mix && mix.segments) || []).find(segment => segment.tone === tone)?.value || 0);
+function strengthLabel(level, language = "en") {
+  const map = language === "it"
+    ? { emerging: "Emergente", observed: "Supportata", recurring: "Supportata", strongly_supported: "Fortemente supportata" }
+    : { emerging: "Emerging", observed: "Supported", recurring: "Supported", strongly_supported: "Strongly supported" };
+  return map[level] || (language === "it" ? "Supportata" : "Supported");
 }
 
 function buildCapabilityRows(axes, language = "en") {
-  return (axes || []).slice(0, 5).map(axis => {
+  const supported = (axes || []).filter(axis => Number(axis.coverage || 0) >= 35 && axis.assessed !== false);
+  return supported.slice(0, 5).map(axis => {
     const coverage = Number(axis.coverage || 0);
     return {
-      label: String(axis.label || "").split(/\s+/).slice(0, 2).join(" "),
-      maturity: axis.statusLabel || pdfStatusLabel(axis.level, language),
-      confidence: axis.confidenceLabel || pdfConfidenceLabel(axis.confidence, language),
+      label: sanitizeReportText(axis.label, { maxChars: 42, fallback: language === "it" ? "Capability" : "Capability", isTitle: true }),
+      strength: strengthLabel(axis.level, language),
       coverage,
-      coverageMeta: pdfCoverageMeta(coverage, language)
+      coverageMeta: pdfCoverageMeta(coverage, language),
+      attribution: majorAttributionTone(axis.source_breakdown || {}),
+      evidenceItems: Number(axis.positive_count || axis.evidence_count || 0),
+      conversationCount: Number(axis.unique_conversation_count || 0)
     };
   });
 }
 
 function buildAttributionSummary(evidenceMix, language = "en") {
-  const direct = pdfSegmentValue(evidenceMix, "direct");
-  const mixed = pdfSegmentValue(evidenceMix, "mixed");
-  const external = pdfSegmentValue(evidenceMix, "external") + pdfSegmentValue(evidenceMix, "ai") + pdfSegmentValue(evidenceMix, "unknown");
+  const normalized = normalizeAttributionSegments((evidenceMix && evidenceMix.segments) || []);
   return {
-    weightedAttribution: Number(evidenceMix && evidenceMix.attributable || 0),
+    directShare: normalized.direct,
+    mixedShare: normalized.mixed,
+    contextualShare: normalized.contextual,
     lines: language === "it"
       ? [
-          `Direttamente attribuibile: ${direct}%`,
-          `Mista o parzialmente attribuibile: ${mixed}%`,
-          `Contesto esterno o generato da AI: ${external}%`
+          `Direct user evidence: ${normalized.direct}%`,
+          `Mixed attribution: ${normalized.mixed}%`,
+          `External/AI context: ${normalized.contextual}%`
         ]
       : [
-          `Directly attributable: ${direct}%`,
-          `Mixed or partially attributable: ${mixed}%`,
-          `External or AI-generated context: ${external}%`
+          `Direct user evidence: ${normalized.direct}%`,
+          `Mixed attribution: ${normalized.mixed}%`,
+          `External/AI context: ${normalized.contextual}%`
         ]
   };
-}
-
-function drawRadarPdf(doc, axes, x, y, size, texts) {
-  const assessed = (axes || []).filter(axis => axis && axis.assessed && typeof axis.strength === "number");
-  if (!assessed.length) {
-    doc.font("Helvetica-Bold").fontSize(10).fillColor("#1f2726").text(texts.notAssessed, x, y, { width: size });
-    return;
-  }
-  const centerX = x + size / 2;
-  const centerY = y + size / 2;
-  const maxRadius = size * 0.31;
-  const levels = [0.25, 0.5, 0.75, 1];
-  const points = assessed.map((axis, index) => {
-    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / assessed.length;
-    const radius = maxRadius * ((axis.strength || 0) / 100);
-    const labelDistance = maxRadius + 22;
-    return {
-      axis,
-      angle,
-      x: centerX + Math.cos(angle) * radius,
-      y: centerY + Math.sin(angle) * radius,
-      axisX: centerX + Math.cos(angle) * maxRadius,
-      axisY: centerY + Math.sin(angle) * maxRadius,
-      labelX: centerX + Math.cos(angle) * labelDistance,
-      labelY: centerY + Math.sin(angle) * labelDistance
-    };
-  });
-
-  doc.save();
-  for (const level of levels) {
-    doc.moveTo(centerX + Math.cos(points[0].angle) * maxRadius * level, centerY + Math.sin(points[0].angle) * maxRadius * level);
-    for (let index = 1; index < points.length; index += 1) {
-      doc.lineTo(centerX + Math.cos(points[index].angle) * maxRadius * level, centerY + Math.sin(points[index].angle) * maxRadius * level);
-    }
-    doc.closePath().strokeColor("#cfd8d0").lineWidth(1).stroke();
-  }
-  for (const point of points) {
-    doc.moveTo(centerX, centerY).lineTo(point.axisX, point.axisY).strokeColor("#d7ddd5").lineWidth(1).stroke();
-  }
-  doc.moveTo(points[0].x, points[0].y);
-  for (let index = 1; index < points.length; index += 1) doc.lineTo(points[index].x, points[index].y);
-  doc.closePath().fillOpacity(0.22).fillAndStroke("#16877f", "#136f63");
-  doc.fillOpacity(1);
-  for (const point of points) {
-    doc.circle(point.x, point.y, 3.5).fill("#b64f35");
-    const lines = compactPdfLabel(point.axis.label);
-    doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(8);
-    lines.forEach((line, idx) => {
-      doc.text(line, point.labelX - 36, point.labelY - 7 + idx * 9, { width: 72, align: "center", lineBreak: false });
-    });
-  }
-  doc.restore();
 }
 
 function validateSnapshotPayload(snapshot) {
@@ -3352,190 +3520,146 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
   const config = normalizeReportConfig(reportConfig || snapshot.config || {});
   const model = validateSnapshotPayload(snapshot);
   return pdfBuffer(doc => {
-    doc.addPage({ size: "A4", layout: "landscape", margins: { top: 24, bottom: 24, left: 24, right: 24 } });
+    doc.addPage({ size: "A4", layout: "landscape", margins: { top: 36, bottom: 36, left: 40, right: 40 } });
     const language = config.report_language || "en";
+    const margin = 40;
+    const gap = 8;
     const pageWidth = doc.page.width;
-    const margin = 24;
-    const gap = 12;
     const contentWidth = pageWidth - margin * 2;
-    const safeAxes = (model.axes || []).slice(0, 5).map(axis => ({
+
+    const oneLineSummary = sanitizeReportText(model.summary || model.professionalSignature, {
+      maxChars: 160,
+      fallback: "The analyzed evidence suggests recurring professional patterns, with prudent interpretation due to evidence limits.",
+      sentenceAware: true
+    });
+    const patternText = sanitizeReportText(
+      (model.professionalPattern && model.professionalPattern.observed_professional_pattern) || model.professionalSignature,
+      { maxChars: 260, fallback: "No recurring professional pattern could be assessed with sufficient confidence." }
+    );
+    const contributionText = sanitizeReportText(model.typicalContribution, {
+      maxChars: 220,
+      fallback: "No recurring contribution pattern could be assessed with sufficient confidence."
+    });
+    const contexts = (model.observedDomains || []).map(item => sanitizeReportText(item, { maxChars: 44, isTitle: true, fallback: "Professional context" })).slice(0, 4);
+    const notAssessed = ((model.notAssessed || [])
+      .concat(((model.axes || []).filter(axis => axis.assessed === false || Number(axis.coverage || 0) < 35).map(axis => axis.label))))
+      .map(item => sanitizeReportText(item, { maxChars: 38, isTitle: true, fallback: "Dimension" }))
+      .filter((item, index, arr) => arr.indexOf(item) === index)
+      .slice(0, 3);
+
+    const attribution = buildAttributionSummary(model.evidenceMix || {}, language);
+    const directShare = `${attribution.directShare}%`;
+    const capabilityRows = buildCapabilityRows((model.axes || []).map(axis => ({
       ...axis,
-      statusLabel: axis.statusLabel || pdfStatusLabel(axis.level, language),
-      confidenceLabel: axis.confidenceLabel || pdfConfidenceLabel(axis.confidence, language),
       assessed: axis.assessed !== false && typeof axis.strength === "number"
-    }));
-    const capabilityRows = buildCapabilityRows(safeAxes, language);
-    const attribution = buildAttributionSummary(model.evidenceMix || { attributable: 0, segments: [] }, language);
-    const weightedLabel = language === "it" ? "Attribuzione pesata" : "Weighted attribution";
-    const methodologyTitle = language === "it" ? "Nota metodologica" : "Methodology note";
-    const disclaimerTitle = language === "it" ? "Verifica e limiti" : "Verification and limits";
-    const methodologyNote = language === "it"
-      ? "La coverage misura disponibilita, ricorrenza e attribuzione dell'evidenza. Non e' un punteggio di abilita."
-      : "Coverage measures evidence availability, recurrence and attribution. It is not a skill score.";
-    const baseVerification = String(model.verificationLabel || "AI-assisted report · User-provided content · Not independently verified");
-    const footerDisclaimer = language === "it"
-      ? `${baseVerification} · Estrazione ${model.extractedDate} · ${APP_VERSION}`
-      : `${baseVerification} · Extracted ${model.extractedDate} · ${APP_VERSION}`;
-    const headerY = 24;
-    const headerH = 78;
-    const identityY = headerY + headerH + gap;
-    const identityH = 92;
-    const kpiY = identityY + identityH + gap;
-    const kpiH = 64;
-    const capabilityY = kpiY + kpiH + gap;
-    const capabilityH = 194;
-    const footerY = capabilityY + capabilityH + gap;
-    const footerH = 58;
+    })), language);
+    const capabilitySupportedCount = capabilityRows.length;
+    const kpis = [
+      { value: String(model.analyzedConversationCount || 0), label: "Professional conversations", note: "Conversations included in the analysis." },
+      { value: String(model.totalEvidenceItemCount || 0), label: "Evidence items", note: "Supporting, uncertain and counter evidence." },
+      { value: String(capabilitySupportedCount), label: "Capabilities supported", note: "Capabilities with sufficient coverage." },
+      { value: directShare, label: "Direct evidence share", note: "Direct user evidence over all evidence items." }
+    ];
 
-    drawRoundedPanel(doc, margin, headerY, contentWidth, headerH, { fill: "#142322", stroke: "#142322", radius: 16 });
-    doc.fillColor("#14a69a").font("Helvetica-Bold").fontSize(11).text(model.texts.snapshotTitle, margin + 18, headerY + 16);
-    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(24).text(model.personName, margin + 18, headerY + 32, { width: 360, lineBreak: false });
-    drawFittedText(doc, model.professionalSignature, margin + 18, headerY + 54, 390, 18, {
-      font: "Helvetica",
-      maxFontSize: 9,
-      minFontSize: 8,
-      color: "#d8e4e1",
-      lineGap: 0
-    });
-    const metaX = pageWidth - 230;
-    doc.fillColor("#c8d3d0").font("Helvetica-Bold").fontSize(9)
-      .text(String(model.texts.extractedLabel || "EXTRACTED").toUpperCase(), metaX, headerY + 16, { width: 82 })
-      .text(String(model.texts.dataAnalyzedLabel || "DATA ANALYZED").toUpperCase(), metaX, headerY + 37, { width: 100 })
-      .text(String(model.texts.observationPeriodLabel || "OBSERVATION PERIOD").toUpperCase(), metaX, headerY + 58, { width: 120 });
-    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(10)
-      .text(String(model.extractedDate), metaX + 92, headerY + 16, { width: 116, align: "right", lineBreak: false })
-      .text(String(model.observationPeriod), metaX + 92, headerY + 58, { width: 116, align: "right", lineBreak: false });
-    drawFittedText(doc, String(model.dataRange), metaX + 70, headerY + 36, 138, 18, {
-      font: "Helvetica-Bold",
-      maxFontSize: 9,
-      minFontSize: 7.5,
-      color: "#ffffff",
-      align: "right",
-      lineGap: 0
-    });
+    const headerH = 66;
+    const row1H = 88;
+    const kpiH = 66;
+    const bodyH = 196;
+    const footerH = 46;
 
-    const identityColA = 352;
-    const identityColB = 176;
-    const identityColC = contentWidth - identityColA - identityColB - gap * 2;
-    const signatureX = margin;
-    const domainsX = signatureX + identityColA + gap;
-    const contributionX = domainsX + identityColB + gap;
+    let y = margin;
 
-    drawRoundedPanel(doc, signatureX, identityY, identityColA, identityH);
-    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(String(model.texts.signatureLabel).toUpperCase(), signatureX + 14, identityY + 12);
-    drawFittedText(doc, model.professionalSignature, signatureX + 14, identityY + 28, identityColA - 28, 48, {
-      font: "Helvetica-Bold",
-      maxFontSize: 13,
-      minFontSize: 10,
-      color: "#1f2726",
-      lineGap: 1
+    drawRoundedPanel(doc, margin, y, contentWidth, headerH, { fill: "#0f3e3a", stroke: "#0f3e3a", radius: 10 });
+    doc.fillColor("#d2ece7").font("Helvetica-Bold").fontSize(11).text("Professional Evidence Snapshot", margin + 14, y + 10);
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(18).text(sanitizeReportText(model.personName, { maxChars: 70, isTitle: true, fallback: "Professional profile" }), margin + 14, y + 26, { width: 300, lineBreak: false });
+    drawFittedText(doc, oneLineSummary, margin + 14, y + 46, 520, 14, { font: "Helvetica", maxFontSize: 8.4, minFontSize: 7.8, color: "#f0f6f5", lineGap: 0 });
+    doc.fillColor("#d2ece7").font("Helvetica").fontSize(8.5)
+      .text(`Observed period: ${sanitizeReportText(model.observationPeriod, { maxChars: 28, isTitle: true, fallback: "-" })}`, margin + 540, y + 13, { width: 190, align: "right" })
+      .text(`Data range: ${sanitizeReportText(model.dataRange, { maxChars: 50, isTitle: true, fallback: "-" })}`, margin + 540, y + 27, { width: 190, align: "right" })
+      .text(`Extracted: ${safeDate(model.extractedDate)}`, margin + 540, y + 41, { width: 190, align: "right" });
+
+    y += headerH + gap;
+    const patternW = 322;
+    const contextW = 172;
+    const contributionW = contentWidth - patternW - contextW - gap * 2;
+    drawRoundedPanel(doc, margin, y, patternW, row1H, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section A - Professional Pattern", margin + 10, y + 8);
+    drawFittedText(doc, patternText, margin + 10, y + 22, patternW - 20, 44, { font: "Helvetica", maxFontSize: 9.3, minFontSize: 8.3, color: "#163331" });
+    doc.fillColor("#4e6662").font("Helvetica").fontSize(7.8).text(
+      `Evidence basis: ${model.analyzedConversationCount || 0} conversations · ${model.totalEvidenceItemCount || 0} evidence items · ${sanitizeReportText(model.observationPeriod, { maxChars: 30, isTitle: true, fallback: "-" })}`,
+      margin + 10,
+      y + 69,
+      { width: patternW - 20 }
+    );
+
+    const contextX = margin + patternW + gap;
+    drawRoundedPanel(doc, contextX, y, contextW, row1H, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section B - Contexts", contextX + 10, y + 8);
+    drawChipRow(doc, contexts.length ? contexts : ["No recurring context observed"], contextX + 10, y + 24, contextW - 20, { fontSize: 7.8, chipHeight: 13, gap: 3, maxRows: 4 });
+
+    const contributionX = contextX + contextW + gap;
+    drawRoundedPanel(doc, contributionX, y, contributionW, row1H, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section C - Typical Contribution", contributionX + 10, y + 8);
+    drawFittedText(doc, contributionText, contributionX + 10, y + 24, contributionW - 20, 48, { font: "Helvetica", maxFontSize: 9.2, minFontSize: 8.1, color: "#163331" });
+
+    y += row1H + gap;
+    drawRoundedPanel(doc, margin, y, contentWidth, kpiH, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section D - Evidence KPIs", margin + 10, y + 8);
+    const kpiGap = 8;
+    const kpiWidth = (contentWidth - 20 - kpiGap * 3) / 4;
+    kpis.forEach((kpi, index) => {
+      const x = margin + 10 + index * (kpiWidth + kpiGap);
+      drawRoundedPanel(doc, x, y + 20, kpiWidth, 38, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 7 });
+      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(12).text(kpi.value, x + 7, y + 24, { width: kpiWidth - 14, lineBreak: false });
+      drawFittedText(doc, kpi.label, x + 7, y + 37, kpiWidth - 14, 9, { font: "Helvetica-Bold", maxFontSize: 7.2, minFontSize: 6.8, color: "#1d3b38" });
+      drawFittedText(doc, kpi.note, x + 7, y + 46, kpiWidth - 14, 8, { font: "Helvetica", maxFontSize: 6.3, minFontSize: 6.1, color: "#5b7470" });
     });
 
-    drawRoundedPanel(doc, domainsX, identityY, identityColB, identityH);
-    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(String(model.texts.domainsLabel).toUpperCase(), domainsX + 14, identityY + 12);
-    drawChipRow(doc, (model.observedDomains || []).slice(0, 4), domainsX + 14, identityY + 34, identityColB - 28, {
-      fontSize: 8,
-      chipHeight: 15,
-      gap: 4,
-      maxRows: 3
-    });
-
-    drawRoundedPanel(doc, contributionX, identityY, identityColC, identityH);
-    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(String(model.texts.contributionLabel).toUpperCase(), contributionX + 14, identityY + 12);
-    drawFittedText(doc, model.typicalContribution, contributionX + 14, identityY + 30, identityColC - 28, 48, {
-      font: "Helvetica",
-      maxFontSize: 11,
-      minFontSize: 9,
-      color: "#1f2726",
-      lineGap: 1
-    });
-
-    const kpiWidth = (contentWidth - gap * 3) / 4;
-    model.kpis.slice(0, 4).forEach((kpi, index) => {
-      const x = margin + index * (kpiWidth + gap);
-      drawRoundedPanel(doc, x, kpiY, kpiWidth, kpiH, { fill: "#f7faf9", stroke: "#d7e1de", radius: 12 });
-      doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(18).text(String(kpi.value), x + 12, kpiY + 12, { width: kpiWidth - 24, lineBreak: false });
-      drawFittedText(doc, String(kpi.label).toUpperCase(), x + 12, kpiY + 35, kpiWidth - 24, 14, {
-        font: "Helvetica-Bold",
-        maxFontSize: 7.4,
-        minFontSize: 6.8,
-        color: "#1f2726",
-        lineGap: 0
+    y += kpiH + gap;
+    const capW = 500;
+    const rightW = contentWidth - capW - gap;
+    drawRoundedPanel(doc, margin, y, capW, bodyH, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section E - Supported Capabilities", margin + 10, y + 8);
+    if (!capabilityRows.length) {
+      doc.fillColor("#4e6662").font("Helvetica").fontSize(9).text("No capability reached sufficient coverage in the observed period.", margin + 10, y + 30);
+    } else {
+      capabilityRows.forEach((row, index) => {
+        const cardY = y + 24 + index * 33;
+        drawRoundedPanel(doc, margin + 10, cardY, capW - 20, 28, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 6 });
+        doc.fillColor("#163331").font("Helvetica-Bold").fontSize(8.7).text(row.label, margin + 16, cardY + 6, { width: 140, lineBreak: false });
+        drawFittedText(doc, `${row.strength} · ${row.coverageMeta.label} coverage · ${row.attribution}`, margin + 164, cardY + 6, 208, 10, { font: "Helvetica", maxFontSize: 7.4, minFontSize: 6.8, color: "#4f6763" });
+        drawFittedText(doc, `${row.evidenceItems} evidence items across ${row.conversationCount} conversations`, margin + 375, cardY + 6, 120, 10, { font: "Helvetica", maxFontSize: 7.2, minFontSize: 6.6, align: "right", color: "#4f6763" });
       });
-      drawFittedText(doc, String(kpi.note), x + 12, kpiY + 47, kpiWidth - 24, 12, {
-        font: "Helvetica",
-        maxFontSize: 7.2,
-        minFontSize: 7,
-        color: "#5f6d69",
-        lineGap: 0
-      });
-    });
+    }
 
-    drawRoundedPanel(doc, margin, capabilityY, contentWidth, capabilityH, { radius: 14 });
-    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(String(model.texts.capabilityTitle).toUpperCase(), margin + 16, capabilityY + 14);
-    doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(18).text(model.texts.radarQuestion, margin + 16, capabilityY + 28, { width: 290 });
-    const chartX = margin + 20;
-    const chartY = capabilityY + 62;
-    drawRadarPdf(doc, safeAxes, chartX, chartY, 154, model.texts);
-    drawFittedText(doc, methodologyNote, chartX, capabilityY + 174, 238, 18, {
-      font: "Helvetica",
-      maxFontSize: 7.5,
-      minFontSize: 7,
-      color: "#5f6d69",
-      lineGap: 0
-    });
+    const rightX = margin + capW + gap;
+    drawRoundedPanel(doc, rightX, y, rightW, 68, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Section F - Not Assessed", rightX + 10, y + 8);
+    const notAssessedText = notAssessed.length
+      ? `Not assessed due to insufficient evidence: ${notAssessed.join(" · ")}`
+      : "All displayed dimensions reached the minimum evidence threshold.";
+    drawFittedText(doc, notAssessedText, rightX + 10, y + 24, rightW - 20, 36, { font: "Helvetica", maxFontSize: 8.2, minFontSize: 7.4, color: "#4f6763" });
 
-    const listX = margin + 290;
-    const listWidth = contentWidth - 308;
-    capabilityRows.forEach((row, index) => {
-      const rowY = capabilityY + 52 + index * 30;
-      drawRoundedPanel(doc, listX, rowY, listWidth, 26, { fill: "#f7faf9", stroke: "#d7e1de", radius: 10 });
-      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(9.5).text(row.label, listX + 12, rowY + 7, { width: 150, lineBreak: false });
-      const compactSummary = `${row.maturity} · ${row.coverageMeta.label} · AI ${row.confidence}`;
-      drawFittedText(doc, compactSummary, listX + 176, rowY + 7, listWidth - 188, 12, {
-        font: "Helvetica",
-        maxFontSize: 7.8,
-        minFontSize: 7,
-        color: "#5f6d69",
-        lineGap: 0
-      });
-      doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(7.5).text(`${language === "it" ? "Coverage" : "Coverage"} ${row.coverage}`, listX + listWidth - 70, rowY + 16, { width: 58, align: "right", lineBreak: false });
-    });
-
-    drawRoundedPanel(doc, margin, footerY, contentWidth, footerH, { fill: "#f7faf9", stroke: "#d7e1de", radius: 12 });
-    const footerColA = 262;
-    const footerColB = 238;
-    const footerColC = contentWidth - footerColA - footerColB - gap * 2;
-    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(8.5).text(String(model.texts.provenancePanelTitle || (language === "it" ? "Sintesi attribuzione" : "Attribution summary")).toUpperCase(), margin + 14, footerY + 10);
-    doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(8).text(`${weightedLabel}: ${attribution.weightedAttribution}%`, margin + footerColA - 118, footerY + 10, { width: 104, align: "right", lineBreak: false });
-    drawSegmentBar(doc, model.evidenceMix.segments || [], margin + 14, footerY + 23, footerColA - 28, 8);
+    drawRoundedPanel(doc, rightX, y + 76, rightW, bodyH - 76, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.3).text("Methodology and verification", rightX + 10, y + 84);
     attribution.lines.forEach((line, index) => {
-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(7.2).text(line, margin + 14, footerY + 34 + index * 7, { width: footerColA - 28, lineBreak: false });
+      doc.fillColor("#4f6763").font("Helvetica").fontSize(7.1).text(line, rightX + 10, y + 96 + index * 8, { width: rightW - 20, lineBreak: false });
     });
+    drawFittedText(
+      doc,
+      "AI-assisted evidence analysis based on user-provided content. Not independently verified. Coverage reflects availability and recurrence of evidence, not professional performance.",
+      rightX + 10,
+      y + 124,
+      rightW - 20,
+      34,
+      { font: "Helvetica", maxFontSize: 7, minFontSize: 6.6, color: "#4f6763" }
+    );
 
-    const methodX = margin + footerColA + gap;
-    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(8.5).text(methodologyTitle.toUpperCase(), methodX, footerY + 10);
-    drawFittedText(doc, methodologyNote, methodX, footerY + 24, footerColB, 24, {
-      font: "Helvetica",
-      maxFontSize: 7.5,
-      minFontSize: 7,
-      color: "#5f6d69",
-      lineGap: 0
-    });
-    doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(7.5).text(language === "it" ? "Evidence items analizzati" : "Evidence items analyzed", methodX, footerY + 49, { width: 94, lineBreak: false });
-    doc.text(String(model.totalEvidenceItemCount || 0), methodX + 98, footerY + 49, { width: 22, lineBreak: false });
-    doc.text(language === "it" ? "Conversazioni considerate" : "Conversations analyzed", methodX + 126, footerY + 49, { width: 96, lineBreak: false });
-    doc.text(String(model.analyzedConversationCount || 0), methodX + 226, footerY + 49, { width: 20, lineBreak: false });
-
-    const disclaimerX = methodX + footerColB + gap;
-    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(8.5).text(disclaimerTitle.toUpperCase(), disclaimerX, footerY + 10);
-    drawFittedText(doc, footerDisclaimer, disclaimerX, footerY + 24, footerColC, 20, {
-      font: "Helvetica",
-      maxFontSize: 7.5,
-      minFontSize: 7,
-      color: "#5f6d69",
-      lineGap: 0
-    });
+    y += bodyH + gap;
+    drawRoundedPanel(doc, margin, y, contentWidth, footerH, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
+    doc.fillColor("#4f6763").font("Helvetica").fontSize(7.3)
+      .text(`Report ID: ${sanitizeReportText(config.sanitized_profile_name, { maxChars: 32, isTitle: true, fallback: "profile" })}-${config.generated_at}`, margin + 12, y + 14, { width: 280 })
+      .text(`Methodology version: snapshot-v11 · ${APP_VERSION}`, margin + 530, y + 14, { width: 200, align: "right" });
   });
 }
 
@@ -3543,84 +3667,127 @@ async function renderAppendixPdf(snapshot, reportConfig) {
   const config = normalizeReportConfig(reportConfig || snapshot.config || {});
   const model = validateSnapshotPayload(snapshot);
   return pdfBuffer(doc => {
-    doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
     const language = config.report_language || model.language || "en";
-    const representativeNote = language === "it"
-      ? "Gli estratti sono una selezione rappresentativa e non esaustiva del periodo analizzato."
-      : "Excerpts are representative selections and not a full transcript of the analyzed period.";
-    const verificationNote = language === "it"
-      ? "Nota di verifica: i contenuti derivano da input utente e possono includere materiale incollato o generato da AI; non sono verificati in modo indipendente."
-      : "Verification note: content is user-provided and may include pasted or AI-generated material; it is not independently verified.";
-    const cleanText = (value, fallback = "") => {
-      const normalized = String(value || "")
-        .replace(/\s+/g, " ")
-        .replace(/\bContent origin:\s*\.?/gi, "")
-        .trim();
-      return normalized || fallback;
-    };
-    const addHeader = () => {
-      doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(12).text(model.texts.appendixTitle, 34, 34);
-      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(20).text(model.personName, 34, 52);
-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(10).text(cleanText(model.texts.appendixSubtitle || model.texts.appendixIntro), 34, 72, { width: doc.page.width - 68 });
-      doc.fillColor("#5f6d69").font("Helvetica").fontSize(10).text(`${model.selectedConversationCount} ${model.texts.selectedConversations} ${model.texts.outOfAnalyzed} ${model.analyzedConversationCount} ${model.texts.analyzedLabel}`, 34, 90)
-        .text(`${model.selectedExcerptCount} ${model.texts.selectedExcerpts} ${model.texts.outOfEvidence} ${model.totalEvidenceItemCount} ${model.texts.evidenceLabel}`, 34, 104);
-      return 142;
-    };
-    const drawCard = (title, meta, body, badge) => {
-      const width = doc.page.width - 68;
-      const titleText = cleanText(title, language === "it" ? "Conversazione" : "Conversation");
-      const metaText = cleanText(meta, language === "it" ? "Dettagli non disponibili" : "Details unavailable");
-      const bodyText = cleanText(body, language === "it" ? "Estratto non disponibile." : "Excerpt unavailable.");
-      const titleLine = truncateTextToHeight(doc, titleText, width - 140, 26, { font: "Helvetica-Bold", fontSize: 12, lineGap: 1 });
-      const metaLine = truncateTextToHeight(doc, metaText, width - 28, 14, { font: "Helvetica-Bold", fontSize: 9, lineGap: 1 });
-      const bodyLine = truncateTextToHeight(doc, bodyText, width - 28, 30, { font: "Helvetica", fontSize: 10, lineGap: 1 });
-      const titleHeight = measureTextHeight(doc, titleLine, width - 140, { font: "Helvetica-Bold", fontSize: 12, lineGap: 1 });
-      const metaHeight = measureTextHeight(doc, metaLine, width - 28, { font: "Helvetica-Bold", fontSize: 9, lineGap: 1 });
-      const bodyHeight = measureTextHeight(doc, bodyLine, width - 28, { font: "Helvetica", fontSize: 10, lineGap: 1 });
-      const height = Math.max(86, 16 + titleHeight + 4 + metaHeight + 6 + bodyHeight + 14);
-      if (cursorY + height > doc.page.height - 50) {
-        doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
-        cursorY = addHeader();
-      }
-      drawRoundedPanel(doc, 34, cursorY, width, height);
-      doc.fillColor("#1f2726").font("Helvetica-Bold").fontSize(12).text(titleLine, 48, cursorY + 14, { width: width - 140 });
-      if (badge) {
-        doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(9).text(cleanText(badge), doc.page.width - 130, cursorY + 16, { width: 82, align: "right" });
-      }
-      const metaY = cursorY + 16 + titleHeight + 2;
-      const bodyY = metaY + metaHeight + 4;
-      doc.fillColor("#5f6d69").font("Helvetica-Bold").fontSize(9).text(metaLine, 48, metaY, { width: width - 28 });
-      doc.fillColor("#1f2726").font("Helvetica").fontSize(10).text(bodyLine, 48, bodyY, { width: width - 28, height: bodyHeight + 2 });
-      cursorY += height + 10;
+    const margin = 50;
+    const maxWidth = 495;
+    let pageNumber = 0;
+
+    const addPage = () => {
+      doc.addPage({ size: "A4", margins: { top: 52, bottom: 52, left: margin, right: margin } });
+      pageNumber += 1;
+      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(11).text("Detailed Evidence Appendix", margin, 42, { width: maxWidth });
+      doc.fillColor("#4f6763").font("Helvetica").fontSize(8)
+        .text(`${sanitizeReportText(model.personName, { maxChars: 64, isTitle: true, fallback: "Professional profile" })} · ${safeDate(model.extractedDate)} · page ${pageNumber}`, margin, 56, { width: maxWidth });
+      return 86;
     };
 
-    let cursorY = addHeader();
-    drawFittedText(doc, representativeNote, 34, cursorY, doc.page.width - 68, 16, {
-      font: "Helvetica",
-      maxFontSize: 8.8,
-      minFontSize: 8,
-      color: "#5f6d69",
-      lineGap: 0
-    });
-    cursorY += 20;
-    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(11).text(model.texts.analyzedConversations, 34, cursorY);
-    cursorY += 18;
+    const footer = () => {
+      doc.fillColor("#6a7f7b").font("Helvetica").fontSize(8).text(`Page ${pageNumber}`, margin, doc.page.height - 34, { width: maxWidth, align: "right" });
+    };
+
+    const ensureRoom = (cursorY, blockHeight) => {
+      if (cursorY + blockHeight <= doc.page.height - 64) return cursorY;
+      footer();
+      return addPage();
+    };
+
+    const drawConversationCard = (item, cursorY) => {
+      const title = sanitizeReportText(item.title, { maxChars: 88, isTitle: true, fallback: "Conversation" });
+      const summary = sanitizeReportText(item.summary || item.excerpt, { maxChars: 240, fallback: "No summary available." });
+      const category = sanitizeReportText(item.category, { maxChars: 34, isTitle: true, fallback: "Professional" });
+      const provenance = sanitizeReportText(item.provenance || ORIGIN_LABELS.unknown, { maxChars: 40, isTitle: true, fallback: "Unclear provenance" });
+      const classification = sanitizeReportText(item.classification || "Professional", { maxChars: 16, isTitle: true, fallback: "Professional" });
+      const height = 86;
+      cursorY = ensureRoom(cursorY, height);
+      drawRoundedPanel(doc, margin, cursorY, maxWidth, height, { fill: "#ffffff", stroke: "#cadbd8", radius: 8 });
+      doc.fillColor("#163331").font("Helvetica-Bold").fontSize(10).text(title, margin + 12, cursorY + 10, { width: 300, lineBreak: false });
+      doc.fillColor("#4f6763").font("Helvetica").fontSize(8.4)
+        .text(`${safeDate(item.date)} · ${category} · ${classification}`, margin + 12, cursorY + 24, { width: 360, lineBreak: false })
+        .text(`Provenance: ${provenance}`, margin + 12, cursorY + 36, { width: 360, lineBreak: false });
+      drawFittedText(doc, summary, margin + 12, cursorY + 50, maxWidth - 24, 26, { font: "Helvetica", maxFontSize: 9, minFontSize: 8.3, color: "#1f3432" });
+      return cursorY + height + 10;
+    };
+
+    const drawEvidenceCard = (item, cursorY) => {
+      const capability = sanitizeReportText(item.skill || item.group, { maxChars: 60, isTitle: true, fallback: "Capability" });
+      const concept = sanitizeReportText(item.candidateConcept || item.group, { maxChars: 64, isTitle: true, fallback: "Observed concept" });
+      const claim = sanitizeReportText(item.claim || item.excerpt, { maxChars: 230, fallback: "No explicit claim identified." });
+      const supporting = sanitizeReportText(item.supportingExcerpt || item.excerpt, { maxChars: 280, fallback: "No supporting excerpt available." });
+      const counter = item.counterEvidence
+        ? sanitizeReportText(item.counterEvidence, { maxChars: 180, fallback: "No explicit counter-evidence identified." })
+        : "No explicit counter-evidence identified.";
+      const attribution = sanitizeReportText(item.attribution || "Mixed attribution", { maxChars: 40, isTitle: true, fallback: "Unclear provenance" });
+      const confidence = sanitizeReportText(item.confidence || "Low", { maxChars: 14, isTitle: true, fallback: "Low" });
+      const date = safeDate(item.date);
+
+      const claimH = Math.max(22, measureTextHeight(doc, claim, maxWidth - 24, { font: "Helvetica", fontSize: 9, lineGap: 1 }));
+      const supportH = Math.max(26, measureTextHeight(doc, supporting, maxWidth - 24, { font: "Helvetica", fontSize: 9, lineGap: 1 }));
+      const counterH = Math.max(18, measureTextHeight(doc, counter, maxWidth - 24, { font: "Helvetica", fontSize: 9, lineGap: 1 }));
+      const height = Math.max(138, 72 + claimH + supportH + counterH);
+
+      cursorY = ensureRoom(cursorY, height);
+      drawRoundedPanel(doc, margin, cursorY, maxWidth, height, { fill: "#ffffff", stroke: "#cadbd8", radius: 8 });
+      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(10).text(capability, margin + 12, cursorY + 10, { width: 290, lineBreak: false });
+      doc.fillColor("#4f6763").font("Helvetica").fontSize(8.4).text(`${concept} · ${confidence}`, margin + 12, cursorY + 24, { width: 330, lineBreak: false });
+      doc.fillColor("#4f6763").font("Helvetica").fontSize(8.4).text(`${attribution} · ${date}`, margin + 360, cursorY + 24, { width: 120, align: "right", lineBreak: false });
+
+      let y = cursorY + 40;
+      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Claim", margin + 12, y);
+      y += 12;
+      drawFittedText(doc, claim, margin + 12, y, maxWidth - 24, claimH, { font: "Helvetica", maxFontSize: 9, minFontSize: 8.3, color: "#1f3432" });
+      y += claimH + 6;
+
+      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Supporting evidence", margin + 12, y);
+      y += 12;
+      drawFittedText(doc, supporting, margin + 12, y, maxWidth - 24, supportH, { font: "Helvetica", maxFontSize: 9, minFontSize: 8.3, color: "#1f3432" });
+      y += supportH + 6;
+
+      doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.5).text("Counter-evidence", margin + 12, y);
+      y += 12;
+      drawFittedText(doc, counter, margin + 12, y, maxWidth - 24, counterH, { font: "Helvetica", maxFontSize: 9, minFontSize: 8.3, color: "#1f3432" });
+      return cursorY + height + 10;
+    };
+
+    let cursorY = addPage();
+    drawRoundedPanel(doc, margin, cursorY, maxWidth, 96, { fill: "#f5faf9", stroke: "#cadbd8", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(14).text("Detailed Evidence Appendix", margin + 12, cursorY + 12);
+    doc.fillColor("#1f3432").font("Helvetica-Bold").fontSize(10).text(sanitizeReportText(model.personName, { maxChars: 70, isTitle: true, fallback: "Professional profile" }), margin + 12, cursorY + 32);
+    doc.fillColor("#4f6763").font("Helvetica").fontSize(8.7)
+      .text(`Observation period: ${sanitizeReportText(model.observationPeriod, { maxChars: 30, isTitle: true, fallback: "-" })}`, margin + 12, cursorY + 48)
+      .text(`Extracted: ${safeDate(model.extractedDate)}`, margin + 12, cursorY + 60)
+      .text(`${model.analyzedConversationCount || 0} conversations · ${model.totalEvidenceItemCount || 0} evidence items`, margin + 12, cursorY + 72);
+    drawFittedText(doc, "AI-assisted evidence analysis based on user-provided content. Not independently verified.", margin + 250, cursorY + 48, 230, 30, { font: "Helvetica", maxFontSize: 8.4, minFontSize: 8, color: "#4f6763" });
+    cursorY += 108;
+
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(10).text("Conversations", margin, cursorY);
+    cursorY += 14;
     (model.analyzedConversations || []).forEach(item => {
-      drawCard(item.title, `${cleanText(item.date, "-")} · ${cleanText(item.category, language === "it" ? "non classificata" : "uncategorized")}`, item.excerpt, null);
+      cursorY = drawConversationCard(item, cursorY);
     });
-    cursorY += 8;
-    doc.fillColor("#136f63").font("Helvetica-Bold").fontSize(11).text(model.texts.evidenceItems, 34, cursorY);
-    cursorY += 18;
+
+    cursorY = ensureRoom(cursorY + 10, 28);
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(10).text("Evidence cards", margin, cursorY);
+    cursorY += 14;
     (model.evidenceHighlights || []).forEach(item => {
-      const meta = `${cleanText(item.group)} · ${cleanText(item.title)}${item.date ? ` · ${cleanText(String(item.date).slice(0, 10))}` : ""}`;
-      drawCard(item.skill, meta, item.excerpt, item.confidence || "");
+      cursorY = drawEvidenceCard(item, cursorY);
     });
-    if (cursorY + 24 > doc.page.height - 34) {
-      doc.addPage({ size: "A4", margins: { top: 34, bottom: 34, left: 34, right: 34 } });
-      cursorY = addHeader();
-    }
-    doc.fillColor("#5f6d69").font("Helvetica").fontSize(8.5).text(verificationNote, 34, cursorY + 8, { width: doc.page.width - 68 });
+
+    footer();
   });
+}
+
+async function renderCombinedPdf(snapshot, reportConfig) {
+  const snapshotBuffer = await renderSnapshotPdf(snapshot, reportConfig);
+  const appendixBuffer = await renderAppendixPdf(snapshot, reportConfig);
+  const merged = await PDFLibDocument.create();
+  const snapshotDoc = await PDFLibDocument.load(snapshotBuffer);
+  const appendixDoc = await PDFLibDocument.load(appendixBuffer);
+  const snapshotPages = await merged.copyPages(snapshotDoc, snapshotDoc.getPageIndices());
+  const appendixPages = await merged.copyPages(appendixDoc, appendixDoc.getPageIndices());
+  snapshotPages.forEach(page => merged.addPage(page));
+  appendixPages.forEach(page => merged.addPage(page));
+  const bytes = await merged.save();
+  return Buffer.from(bytes);
 }
 
 function sendPdf(res, fileName, buffer) {
@@ -3649,11 +3816,20 @@ function scanSummary(conversations) {
 
 async function handleApi(req, res) {
   try {
-    if (req.method === "GET" && req.url === "/api/version") {
+    const requestPath = getRequestPath(req);
+    if (req.method === "GET" && requestPath === "/api/health") {
+      sendJson(res, 200, {
+        ok: true,
+        runtime: IS_VERCEL ? "vercel" : "local",
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+    if (req.method === "GET" && requestPath === "/api/version") {
       sendJson(res, 200, { version: APP_VERSION });
       return;
     }
-    if (req.method === "POST" && req.url === "/api/import") {
+    if (req.method === "POST" && requestPath === "/api/import") {
       const body = await readBody(req);
       const parts = parseMultipart(body, req.headers["content-type"]);
       const file = parts.find(part => part.field === "file" || part.filename);
@@ -3667,7 +3843,7 @@ async function handleApi(req, res) {
       sendJson(res, 200, { sessionId, summary: scanSummary(conversations), conversations, report_config: reportConfig });
       return;
     }
-    if (req.method === "POST" && req.url === "/api/analyze") {
+    if (req.method === "POST" && requestPath === "/api/analyze") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const session = sessions.get(payload.sessionId);
       if (!session) throw new Error("Session not found.");
@@ -3681,7 +3857,7 @@ async function handleApi(req, res) {
       sendJson(res, 200, reports);
       return;
     }
-    if (req.method === "POST" && req.url === "/api/report") {
+    if (req.method === "POST" && requestPath === "/api/report") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const session = sessions.get(payload.sessionId);
       if (!session) throw new Error("Session not found.");
@@ -3692,21 +3868,28 @@ async function handleApi(req, res) {
       sendJson(res, 200, reports);
       return;
     }
-    if (req.method === "POST" && req.url === "/api/export/snapshot-pdf") {
+    if (req.method === "POST" && requestPath === "/api/export/snapshot-pdf") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const buffer = await renderSnapshotPdf(payload.snapshot, payload.reportConfig);
       const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
       sendPdf(res, `professional-evidence-snapshot-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
       return;
     }
-    if (req.method === "POST" && req.url === "/api/export/appendix-pdf") {
+    if (req.method === "POST" && requestPath === "/api/export/appendix-pdf") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const buffer = await renderAppendixPdf(payload.snapshot, payload.reportConfig);
       const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
       sendPdf(res, `detailed-evidence-appendix-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
       return;
     }
-    if (req.method === "POST" && req.url === "/api/delete") {
+    if (req.method === "POST" && requestPath === "/api/export/combined-pdf") {
+      const payload = JSON.parse((await readBody(req)).toString("utf8"));
+      const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
+      const buffer = await renderCombinedPdf(payload.snapshot, payload.reportConfig);
+      sendPdf(res, `professional-evidence-report-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
+      return;
+    }
+    if (req.method === "POST" && requestPath === "/api/delete") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       sessions.delete(payload.sessionId);
       sendJson(res, 200, { deleted: true });
@@ -3714,15 +3897,22 @@ async function handleApi(req, res) {
     }
     sendJson(res, 404, { error: "Not found" });
   } catch (error) {
-    sendJson(res, 400, { error: error.message });
+    sendError(res, 400, error, requestMeta(req));
   }
 }
 
 function handleRequest(req, res) {
-  if (req.url.startsWith("/api/")) {
-    handleApi(req, res);
-  } else {
+  try {
+    const requestPath = getRequestPath(req);
+    if (requestPath.startsWith("/api/")) {
+      Promise.resolve(handleApi(req, res)).catch(error => {
+        sendError(res, 500, error, requestMeta(req));
+      });
+      return;
+    }
     serveStatic(req, res);
+  } catch (error) {
+    sendError(res, 500, error, requestMeta(req));
   }
 }
 
@@ -3735,6 +3925,8 @@ if (require.main === module) {
 }
 
 module.exports = handleRequest;
+module.exports.default = handleRequest;
+module.exports.server = server;
 module.exports.APP_VERSION = APP_VERSION;
 module.exports.handleRequest = handleRequest;
 module.exports.normalizeChatGptExport = normalizeChatGptExport;
@@ -3743,6 +3935,7 @@ module.exports.generateInsights = generateInsights;
 module.exports.buildReports = buildReports;
 module.exports.renderSnapshotPdf = renderSnapshotPdf;
 module.exports.renderAppendixPdf = renderAppendixPdf;
+module.exports.renderCombinedPdf = renderCombinedPdf;
 module.exports.scanSummary = scanSummary;
 module.exports.redactText = redactText;
 module.exports.classifyConversation = classifyConversation;
