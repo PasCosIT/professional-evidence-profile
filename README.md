@@ -1,8 +1,8 @@
-# Workproof
+# EviLayer
 
 Turn AI-assisted work into verified professional evidence.
 
-Local MVP to import AI-assisted work exports, classify work-related conversations, redact sensitive data, review inclusion manually, and generate evidence-backed Workproof outputs.
+Local MVP to import AI-assisted work exports, classify work-related conversations, redact sensitive data, review inclusion manually, and generate evidence-backed EviLayer outputs.
 
 ## What this MVP does
 
@@ -12,7 +12,7 @@ Local MVP to import AI-assisted work exports, classify work-related conversation
 - Detects pasted external content heuristically.
 - Redacts names, emails, phones, API keys, credentials, addresses, and sensitive terms.
 - Lets the user include or exclude conversations.
-- Generates a normalized JSON, methodology KPIs, a Workproof Profile, a Workproof Snapshot, a Workproof Evidence Report, and an Evidence Appendix.
+- Generates a normalized JSON, methodology KPIs, a EviLayer Profile, a EviLayer Snapshot, a EviLayer Evidence Report, and an Evidence Appendix.
 - Deletes all in-memory session data with one action.
 
 ## What it intentionally does not do

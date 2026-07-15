@@ -138,7 +138,7 @@
           "- JSON compatto, descrizioni brevi e nessuna analisi narrativa lunga.",
           "- Nessun punteggio finale su capability o personalita'.",
           "- Non produrre il report finale: estrai, seleziona, anonimizza e struttura.",
-          "- L'interpretazione delle competenze resta al motore interno di Workproof."
+          "- L'interpretazione delle competenze resta al motore interno di EviLayer."
         ].join("\n");
       }
       return [
@@ -156,7 +156,7 @@
         "- Compact JSON, concise descriptions, no long narrative analysis.",
         "- No final capability or personality scoring.",
         "- Do not produce the final report: only extract, select, anonymize, and structure.",
-        "- Capability interpretation remains the responsibility of Workproof internal engine."
+        "- Capability interpretation remains the responsibility of EviLayer internal engine."
       ].join("\n");
     }
     return [
@@ -170,7 +170,7 @@
 
   function buildCorePrompt(config, locale, options) {
     const compact = Boolean(options && options.compact);
-    const generatedFor = "Workproof Profile - " + config.profile_name;
+    const generatedFor = "EviLayer Profile - " + config.profile_name;
     const periodNote = locale === "it"
       ? "Considera solo il periodo trusted indicato qui sotto. Non modificarlo."
       : "Consider only the trusted period below. Do not modify it.";
@@ -216,8 +216,8 @@
     ].join("\n");
 
     const heading = locale === "it"
-      ? (compact ? "Genera JSON Professional Evidence Pack compatibile con Workproof." : "Genera un Professional Evidence Pack JSON importabile in Workproof.")
-      : (compact ? "Generate Professional Evidence Pack JSON compatible with Workproof." : "Generate a Professional Evidence Pack JSON importable into Workproof.");
+      ? (compact ? "Genera JSON Professional Evidence Pack compatibile con EviLayer." : "Genera un Professional Evidence Pack JSON importabile in EviLayer.")
+      : (compact ? "Generate Professional Evidence Pack JSON compatible with EviLayer." : "Generate a Professional Evidence Pack JSON importable into EviLayer.");
 
     const outputConstraint = compact
       ? "Return valid JSON only. No markdown."
@@ -258,7 +258,7 @@
             "Carica il file conversations.json oppure i file da analizzare.",
             "Incolla il prompt generato.",
             "Scarica il file JSON prodotto.",
-            "Importalo in Workproof."
+            "Importalo in EviLayer."
           ];
         }
         return [
@@ -266,7 +266,7 @@
           "Upload conversations.json or the files to analyze.",
           "Paste the generated prompt.",
           "Download the produced JSON file.",
-          "Import it into Workproof."
+          "Import it into EviLayer."
         ];
       },
       compose: function(corePrompt, config, locale) {
@@ -304,7 +304,7 @@
             "Carica l'export o i file che vuoi analizzare.",
             "Incolla il prompt generato.",
             "Chiedi la creazione del file JSON.",
-            "Importa il file in Workproof."
+            "Importa il file in EviLayer."
           ];
         }
         return [
@@ -312,7 +312,7 @@
           "Upload the export or files to analyze.",
           "Paste the generated prompt.",
           "Ask for JSON file creation.",
-          "Import the file into Workproof."
+          "Import the file into EviLayer."
         ];
       },
       compose: function(corePrompt, config, locale) {
@@ -360,14 +360,14 @@
               "Carica i contenuti da analizzare.",
               "Incolla il prompt generato.",
               "Ottieni il JSON senza markdown.",
-              "Importa il JSON in Workproof."
+              "Importa il JSON in EviLayer."
             ]
           : [
               "Open a new Gemini chat.",
               "Upload the content to analyze.",
               "Paste the generated prompt.",
               "Get JSON with no markdown.",
-              "Import JSON into Workproof."
+              "Import JSON into EviLayer."
             ];
       },
       compose: function(corePrompt, config, locale) {
@@ -397,14 +397,14 @@
               "Carica o incolla il contenuto professionale.",
               "Incolla il prompt generato.",
               "Richiedi solo JSON valido.",
-              "Importa il JSON in Workproof."
+              "Importa il JSON in EviLayer."
             ]
           : [
               "Open a new chat in Microsoft Copilot.",
               "Upload or paste professional content.",
               "Paste the generated prompt.",
               "Request valid JSON only.",
-              "Import JSON into Workproof."
+              "Import JSON into EviLayer."
             ];
       },
       compose: function(corePrompt) {
@@ -419,14 +419,14 @@
               "Incolla o carica i contenuti da analizzare.",
               "Incolla il prompt generato.",
               "Richiedi output JSON puro.",
-              "Importa il JSON in Workproof."
+              "Importa il JSON in EviLayer."
             ]
           : [
               "Open a new Perplexity chat.",
               "Paste or upload content to analyze.",
               "Paste the generated prompt.",
               "Request pure JSON output.",
-              "Import JSON into Workproof."
+              "Import JSON into EviLayer."
             ];
       },
       compose: function(corePrompt) {
@@ -441,14 +441,14 @@
               "Fornisci repository, chat o note tecniche da analizzare.",
               "Incolla il prompt generato.",
               "Richiedi JSON senza testo extra.",
-              "Importa il JSON in Workproof."
+              "Importa il JSON in EviLayer."
             ]
           : [
               "Open a new coding assistant session.",
               "Provide repository, chats, or technical notes to analyze.",
               "Paste the generated prompt.",
               "Request JSON without extra text.",
-              "Import JSON into Workproof."
+              "Import JSON into EviLayer."
             ];
       },
       compose: function(corePrompt, config, locale) {
@@ -478,14 +478,14 @@
               "Carica o incolla il contenuto professionale da analizzare.",
               "Incolla il prompt generato.",
               "Ottieni solo JSON valido.",
-              "Importa il JSON in Workproof."
+              "Importa il JSON in EviLayer."
             ]
           : [
               "Open a new conversation in the selected AI assistant.",
               "Upload or paste professional content to analyze.",
               "Paste the generated prompt.",
               "Get valid JSON only.",
-              "Import JSON into Workproof."
+              "Import JSON into EviLayer."
             ];
       },
       compose: function(corePrompt) {

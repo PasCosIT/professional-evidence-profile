@@ -210,7 +210,7 @@ function updateExportPrompt() {
     const source = PromptBuilder ? PromptBuilder.platformDisplayName(config.source_platform) : (config.source_platform || "-");
     const modeLabel = config.export_mode === "complete" ? "Complete" : "Quick";
     summary.innerHTML = `
-      <strong>Profile: Workproof Profile - ${escapeHtml(config.profile_name)}</strong>
+      <strong>Profile: EviLayer Profile - ${escapeHtml(config.profile_name)}</strong>
       <span>Data analyzed: ${escapeHtml(config.period_from)} - ${escapeHtml(config.period_to)}</span>
       <span>Observation window: ${config.selected_months} months · Source: ${escapeHtml(source)} · Mode: ${modeLabel}</span>
     `;
@@ -581,7 +581,7 @@ const MIN_RADAR_EVIDENCE_COVERAGE = 40;
 function reportText(language) {
   if (language === "it") {
     return {
-      snapshotTitle: "Workproof Snapshot",
+      snapshotTitle: "EviLayer Snapshot",
       extractedLabel: "Estratto",
       dataAnalyzedLabel: "Dati analizzati",
       observationPeriodLabel: "Periodo di osservazione",
@@ -631,7 +631,7 @@ function reportText(language) {
     };
   }
   return {
-    snapshotTitle: "Workproof Snapshot",
+    snapshotTitle: "EviLayer Snapshot",
     extractedLabel: "Extracted",
     dataAnalyzedLabel: "Data analyzed",
     observationPeriodLabel: "Observation period",
@@ -1432,7 +1432,7 @@ function buildPrintableReportHtml(snapshot, config) {
       <section class="pdf-page">
         <header class="pdf-header">
           <div>
-            <p>Workproof Snapshot</p>
+            <p>EviLayer Snapshot</p>
             <h1>${escapeHtml(snapshot.personName)}</h1>
             <p>${escapeHtml(snapshot.summary)}</p>
           </div>
@@ -1482,7 +1482,7 @@ function buildPrintableReportHtml(snapshot, config) {
         <header class="pdf-header">
           <div>
             <p>Observed skill groups</p>
-            <h1>Workproof Evidence Report</h1>
+            <h1>EviLayer Evidence Report</h1>
             <p>A detailed and explainable analysis of professional evidence.</p>
           </div>
           <div class="pdf-meta">
@@ -1797,7 +1797,7 @@ function renderVisualProfile() {
     ? (state.reports.public_report && state.reports.public_report.evidence_coverage_detail) || state.reports.evidence_coverage_detail
     : state.reports.evidence_coverage_detail;
   const axes = buildRadarAxesFromTemporal(temporalMaturity);
-  const modeLabel = state.reportMode === "public" ? "Workproof Profile (Public)" : "Workproof Profile (Private)";
+  const modeLabel = state.reportMode === "public" ? "EviLayer Profile (Public)" : "EviLayer Profile (Private)";
   $("#visualProfile").innerHTML = `
     ${renderEvidenceCoverage(evidenceCoverage)}
     <section class="visual-grid">
@@ -2639,7 +2639,7 @@ $("#downloadSnapshotPdf").addEventListener("click", () => {
   const config = buildCurrentReportConfig();
   applyReportConfig(config);
   const snapshot = buildSnapshotData();
-  exportPdf("/api/export/snapshot-pdf", snapshot, config, `workproof-snapshot-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at}.pdf`)
+  exportPdf("/api/export/snapshot-pdf", snapshot, config, `evilayer-snapshot-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at}.pdf`)
     .catch(error => alert(error.message));
 });
 
@@ -2648,7 +2648,7 @@ if ($("#downloadAppendixPdf")) {
     const config = buildCurrentReportConfig();
     applyReportConfig(config);
     const snapshot = buildSnapshotData();
-    exportPdf("/api/export/appendix-pdf", snapshot, config, `workproof-evidence-appendix-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at}.pdf`)
+    exportPdf("/api/export/appendix-pdf", snapshot, config, `evilayer-evidence-appendix-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at}.pdf`)
       .catch(error => alert(error.message));
   });
 }
@@ -2658,7 +2658,7 @@ if ($("#downloadCombinedPdf")) {
     const config = buildCurrentReportConfig();
     applyReportConfig(config);
     const snapshot = buildSnapshotData();
-    exportPdf("/api/export/combined-pdf", snapshot, config, `workproof-evidence-report-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at}.pdf`)
+    exportPdf("/api/export/combined-pdf", snapshot, config, `evilayer-evidence-report-${config.sanitized_profile_name || sanitizedFilenameName(config.profile_name)}-${config.generated_at}.pdf`)
       .catch(error => alert(error.message));
   });
 }

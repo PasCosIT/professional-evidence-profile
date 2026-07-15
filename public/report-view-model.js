@@ -392,7 +392,7 @@
     return "" +
       '<article class="snapshot-page snapshot-page-vm">' +
       '  <header class="snapshot-header-vm">' +
-      '    <div><p class="vm-title">Workproof Snapshot</p><h1>' + escapeHtml(vm.profile) + '</h1><p class="vm-headline">' + escapeHtml(vm.headline) + '</p></div>' +
+      '    <div><p class="vm-title">EviLayer Snapshot</p><h1>' + escapeHtml(vm.profile) + '</h1><p class="vm-headline">' + escapeHtml(vm.headline) + '</p></div>' +
       '    <dl>' +
       '      <div><dt>Observation period</dt><dd>' + escapeHtml(vm.period && vm.period.label) + '</dd></div>' +
       '      <div><dt>Period analyzed</dt><dd>' + escapeHtml(vm.period && vm.period.range) + '</dd></div>' +

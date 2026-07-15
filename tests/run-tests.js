@@ -135,7 +135,7 @@ async function main() {
     export_mode: "quick",
     now: "2026-07-13T09:00:00.000Z"
   }, "en").prompt;
-  assert.ok(escapedProfilePrompt.includes('Workproof Profile - Mario \\"M\\" Rossi'), "profile name is escaped correctly inside JSON context");
+  assert.ok(escapedProfilePrompt.includes('EviLayer Profile - Mario \\"M\\" Rossi'), "profile name is escaped correctly inside JSON context");
 
   const promptFilename = PromptBuilder.getPromptDownloadFilename({
     profile_name: "Mario Rossi",
@@ -189,7 +189,7 @@ async function main() {
     observedDomains: ["program management", "technology integrations", "data and reporting"],
     typicalContribution: "Typically turns priorities into coordinated actions, clearer requirements and shared delivery across program management and technology integrations.",
     texts: {
-      snapshotTitle: "Workproof Snapshot",
+      snapshotTitle: "EviLayer Snapshot",
       signatureLabel: "Professional signature",
       domainsLabel: "Professional domains observed",
       contributionLabel: "Typical professional contribution",
@@ -257,7 +257,7 @@ async function main() {
   const normalizedSnapshotText = snapshotText.replace(/\s+/g, " ").trim();
   const normalizedAppendixText = appendixText.replace(/\s+/g, " ").trim();
   assert.strictEqual(parsedSnapshot.total, 1, "snapshot pdf reports exactly one page via parser");
-  assert.ok(normalizedSnapshotText.includes("Workproof Snapshot"), "snapshot pdf includes title");
+  assert.ok(normalizedSnapshotText.includes("EviLayer Snapshot"), "snapshot pdf includes title");
   assert.ok(normalizedSnapshotText.includes("Direct evidence: 50%"), "snapshot pdf includes direct attribution line");
   assert.ok(normalizedSnapshotText.includes("Mixed attribution: 20%"), "snapshot pdf includes mixed attribution line");
   assert.ok(normalizedSnapshotText.includes("External or AI context: 30%"), "snapshot pdf includes contextual attribution line");
@@ -344,7 +344,7 @@ async function main() {
 
   const sourceAwarePack = {
     schema: "professional_evidence_pack_v1",
-    generated_for: "Workproof Profile - Source Test",
+    generated_for: "EviLayer Profile - Source Test",
     generated_at: "2026-07-13",
     period: { from: "2026-01-13", to: "2026-07-13" },
     source: {
@@ -380,7 +380,7 @@ async function main() {
 
   const legacyPack = {
     schema: "professional_evidence_pack_v1",
-    generated_for: "Workproof Profile - Legacy",
+    generated_for: "EviLayer Profile - Legacy",
     generated_at: "2026-07-13",
     period: { from: "2026-01-13", to: "2026-07-13" },
     source: {

@@ -46,7 +46,7 @@ function logStartupDiagnostics() {
     publicDirExists: fs.existsSync(PUBLIC_DIR),
     publicIndexExists: fs.existsSync(path.join(PUBLIC_DIR, "index.html"))
   };
-  console.log("[startup] Workproof diagnostics", diagnostics);
+  console.log("[startup] EviLayer diagnostics", diagnostics);
 }
 
 function requestMeta(req) {
@@ -642,7 +642,7 @@ function normalizeReportConfig(input = {}) {
     period_to: periodTo,
     generated_at: generatedAt,
     report_language: reportLanguage,
-    generated_for: `Workproof Profile - ${profileName}`,
+    generated_for: `EviLayer Profile - ${profileName}`,
     sanitized_profile_name: sanitizedFilenameName(profileName)
   };
 }
@@ -1505,7 +1505,7 @@ function buildSkillPassport(normalized) {
   }).filter(group => group.skills.length);
 
   return {
-    title: "Workproof Profile",
+    title: "EviLayer Profile",
     subtitle: "An evidence-backed view of demonstrated professional capabilities.",
     groups,
     strengths: groups
@@ -3139,7 +3139,7 @@ function buildReports(normalized, userInsights, reportConfig) {
     temporal_maturity: privateTemporalMaturity,
     evidence_coverage_detail: privateEvidenceCoverage,
     private_report: {
-      title: config ? `Workproof Profile - ${config.profile_name}` : "Workproof Profile (Private)",
+      title: config ? `EviLayer Profile - ${config.profile_name}` : "EviLayer Profile (Private)",
       report_config: config,
       generated_at: kpis.generated_at,
       period: config ? { from: config.period_from, to: config.period_to, selected_months: config.selected_months } : { first_data: range.first, last_data: range.last },
@@ -3167,7 +3167,7 @@ function buildReports(normalized, userInsights, reportConfig) {
       evidence_coverage_detail: privateEvidenceCoverage
     },
     public_report: {
-      title: config ? `Workproof Profile - ${config.profile_name}` : "Workproof Profile (Shareable)",
+      title: config ? `EviLayer Profile - ${config.profile_name}` : "EviLayer Profile (Shareable)",
       report_config: config,
       generated_at: kpis.generated_at,
       period: config ? { from: config.period_from, to: config.period_to, selected_months: config.selected_months } : { first_data: range.first, last_data: range.last },
@@ -3200,7 +3200,7 @@ function buildReports(normalized, userInsights, reportConfig) {
 
 function pdfBuffer(render) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ autoFirstPage: false, compress: false, info: { Producer: "Workproof" } });
+    const doc = new PDFDocument({ autoFirstPage: false, compress: false, info: { Producer: "EviLayer" } });
     const chunks = [];
     doc.on("data", chunk => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
@@ -3546,7 +3546,7 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
     let y = margin;
 
     drawRoundedPanel(doc, margin, y, contentWidth, headerH, { fill: "#0f3e3a", stroke: "#0f3e3a", radius: 10 });
-    doc.fillColor("#d2ece7").font("Helvetica-Bold").fontSize(11).text("Workproof Snapshot", margin + 14, y + 10);
+    doc.fillColor("#d2ece7").font("Helvetica-Bold").fontSize(11).text("EviLayer Snapshot", margin + 14, y + 10);
     doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(18).text(sanitizeReportText(vm.profile, { maxChars: 72, isTitle: true, fallback: "Professional profile" }), margin + 14, y + 26, { width: 320, lineBreak: false });
     drawFittedText(doc, sanitizeReportText(vm.headline, { maxChars: 180, fallback: "The analyzed evidence shows recurring professional signals across multiple work contexts." }), margin + 14, y + 48, 520, 22, { font: "Helvetica", maxFontSize: 8.1, minFontSize: 7.4, color: "#f0f6f5", lineGap: 0 });
     doc.fillColor("#d2ece7").font("Helvetica").fontSize(8.5)
@@ -3843,21 +3843,21 @@ async function handleApi(req, res) {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const buffer = await renderSnapshotPdf(payload.snapshot, payload.reportConfig);
       const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
-      sendPdf(res, `workproof-snapshot-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
+      sendPdf(res, `evilayer-snapshot-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
       return;
     }
     if (req.method === "POST" && requestPath === "/api/export/appendix-pdf") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const buffer = await renderAppendixPdf(payload.snapshot, payload.reportConfig);
       const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
-      sendPdf(res, `workproof-evidence-appendix-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
+      sendPdf(res, `evilayer-evidence-appendix-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
       return;
     }
     if (req.method === "POST" && requestPath === "/api/export/combined-pdf") {
       const payload = JSON.parse((await readBody(req)).toString("utf8"));
       const config = normalizeReportConfig(payload.reportConfig || payload.snapshot && payload.snapshot.config || {});
       const buffer = await renderCombinedPdf(payload.snapshot, payload.reportConfig);
-      sendPdf(res, `workproof-evidence-report-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
+      sendPdf(res, `evilayer-evidence-report-${config.sanitized_profile_name}-${config.generated_at}.pdf`, buffer);
       return;
     }
     if (req.method === "POST" && requestPath === "/api/delete") {
@@ -3891,7 +3891,7 @@ const server = http.createServer(handleRequest);
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    console.log(`Workproof running at http://localhost:${PORT}`);
+    console.log(`EviLayer running at http://localhost:${PORT}`);
   });
 }
 

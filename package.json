@@ -2,7 +2,7 @@
   "name": "professional-evidence-profile",
   "version": "0.1.0",
   "private": true,
-  "description": "Workproof: verified professional evidence from AI-assisted work.",
+  "description": "EviLayer: verified professional evidence from AI-assisted work.",
   "scripts": {
     "start": "node server.cjs",
     "test": "node tests/run-tests.js"

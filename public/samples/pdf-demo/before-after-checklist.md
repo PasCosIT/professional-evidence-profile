@@ -1,6 +1,6 @@
-# Workproof PDF Export Checklist
+# EviLayer PDF Export Checklist
 
-This checklist documents the visual and content rules used in Workproof exports.
+This checklist documents the visual and content rules used in EviLayer exports.
 
 ## Snapshot
 
@@ -26,6 +26,6 @@ This checklist documents the visual and content rules used in Workproof exports.
 
 ## Files generated for visual check
 
-- workproof-snapshot-demo-profile-2026-07-14.pdf
-- workproof-evidence-appendix-demo-profile-2026-07-14.pdf
-- workproof-evidence-report-demo-profile-2026-07-14.pdf
+- evilayer-snapshot-demo-profile-2026-07-14.pdf
+- evilayer-evidence-appendix-demo-profile-2026-07-14.pdf
+- evilayer-evidence-report-demo-profile-2026-07-14.pdf
