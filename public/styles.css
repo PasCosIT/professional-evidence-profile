@@ -1530,7 +1530,8 @@ input[type="file"] {
   margin-top: 18px;
   padding: 22px;
   border-radius: 10px;
-  background: #eaf0ff;
+  background: #f7f9ff;
+  border: 1px solid #d5deef;
   overflow: auto;
 }
 
@@ -1972,7 +1973,7 @@ input[type="file"] {
 }
 
 .snapshot-header-vm dt {
-  color: rgba(255, 255, 255, 0.66);
+  color: #c8d9ff;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
@@ -2000,11 +2001,11 @@ input[type="file"] {
 }
 
 .vm-card {
-  border: 1px solid #d6e2df;
+  border: 1px solid #cfdcf8;
   border-radius: 12px;
-  background: var(--box);
+  background: #ffffff;
   padding: 12px 14px;
-  box-shadow: 0 1px 0 rgba(20, 35, 34, 0.04);
+  box-shadow: 0 1px 0 rgba(20, 35, 34, 0.06);
 }
 
 .vm-card h3,
@@ -2018,9 +2019,9 @@ input[type="file"] {
 
 .vm-card p {
   margin: 0;
-  color: #22302f;
+  color: #1f2d44;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
@@ -2048,9 +2049,9 @@ input[type="file"] {
 }
 
 .vm-kpis article {
-  border: 1px solid #dbe5ff;
+  border: 1px solid #cfdbf8;
   border-radius: 10px;
-  background: var(--box-soft);
+  background: #ffffff;
   padding: 10px;
   display: grid;
   gap: 4px;
@@ -2073,8 +2074,8 @@ input[type="file"] {
 }
 
 .vm-kpis p {
-  color: #687673;
-  font-size: 10px;
+  color: #4f5e7b;
+  font-size: 11px;
   line-height: 1.3;
 }
 
@@ -2084,9 +2085,9 @@ input[type="file"] {
 }
 
 .vm-cap {
-  border: 1px solid #dbe5ff;
+  border: 1px solid #cfdbf8;
   border-radius: 10px;
-  background: var(--box-soft);
+  background: #ffffff;
   padding: 10px;
   display: grid;
   gap: 4px;
@@ -2099,7 +2100,7 @@ input[type="file"] {
 
 .vm-cap span,
 .vm-cap p {
-  color: #4f6763;
+  color: #334562;
   font-size: 12px;
   line-height: 1.3;
   overflow-wrap: anywhere;
