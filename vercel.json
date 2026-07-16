@@ -1,15 +1,18 @@
 {
   "version": 2,
   "functions": {
-    "api/index.cjs": {
-      "includeFiles": "public/**"
+    "api/index.js": {
+      "includeFiles": [
+        "server.cjs",
+        "public/**"
+      ]
     }
   },
   "routes": [
     {
       "methods": ["GET", "POST", "DELETE", "OPTIONS"],
       "src": "/api/(.*)",
-      "dest": "/api/index.cjs"
+      "dest": "/api/index.js"
     },
     {
       "handle": "filesystem"
