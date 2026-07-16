@@ -289,6 +289,16 @@
 
      var conversationCount = Number(source.analyzedConversationCount || 0);
      var evidenceCount = Number(source.totalEvidenceItemCount || 0);
+     var demonstratedCapabilityCount = Number(source.demonstratedCapabilityCount);
+     if (Number.isNaN(demonstratedCapabilityCount) || demonstratedCapabilityCount < 0) {
+       demonstratedCapabilityCount = capabilities.length;
+     }
+     var capabilitiesTitle = demonstratedCapabilityCount > 0 ? "Supported Capabilities" : "Emerging Capability Signals";
+     var capabilitiesHelper = demonstratedCapabilityCount > 0
+       ? "Capabilities with sufficient evidence"
+       : (capabilities.length > 0
+         ? "No capability reached demonstrated threshold. Showing strongest emerging signals."
+         : "Capabilities with sufficient evidence");
  
      var model = {
        viewModelVersion: "snapshot-shared-v1",
@@ -318,13 +328,15 @@
          },
          {
            key: "supported_capabilities",
-           value: capabilities.length > 0 ? String(capabilities.length) : "Insufficient evidence",
+           value: demonstratedCapabilityCount > 0 ? String(demonstratedCapabilityCount) : "Insufficient evidence",
            label: "Demonstrated capabilities",
-          helper: "Capabilities with sufficient evidence"
+          helper: capabilitiesHelper
          },
          kpiPrimary
        ],
        capabilities: capabilities,
+       capabilitiesTitle: capabilitiesTitle,
+       demonstratedCapabilityCount: demonstratedCapabilityCount,
        notAssessed: {
          items: notAssessed.slice(0, 3),
          additional: Math.max(0, notAssessed.length - 3)
@@ -362,15 +374,23 @@
          return arr.findIndex(function (x) { return x.label === item.label; }) === index;
        });
  
-     var capCount = safeModel.capabilities.length;
+    var capCount = safeModel.capabilities.length;
+    var demonstratedCount = Number(safeModel.demonstratedCapabilityCount);
+    if (Number.isNaN(demonstratedCount) || demonstratedCount < 0) {
+      demonstratedCount = capCount;
+    }
      safeModel.metrics = (safeModel.metrics || []).map(function (metric) {
        if (!metric) return null;
        if (metric.key === "supported_capabilities") {
          return {
            key: metric.key,
-           value: capCount > 0 ? String(capCount) : "Insufficient evidence",
+          value: demonstratedCount > 0 ? String(demonstratedCount) : "Insufficient evidence",
            label: "Demonstrated capabilities",
-           helper: metric.helper || "Capability signals supported by evidence"
+          helper: metric.helper || (demonstratedCount > 0
+            ? "Capability signals supported by evidence"
+            : (capCount > 0
+              ? "No capability reached demonstrated threshold. Showing strongest emerging signals."
+              : "Capability signals supported by evidence"))
          };
        }
        return metric;
@@ -419,7 +439,9 @@
     var vm = viewModel || {};
     var notAssessedText = vm.notAssessed && vm.notAssessed.items && vm.notAssessed.items.length
       ? vm.notAssessed.items.join(" · ") + (vm.notAssessed.additional ? " · +" + vm.notAssessed.additional + " additional dimensions" : "")
-      : "All eligible dimensions had sufficient evidence for assessment.";
+      : ((Number(vm.demonstratedCapabilityCount || 0) === 0 && Array.isArray(vm.capabilities) && vm.capabilities.length)
+        ? "No eligible dimensions reached demonstrated threshold yet."
+        : "All eligible dimensions had sufficient evidence for assessment.");
 
     return "" +
       '<article class="snapshot-page snapshot-page-vm">' +
@@ -442,7 +464,7 @@
       }).join("") +
       '  </div></section>' +
       '  <section class="vm-grid vm-grid-bottom">' +
-      '    <article class="vm-card"><h3>Supported Capabilities</h3><div class="vm-caps">' +
+      '    <article class="vm-card"><h3>' + escapeHtml(vm.capabilitiesTitle || "Supported Capabilities") + '</h3><div class="vm-caps">' +
       (vm.capabilities || []).map(function (c) {
         var evidenceLine = (c.evidenceItemCount && c.conversationCount)
           ? (c.evidenceStrength + ' by ' + c.conversationCount + ' conversations and ' + c.evidenceItemCount + ' evidence items')

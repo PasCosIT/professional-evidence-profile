@@ -4940,8 +4940,18 @@ function buildSemanticViewModel(canonicalAnalysisResult, normalized, evidenceCov
   const supported = Array.isArray(canonicalAnalysisResult && canonicalAnalysisResult.supported_capabilities)
     ? canonicalAnalysisResult.supported_capabilities
     : [];
+  const emerging = Array.isArray(canonicalAnalysisResult && canonicalAnalysisResult.emerging_capabilities)
+    ? canonicalAnalysisResult.emerging_capabilities
+    : [];
+  const recurring = Array.isArray(canonicalAnalysisResult && canonicalAnalysisResult.recurring_strengths)
+    ? canonicalAnalysisResult.recurring_strengths
+    : [];
 
-  const axes = supported.slice(0, 6).map(item => {
+  const axisSource = supported.length
+    ? supported
+    : (emerging.length ? emerging : recurring);
+
+  const axes = axisSource.slice(0, 6).map(item => {
     const coverage = Number(item.coverage || item.evidence_coverage || Math.min(100, Math.round(Number(item.atomic_evidence_count || item.evidence_count || 0) * 20)));
     const strength = Number(item.strength || item.dominance_score || coverage || 0);
     const confidenceScore = Number(item.confidence_score || 0.55);
@@ -5038,6 +5048,7 @@ function buildSemanticViewModel(canonicalAnalysisResult, normalized, evidenceCov
     evidenceHighlights,
     selectedConversationCount: analyzedConversations.length,
     selectedExcerptCount: evidenceHighlights.length,
+    demonstratedCapabilityCount: Number(supported.length || 0),
     methodologyVersion: canonicalAnalysisResult && canonicalAnalysisResult.methodology_version || "structured-evidence-engine-v1",
     analysisMode: canonicalAnalysisResult && canonicalAnalysisResult.analysis_mode || "legacy",
     fallbackReason: canonicalAnalysisResult && canonicalAnalysisResult.fallback_reason || null,
