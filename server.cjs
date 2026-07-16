@@ -3537,18 +3537,26 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
       ? `${notAssessed.join(" · ")}${vm.notAssessed.additional ? ` · +${vm.notAssessed.additional} additional dimensions` : ""}`
       : "All eligible dimensions had sufficient evidence for assessment.";
 
-    const headerH = 70;
-    const topRowH = 96;
-    const kpiH = 82;
-    const bottomRowH = 196;
+    const headerH = 74;
+    const topRowH = 100;
+    const kpiH = 86;
+    const bottomRowH = 188;
     const footerH = 34;
 
     let y = margin;
 
     drawRoundedPanel(doc, margin, y, contentWidth, headerH, { fill: "#0f3e3a", stroke: "#0f3e3a", radius: 10 });
     doc.fillColor("#d2ece7").font("Helvetica-Bold").fontSize(11).text("EviLayer Snapshot", margin + 14, y + 10);
-    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(18).text(sanitizeReportText(vm.profile, { maxChars: 72, isTitle: true, fallback: "Professional profile" }), margin + 14, y + 26, { width: 320, lineBreak: false });
-    drawFittedText(doc, sanitizeReportText(vm.headline, { maxChars: 180, fallback: "The analyzed evidence shows recurring professional signals across multiple work contexts." }), margin + 14, y + 48, 520, 22, { font: "Helvetica", maxFontSize: 8.1, minFontSize: 7.4, color: "#f0f6f5", lineGap: 0 });
+    drawFittedText(
+      doc,
+      sanitizeReportText(vm.profile, { maxChars: 72, isTitle: true, fallback: "Professional profile" }),
+      margin + 14,
+      y + 26,
+      360,
+      18,
+      { font: "Helvetica-Bold", maxFontSize: 17, minFontSize: 13, color: "#ffffff", lineGap: 0 }
+    );
+    drawFittedText(doc, sanitizeReportText(vm.headline, { maxChars: 160, fallback: "The analyzed evidence shows recurring professional signals across multiple work contexts." }), margin + 14, y + 46, 520, 24, { font: "Helvetica", maxFontSize: 8.2, minFontSize: 7.4, color: "#f0f6f5", lineGap: 0 });
     doc.fillColor("#d2ece7").font("Helvetica").fontSize(8.5)
       .text(`Observation period: ${sanitizeReportText(vm.period && vm.period.label, { maxChars: 32, isTitle: true, fallback: "-" })}`, margin + 540, y + 12, { width: 190, align: "right" })
       .text(`Period analyzed: ${sanitizeReportText(vm.period && vm.period.range, { maxChars: 52, isTitle: true, fallback: "-" })}`, margin + 540, y + 26, { width: 190, align: "right" })
@@ -3579,10 +3587,10 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
     const kpiWidth = (contentWidth - 20 - kpiGap * 3) / 4;
     metrics.forEach((kpi, index) => {
       const x = margin + 10 + index * (kpiWidth + kpiGap);
-      drawRoundedPanel(doc, x, y + 22, kpiWidth, 50, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 7 });
+      drawRoundedPanel(doc, x, y + 22, kpiWidth, 54, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 7 });
       doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(12).text(String(kpi.value), x + 7, y + 26, { width: kpiWidth - 14, lineBreak: false });
-      drawFittedText(doc, sanitizeReportText(kpi.label, { maxChars: 38, isTitle: true, fallback: "Metric" }), x + 7, y + 40, kpiWidth - 14, 10, { font: "Helvetica-Bold", maxFontSize: 7.5, minFontSize: 7, color: "#1d3b38" });
-      drawFittedText(doc, sanitizeReportText(kpi.helper, { maxChars: 50, fallback: "" }), x + 7, y + 52, kpiWidth - 14, 18, { font: "Helvetica", maxFontSize: 6.9, minFontSize: 6.5, color: "#5b7470" });
+      drawFittedText(doc, sanitizeReportText(kpi.label, { maxChars: 38, isTitle: true, fallback: "Metric" }), x + 7, y + 40, kpiWidth - 14, 11, { font: "Helvetica-Bold", maxFontSize: 7.5, minFontSize: 7, color: "#1d3b38" });
+      drawFittedText(doc, sanitizeReportText(kpi.helper, { maxChars: 48, fallback: "" }), x + 7, y + 53, kpiWidth - 14, 18, { font: "Helvetica", maxFontSize: 6.8, minFontSize: 6.4, color: "#5b7470" });
     });
 
     y += kpiH + gap;
@@ -3594,43 +3602,46 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
       doc.fillColor("#4e6662").font("Helvetica").fontSize(9).text("Not enough evidence to assess this capability.", margin + 10, y + 30);
     } else {
       capabilityRows.forEach((row, index) => {
-        const cardY = y + 24 + index * 33;
-        drawRoundedPanel(doc, margin + 10, cardY, capW - 20, 28, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 6 });
-        doc.fillColor("#163331").font("Helvetica-Bold").fontSize(8.7).text(sanitizeReportText(row.label, { maxChars: 44, isTitle: true, fallback: "Capability" }), margin + 16, cardY + 6, { width: 165, lineBreak: false });
-        drawFittedText(doc, `${row.evidenceStrength} · ${row.evidenceCoverage} · ${row.attribution} attribution`, margin + 186, cardY + 6, 210, 10, { font: "Helvetica", maxFontSize: 7.3, minFontSize: 6.8, color: "#4f6763" });
+        const rowGap = 2;
+        const rowHeight = 29;
+        const cardY = y + 24 + index * (rowHeight + rowGap);
+        const cardX = margin + 10;
+        const cardW = capW - 20;
+        drawRoundedPanel(doc, cardX, cardY, cardW, rowHeight, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 6 });
+        drawFittedText(doc, sanitizeReportText(row.label, { maxChars: 48, isTitle: true, fallback: "Capability" }), cardX + 6, cardY + 4, 250, 10, { font: "Helvetica-Bold", maxFontSize: 8.4, minFontSize: 7.6, color: "#163331" });
         const countLine = row.evidenceItemCount && row.conversationCount
-          ? `${row.evidenceItemCount} evidence items across ${row.conversationCount} conversations`
+          ? `${row.evidenceItemCount} evidence · ${row.conversationCount} conv.`
           : "";
-        drawFittedText(doc, countLine, margin + 398, cardY + 6, 95, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.6, align: "right", color: "#4f6763" });
+        drawFittedText(doc, countLine, cardX + cardW - 140, cardY + 4, 134, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.5, align: "right", color: "#4f6763" });
+        drawFittedText(doc, `${row.evidenceStrength} · ${row.evidenceCoverage} · ${row.attribution} attribution`, cardX + 6, cardY + 15, cardW - 12, 10, { font: "Helvetica", maxFontSize: 7.2, minFontSize: 6.7, color: "#4f6763" });
       });
     }
 
     const rightX = margin + capW + gap;
-    drawRoundedPanel(doc, rightX, y, rightW, 68, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    drawRoundedPanel(doc, rightX, y, rightW, 74, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
     doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.8).text("Not Assessed", rightX + 10, y + 8);
-    drawFittedText(doc, notAssessedText, rightX + 10, y + 24, rightW - 20, 36, { font: "Helvetica", maxFontSize: 8.2, minFontSize: 7.4, color: "#4f6763" });
+    drawFittedText(doc, notAssessedText, rightX + 10, y + 24, rightW - 20, 42, { font: "Helvetica", maxFontSize: 8.1, minFontSize: 7.3, color: "#4f6763" });
 
-    drawRoundedPanel(doc, rightX, y + 76, rightW, bottomRowH - 76, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.6).text("Methodology and verification", rightX + 10, y + 84);
+    drawRoundedPanel(doc, rightX, y + 80, rightW, bottomRowH - 80, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.6).text("Methodology and verification", rightX + 10, y + 88);
     drawFittedText(
       doc,
       sanitizeReportText(vm.verification, { maxChars: 260, fallback: "AI-assisted analysis based on user-provided content. The evidence has not been independently verified." }),
       rightX + 10,
-      y + 98,
+      y + 102,
       rightW - 20,
       52,
       { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.7, color: "#4f6763" }
     );
     doc.fillColor("#4f6763").font("Helvetica").fontSize(7)
-      .text(`Direct evidence: ${vm.attribution.directPercent}%`, rightX + 10, y + 152, { width: rightW - 20 })
-      .text(`Mixed attribution: ${vm.attribution.mixedPercent}%`, rightX + 10, y + 160, { width: rightW - 20 })
-      .text(`External or AI context: ${vm.attribution.contextualPercent}%`, rightX + 10, y + 168, { width: rightW - 20 });
+      .text(`Direct evidence: ${vm.attribution.directPercent}%`, rightX + 10, y + 156, { width: rightW - 20 })
+      .text(`Mixed attribution: ${vm.attribution.mixedPercent}%`, rightX + 10, y + 164, { width: rightW - 20 })
+      .text(`External or AI context: ${vm.attribution.contextualPercent}%`, rightX + 10, y + 172, { width: rightW - 20 });
 
     y += bottomRowH + gap;
     drawRoundedPanel(doc, margin, y, contentWidth, footerH, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
-    doc.fillColor("#4f6763").font("Helvetica").fontSize(7.3)
-      .text(`Report ID: ${sanitizeReportText(config.sanitized_profile_name, { maxChars: 32, isTitle: true, fallback: "profile" })}-${config.generated_at}`, margin + 12, y + 10, { width: 280 })
-      .text(`Methodology version: ${sanitizeReportText(vm.methodologyVersion, { maxChars: 24, isTitle: true, fallback: "snapshot-v11" })}`, margin + 530, y + 10, { width: 200, align: "right" });
+    drawFittedText(doc, `Report ID: ${sanitizeReportText(config.sanitized_profile_name, { maxChars: 32, isTitle: true, fallback: "profile" })}-${config.generated_at}`, margin + 12, y + 10, 330, 12, { font: "Helvetica", maxFontSize: 7.3, minFontSize: 6.8, color: "#4f6763" });
+    drawFittedText(doc, `Methodology version: ${sanitizeReportText(vm.methodologyVersion, { maxChars: 24, isTitle: true, fallback: "snapshot-v11" })}`, margin + 500, y + 10, 230, 12, { font: "Helvetica", maxFontSize: 7.3, minFontSize: 6.8, color: "#4f6763", align: "right" });
   });
 }
 

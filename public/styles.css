@@ -1888,6 +1888,14 @@ input[type="file"] {
   gap: 12px;
 }
 
+.snapshot-page.snapshot-page-vm {
+  aspect-ratio: auto;
+  min-height: 760px;
+  grid-template-rows: auto auto auto auto;
+  overflow: visible;
+  margin-bottom: 24px;
+}
+
 .snapshot-header-vm {
   display: grid;
   grid-template-columns: 1.3fr 0.7fr;

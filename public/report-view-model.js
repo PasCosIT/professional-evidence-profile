@@ -271,10 +271,10 @@
          range: cleanText(source.dataRange) || "-",
          generated: formatHumanDate(source.extractedDate)
        },
-       headline: ensureSentence(source.summary || source.professionalSignature, 180, "headline"),
-       professionalPattern: ensureSentence(source.professionalSignature, 260, "pattern"),
+      headline: ensureSentence(source.summary || source.professionalSignature, 150, "headline"),
+      professionalPattern: ensureSentence(source.professionalSignature, 210, "pattern"),
        contexts: contexts,
-       typicalContribution: ensureSentence(source.typicalContribution, 220, "contribution"),
+      typicalContribution: ensureSentence(source.typicalContribution, 170, "contribution"),
        metrics: [
          {
            key: "professional_conversations",
@@ -302,7 +302,7 @@
          additional: Math.max(0, notAssessed.length - 3)
        },
        attribution: attribution,
-       verification: "Explainable analysis based on user-controlled professional evidence from AI-assisted work. The evidence has not been independently verified. Evidence coverage represents availability and recurrence, not professional performance.",
+      verification: "Explainable analysis from user-controlled professional evidence. The evidence is not independently verified. Coverage reflects evidence availability, not performance.",
        methodologyVersion: "snapshot-v11"
      };
  
@@ -354,9 +354,9 @@
        });
      }
  
-     safeModel.headline = ensureSentence(safeModel.headline, 180, "headline");
-     safeModel.professionalPattern = ensureSentence(safeModel.professionalPattern, 260, "pattern");
-     safeModel.typicalContribution = ensureSentence(safeModel.typicalContribution, 220, "contribution");
+    safeModel.headline = ensureSentence(safeModel.headline, 150, "headline");
+    safeModel.professionalPattern = ensureSentence(safeModel.professionalPattern, 210, "pattern");
+    safeModel.typicalContribution = ensureSentence(safeModel.typicalContribution, 170, "contribution");
  
      var sumPercent = Number((safeModel.attribution && safeModel.attribution.directPercent) || 0)
        + Number((safeModel.attribution && safeModel.attribution.mixedPercent) || 0)
