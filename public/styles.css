@@ -5,6 +5,8 @@
   --muted: #4f5f84;
   --line: #d6def5;
   --panel: #ffffff;
+  --box: #eef1f4;
+  --box-soft: #f4f6f9;
   --accent: #2f5bff;
   --accent-2: #7a92ff;
   --soft: #e9efff;
@@ -201,8 +203,17 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 16px;
-  background: var(--panel);
+  background: var(--box);
   box-shadow: 0 4px 14px rgba(47, 91, 255, 0.05);
+}
+
+/* Keep the explain cards visually identical to the Quick Evidence Pack box. */
+.explain .info-grid .info-block,
+.explain > .info-block {
+  background: var(--box);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: none;
 }
 
 .info-block h4 {
@@ -250,7 +261,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
-  background: #fbfcfa;
+  background: var(--box);
 }
 
 .quick-pack h3 {
@@ -361,7 +372,7 @@ h1 {
 .prompt-instructions {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--box-soft);
   padding: 12px;
 }
 
@@ -381,7 +392,7 @@ h1 {
 .technical-details {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--box-soft);
   padding: 12px;
 }
 
@@ -414,7 +425,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 14px;
-  background: #fcfdfb;
+  background: var(--box-soft);
   display: grid;
   gap: 10px;
 }
@@ -473,7 +484,7 @@ h1 {
 }
 
 .panel {
-  background: var(--panel);
+  background: var(--box);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 22px;
@@ -514,7 +525,7 @@ h1 {
   padding: 18px;
   border: 1px dashed #b8c6ee;
   border-radius: 8px;
-  background: #f8faff;
+  background: var(--box-soft);
 }
 
 input[type="file"] {
@@ -582,7 +593,7 @@ input[type="file"] {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
-  background: #fbfcfa;
+  background: var(--box-soft);
 }
 
 .metric strong {
@@ -610,7 +621,7 @@ input[type="file"] {
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #f8faff;
+  background: var(--box);
 }
 
 .review-summary-panel h4 {
@@ -655,7 +666,7 @@ input[type="file"] {
   margin-top: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--box);
 }
 
 .advanced-review summary {
@@ -684,7 +695,7 @@ input[type="file"] {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 14px;
-  background: #f8faff;
+  background: var(--box-soft);
 }
 
 .cluster h4 {
@@ -738,6 +749,7 @@ input[type="file"] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
+  background: var(--box-soft);
 }
 
 .compact-review-list .conversation {
@@ -852,7 +864,7 @@ input[type="file"] {
   margin-top: 12px;
   padding: 10px;
   border-radius: 8px;
-  background: #f7f8f5;
+  background: var(--box-soft);
   color: var(--muted);
 }
 
@@ -863,7 +875,7 @@ input[type="file"] {
   margin-bottom: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f7f8f5;
+  background: var(--box-soft);
 }
 
 .report-mode button {
@@ -886,7 +898,7 @@ input[type="file"] {
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 16px;
-  background: #fff;
+  background: var(--box);
 }
 
 .coverage-grid {
@@ -907,7 +919,7 @@ input[type="file"] {
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcfa;
+  background: var(--box-soft);
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
@@ -933,7 +945,7 @@ input[type="file"] {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
-  background: #fbfcfa;
+  background: var(--box);
 }
 
 .visual-head {
@@ -1390,7 +1402,7 @@ input[type="file"] {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
-  background: #fff;
+  background: var(--box);
 }
 
 .tech-scope {
@@ -1413,7 +1425,7 @@ input[type="file"] {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
-  background: #fbfcfa;
+  background: var(--box-soft);
 }
 
 .tech-signal.muted-signal {
@@ -1470,7 +1482,7 @@ input[type="file"] {
 .tech-evidence li {
   border-left: 3px solid var(--accent);
   padding: 8px 10px;
-  background: #f7f8f5;
+  background: var(--box-soft);
   border-radius: 4px;
 }
 
@@ -1597,7 +1609,7 @@ input[type="file"] {
   border: 1px solid #d6e2df;
   border-radius: 10px;
   padding: 12px;
-  background: #fcfdfc;
+  background: var(--box);
   display: grid;
   gap: 6px;
 }
@@ -1720,7 +1732,7 @@ input[type="file"] {
 .snapshot-note {
   border: 1px solid #d6e2df;
   border-radius: 12px;
-  background: #fff;
+  background: var(--box);
   box-shadow: 0 1px 0 rgba(20, 35, 34, 0.04);
 }
 
@@ -1845,7 +1857,7 @@ input[type="file"] {
   padding: 7px 9px;
   border: 1px solid #d6e2df;
   border-radius: 8px;
-  background: #f7fbf9;
+  background: var(--box-soft);
 }
 
 .identity-meta-item span {
@@ -1990,7 +2002,7 @@ input[type="file"] {
 .vm-card {
   border: 1px solid #d6e2df;
   border-radius: 12px;
-  background: #fff;
+  background: var(--box);
   padding: 12px 14px;
   box-shadow: 0 1px 0 rgba(20, 35, 34, 0.04);
 }
@@ -2038,7 +2050,7 @@ input[type="file"] {
 .vm-kpis article {
   border: 1px solid #dbe5ff;
   border-radius: 10px;
-  background: #f3f6ff;
+  background: var(--box-soft);
   padding: 10px;
   display: grid;
   gap: 4px;
@@ -2074,7 +2086,7 @@ input[type="file"] {
 .vm-cap {
   border: 1px solid #dbe5ff;
   border-radius: 10px;
-  background: #f3f6ff;
+  background: var(--box-soft);
   padding: 10px;
   display: grid;
   gap: 4px;
