@@ -10,6 +10,7 @@ let state = {
 
 const PROMPT_PREFS_KEY = "aiWorkPassportPromptPrefsV1";
 const PromptBuilder = window.PromptBuilder || null;
+const ConversationSelection = window.ConversationSelection || null;
 let promptGeneratedPayload = null;
 let promptGenerationAttempted = false;
 
@@ -307,13 +308,30 @@ function classificationPill(classification) {
   return `<span class="pill ${cls}">${classification}</span>`;
 }
 
+function isConversationIncluded(conversation) {
+  if (ConversationSelection && typeof ConversationSelection.resolveInitialConversationIncluded === "function") {
+    return ConversationSelection.resolveInitialConversationIncluded(conversation);
+  }
+  return Boolean(conversation && conversation.approved);
+}
+
+function setConversationIncluded(conversation, include) {
+  if (!conversation) return;
+  if (ConversationSelection && typeof ConversationSelection.applyUserConversationSelection === "function") {
+    const next = ConversationSelection.applyUserConversationSelection(conversation, include);
+    Object.assign(conversation, next);
+    return;
+  }
+  conversation.approved = Boolean(include);
+}
+
 function renderReview() {
   const clusters = buildConversationClusters(state.conversations);
-  const included = state.conversations.filter(conversation => conversation.approved).length;
+  const included = state.conversations.filter(conversation => isConversationIncluded(conversation)).length;
   const professional = state.conversations.filter(conversation => ["professional", "mixed"].includes(conversation.classification)).length;
   const excluded = state.conversations.length - included;
   const categories = Array.from(new Set(state.conversations
-    .filter(conversation => conversation.approved)
+    .filter(conversation => isConversationIncluded(conversation))
     .map(conversation => conversation.professional_category)
     .filter(Boolean))).slice(0, 6);
   $("#conversationList").innerHTML = `
@@ -365,7 +383,7 @@ function buildConversationClusters(conversations) {
     };
     current.conversations.push(conversation);
     current.sensitive_count += (conversation.sensitive_flags || []).length ? 1 : 0;
-    current.approved_count += conversation.approved ? 1 : 0;
+    current.approved_count += isConversationIncluded(conversation) ? 1 : 0;
     current.confidence_sum += conversation.confidence || 0;
     [conversation.created_at, conversation.updated_at].filter(Boolean).forEach(date => current.dates.push(date));
     map.set(key, current);
@@ -407,7 +425,7 @@ function renderCluster(cluster) {
 
 function renderConversationCard(conversation) {
     const flags = conversation.sensitive_flags || [];
-    const includeChecked = conversation.approved ? "checked" : "";
+  const includeChecked = isConversationIncluded(conversation) ? "checked" : "";
     const firstUser = conversation.messages.find(message => message.author === "user");
     const excerpt = firstUser ? firstUser.text.slice(0, 120) : "No user message found.";
     const date = (conversation.created_at || conversation.updated_at || "").slice(0, 10) || "-";
@@ -450,7 +468,7 @@ function setClusterIncluded(classification, category, include) {
     if (card.dataset.classification === classification && card.dataset.category === category) {
       card.querySelector(".include").checked = include;
       const conversation = state.conversations.find(item => String(item.id) === String(card.dataset.id));
-      if (conversation) conversation.approved = include;
+      setConversationIncluded(conversation, include);
     }
   });
   persistState();
@@ -464,9 +482,7 @@ function bindConversationControls() {
       const card = input.closest(".conversation");
       if (!card) return;
       const conversation = state.conversations.find(item => String(item.id) === String(card.dataset.id));
-      if (conversation) {
-        conversation.approved = input.checked;
-      }
+      setConversationIncluded(conversation, input.checked);
       persistState();
       renderReview();
       if (state.reports) renderReports();
@@ -2617,7 +2633,7 @@ $("#selectProfessional").addEventListener("click", () => {
     const include = classification === "professional";
     card.querySelector(".include").checked = include;
     const conversation = state.conversations.find(item => String(item.id) === String(card.dataset.id));
-    if (conversation) conversation.approved = include;
+    setConversationIncluded(conversation, include);
   });
   persistState();
   renderReview();
@@ -2630,7 +2646,7 @@ $("#excludeSensitive").addEventListener("click", () => {
     if (danger) {
       card.querySelector(".include").checked = false;
       const conversation = state.conversations.find(item => String(item.id) === String(card.dataset.id));
-      if (conversation) conversation.approved = false;
+      setConversationIncluded(conversation, false);
     }
   });
   persistState();

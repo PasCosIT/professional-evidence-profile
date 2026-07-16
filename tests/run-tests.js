@@ -5,6 +5,7 @@ const { PDFParse } = require("pdf-parse");
 const {
   handleRequest,
   normalizeChatGptExport,
+  attachResolvedConversationSelection,
   buildNormalized,
   buildReports,
   renderSnapshotPdf,
@@ -15,6 +16,10 @@ const {
 } = require("../server.cjs");
 const PromptBuilder = require("../public/prompt-builder.js");
 const ReportViewModel = require("../public/report-view-model.js");
+const {
+  resolveInitialConversationIncluded,
+  applyUserConversationSelection
+} = require("../public/conversation-selection.js");
 
 const root = path.join(__dirname, "..");
 const serverPath = path.join(root, "server.cjs");
@@ -1531,6 +1536,63 @@ async function main() {
     assert.strictEqual(String((backendStructured.professional_pattern.professional_family || {}).id || ""), "technical_and_engineering", "Backend fixture family should remain technical_and_engineering");
     assert.strictEqual(String((salesStructured.professional_pattern.professional_family || {}).id || ""), "commercial_and_growth", "Sales fixture family should remain commercial_and_growth");
     assert.strictEqual(String((legalStructured.professional_pattern.professional_family || {}).id || ""), "legal_risk_and_compliance", "Legal fixture family should remain legal_risk_and_compliance");
+
+    // SELECTION ALIGNMENT TEST 1 — professional + approved false + resolved selected true -> checked
+    const selectionCaseOne = {
+      id: "sel_align_1",
+      title: "Selection case one",
+      classification: "professional",
+      approved: false,
+      selected: true,
+      confidence: 0.7,
+      messages: [{ author: "user", text: "Professional discussion." }],
+      selection: {
+        explicitly_excluded: false,
+        selected: true,
+        automatically_selected: true
+      }
+    };
+    assert.strictEqual(resolveInitialConversationIncluded(selectionCaseOne), true, "resolved selected=true should initialize checkbox checked even if approved=false");
+
+    // SELECTION ALIGNMENT TEST 2 — explicit user exclusion -> unchecked
+    const selectionCaseTwo = {
+      id: "sel_align_2",
+      title: "Selection case two",
+      classification: "professional",
+      approved: true,
+      selected: true,
+      confidence: 0.7,
+      messages: [{ author: "user", text: "Professional discussion." }],
+      selection: {
+        user_selected: false,
+        explicitly_excluded: true,
+        selected: true,
+        automatically_selected: true
+      }
+    };
+    assert.strictEqual(resolveInitialConversationIncluded(selectionCaseTwo), false, "explicit exclusion should initialize checkbox unchecked");
+
+    // SELECTION ALIGNMENT TEST 3 — legacy payload with approved only -> backward compatible
+    assert.strictEqual(resolveInitialConversationIncluded({ approved: true }), true, "legacy approved=true should remain checked");
+    assert.strictEqual(resolveInitialConversationIncluded({ approved: false }), false, "legacy approved=false should remain unchecked");
+
+    // SELECTION ALIGNMENT TEST 4 — HR fixture -> 12 checkbox checked initially
+    const hrImportConversations = normalizeChatGptExport(fixtureHr).map(conversation => attachResolvedConversationSelection(conversation));
+    const hrInitialChecked = hrImportConversations.filter(conversation => resolveInitialConversationIncluded(conversation)).length;
+    assert.strictEqual(hrInitialChecked, 12, "HR fixture should initialize all 12 checkboxes as checked");
+
+    // SELECTION ALIGNMENT TEST 5 — manual checkbox change -> next analysis uses user choice
+    const hrWithManualOverride = hrImportConversations.map(conversation => ({ ...conversation }));
+    const overriddenConversation = hrWithManualOverride.find(conversation => conversation.id === "hr_001");
+    const overriddenUpdated = applyUserConversationSelection(overriddenConversation, false);
+    Object.assign(overriddenConversation, overriddenUpdated);
+    const decisions = hrWithManualOverride.map(conversation => ({
+      id: conversation.id,
+      include: resolveInitialConversationIncluded(conversation),
+      classification: conversation.classification
+    }));
+    const normalizedAfterManualOverride = buildNormalized(hrWithManualOverride, decisions);
+    assert.ok(!normalizedAfterManualOverride.some(conversation => conversation.id === "hr_001"), "manual unchecked conversation should be excluded in next backend analysis");
 
     // STRUCTURAL REDESIGN TEST 17 — MIXED PROFILE
     const mixedPack = {

@@ -1294,7 +1294,7 @@ function normalizeEvidencePack(pack) {
       evidence_items: evidenceItems,
       selection: {
         classification_input: conversation.classification || null,
-        user_selected: conversation.user_selected === true,
+        user_selected: typeof conversation.user_selected === "boolean" ? conversation.user_selected : null,
         explicitly_excluded: conversation.excluded === true || conversation.user_selected === false,
         automatically_selected: false,
         selected: false,
@@ -1494,10 +1494,13 @@ function redactEvidenceField(value, fieldName) {
 }
 
 function resolveConversationSelection(conversation, decision) {
+  const conversationUserSelected = conversation && conversation.selection && typeof conversation.selection.user_selected === "boolean"
+    ? conversation.selection.user_selected
+    : null;
   const selection = {
     classification: decision && decision.classification ? decision.classification : conversation.classification,
     approved: decision ? Boolean(decision.include) : Boolean(conversation.approved),
-    user_selected: decision ? Boolean(decision.include) : Boolean(conversation.selection && conversation.selection.user_selected),
+    user_selected: decision ? Boolean(decision.include) : conversationUserSelected,
     automatically_selected: false,
     excluded: false,
     exclusion_reason: null,
@@ -1564,6 +1567,27 @@ function resolveConversationSelection(conversation, decision) {
   selection.exclusion_reason = selectionReasonCodes.excluded_ambiguous;
   selection.reason_codes.push(selectionReasonCodes.excluded_ambiguous);
   return selection;
+}
+
+function attachResolvedConversationSelection(conversation, decision) {
+  const resolvedSelection = resolveConversationSelection(conversation, decision);
+  const existingSelection = conversation && typeof conversation.selection === "object" ? conversation.selection : {};
+  return {
+    ...conversation,
+    selected: !resolvedSelection.excluded,
+    automatically_selected: resolvedSelection.automatically_selected,
+    user_selected: resolvedSelection.user_selected,
+    selection_reason_codes: resolvedSelection.reason_codes,
+    exclusion_reason: resolvedSelection.exclusion_reason,
+    selection: {
+      ...existingSelection,
+      selected: !resolvedSelection.excluded,
+      automatically_selected: resolvedSelection.automatically_selected,
+      user_selected: resolvedSelection.user_selected,
+      exclusion_reason: resolvedSelection.exclusion_reason,
+      reason_codes: resolvedSelection.reason_codes
+    }
+  };
 }
 
 function buildNormalized(conversations, decisions) {
@@ -5558,7 +5582,8 @@ async function handleApi(req, res) {
       const configPart = parts.find(part => part.field === "reportConfig");
       const reportConfig = configPart ? normalizeReportConfig(JSON.parse(configPart.data.toString("utf8"))) : null;
       const raw = parseUpload(file.data, file.filename);
-      const conversations = filterByReportPeriod(normalizeChatGptExport(raw), reportConfig);
+      const conversations = filterByReportPeriod(normalizeChatGptExport(raw), reportConfig)
+        .map(conversation => attachResolvedConversationSelection(conversation));
       const sessionId = crypto.randomUUID();
       sessions.set(sessionId, { conversations, report_config: reportConfig, created_at: new Date().toISOString() });
       sendJson(res, 200, { sessionId, summary: scanSummary(conversations), conversations, report_config: reportConfig });
@@ -5660,3 +5685,4 @@ module.exports.renderCombinedPdf = renderCombinedPdf;
 module.exports.scanSummary = scanSummary;
 module.exports.redactText = redactText;
 module.exports.classifyConversation = classifyConversation;
+module.exports.attachResolvedConversationSelection = attachResolvedConversationSelection;
