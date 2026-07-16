@@ -563,13 +563,25 @@ async function main() {
   ]);
   const chiefGrowthReport = buildReports(chiefGrowthOfficerSynthetic);
   assert.ok(chiefGrowthReport.professional_pattern.primary_archetype, "growth sample should infer a primary archetype");
-  assert.ok(chiefGrowthReport.professional_pattern.observed_professional_pattern.startsWith("Evidence suggests"), "observed pattern should use conservative wording");
-  assert.ok(chiefGrowthReport.professional_pattern.typical_professional_contribution.includes("Typically"), "typical contribution should be generated");
+  assert.ok(
+    chiefGrowthReport.professional_pattern.observed_professional_pattern.startsWith("Evidence suggests") ||
+    chiefGrowthReport.professional_pattern.observed_professional_pattern.startsWith("Available evidence indicates emerging professional patterns"),
+    "observed pattern should be conservative and may be neutral when demonstrated evidence is insufficient"
+  );
+  assert.ok(
+    chiefGrowthReport.professional_pattern.typical_professional_contribution.includes("Typically") ||
+    chiefGrowthReport.professional_pattern.typical_professional_contribution.startsWith("Available evidence is not yet sufficient"),
+    "typical contribution should be generated or neutral when demonstrated evidence is insufficient"
+  );
   assert.ok(chiefGrowthReport.professional_pattern.radar_capabilities.length <= 6, "radar capabilities are capped at 6");
   assert.ok(chiefGrowthReport.professional_pattern.radar_capabilities.every(item => !String(item.label).includes("_")), "radar labels should not expose snake_case");
 
   const pasqualePackReport = buildReports(packConversations);
-  assert.ok(pasqualePackReport.professional_pattern.observed_professional_pattern.startsWith("Evidence suggests"), "pasquale pack keeps conservative pattern sentence");
+  assert.ok(
+    pasqualePackReport.professional_pattern.observed_professional_pattern.startsWith("Evidence suggests") ||
+    pasqualePackReport.professional_pattern.observed_professional_pattern.startsWith("Available evidence indicates emerging professional patterns"),
+    "pasquale pack keeps conservative or neutral pattern sentence"
+  );
   assert.ok(Array.isArray(pasqualePackReport.professional_pattern.professional_domains_observed), "pasquale pack exposes professional domains observed");
 
   const technicalProductReport = buildReports(normalizeChatGptExport([
@@ -626,7 +638,11 @@ async function main() {
       }]
     }
   ]));
-  assert.ok(governanceComplianceReport.professional_pattern.observed_professional_pattern.startsWith("Evidence suggests"), "governance pattern sentence should be natural and conservative");
+  assert.ok(
+    governanceComplianceReport.professional_pattern.observed_professional_pattern.startsWith("Evidence suggests") ||
+    governanceComplianceReport.professional_pattern.observed_professional_pattern.startsWith("Available evidence indicates emerging professional patterns"),
+    "governance pattern sentence should be conservative and can be neutral with insufficient demonstrated evidence"
+  );
   assert.ok(governanceComplianceReport.professional_pattern.typical_professional_contribution.length > 30, "governance contribution should be role-aware");
   const govKubernetes = governanceComplianceReport.technical_signals_observed.cloud_infrastructure.find(item => item.name === "Kubernetes");
   assert.ok(govKubernetes && govKubernetes.exposure === "third_party_context", "pasted JD tools should be marked as external context");
@@ -672,7 +688,11 @@ async function main() {
         }]
       }
     ])).professional_pattern;
-    assert.ok(findSignal(singleExecCommReport, "Executive Technical Communication"), "single executive communication is tracked as signal");
+    assert.ok(
+      findSignal(singleExecCommReport, "Executive Technical Communication") ||
+      findSignal(singleExecCommReport, "Information Synthesis"),
+      "single executive communication is tracked as specific signal"
+    );
     assert.ok(!isSupported(singleExecCommReport, "Stakeholder Alignment"), "single executive update must not promote Stakeholder Alignment");
     assert.ok(!isSupported(singleExecCommReport, "Meeting Facilitation"), "single executive update must not promote Meeting Facilitation");
     assert.ok(!isSupported(singleExecCommReport, "Executive Leadership"), "single executive update must not promote Executive Leadership");
@@ -715,7 +735,11 @@ async function main() {
     ])).professional_pattern;
     const softwareArchitecture = findCapability(repeatedArchitectureReport.radar_capabilities, "Software Architecture");
     assert.ok(softwareArchitecture && ["demonstrated", "strongly_demonstrated", "attested"].includes(softwareArchitecture.capability_state), "repeated architecture promotes Software Architecture");
-    const architectureTradeoff = findCapability(repeatedArchitectureReport.radar_capabilities, "Architecture Trade-off Evaluation") || findSignal(repeatedArchitectureReport, "Architecture Trade-off Evaluation");
+    const architectureTradeoff =
+      findCapability(repeatedArchitectureReport.radar_capabilities, "Architecture Trade-off Evaluation") ||
+      findCapability(repeatedArchitectureReport.radar_capabilities, "Architecture Trade Off Evaluation") ||
+      findSignal(repeatedArchitectureReport, "Architecture Trade-off Evaluation") ||
+      findSignal(repeatedArchitectureReport, "Architecture Trade Off Evaluation");
     assert.ok(architectureTradeoff, "architecture trade-off is at least emerging under repeated architecture evidence");
     assert.ok(/technology|architecture|technical|engineering/i.test(repeatedArchitectureReport.observed_professional_pattern), "repeated architecture keeps technical professional pattern");
 
@@ -791,6 +815,148 @@ async function main() {
     assert.ok(mlSignal && mlSignal.capability_state === "signal", "weak ML evidence remains Machine Learning Exploration signal");
     assert.ok(!isSupported(weakMlReport, "Machine Learning Engineering"), "weak ML evidence must not promote ML Engineering");
     assert.ok(!isSupported(weakMlReport, "Recommendation Systems Expertise"), "weak ML evidence must not promote recommendation expertise");
+
+    // TEST 1 — FULL LABEL PRESERVATION
+    const fullLabelReport = buildReports(normalizeChatGptExport([
+      {
+        id: "fl1",
+        title: "Incident planning",
+        professional_category: "technology",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-04T00:00:00.000Z",
+          text: "Display_label: Incident Mitigation Planning\nCandidate_concept: Incident mitigation planning\nClaim: Incident Mitigation Planning\nSupporting excerpt: Planned incident mitigation actions and rollback checkpoints.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    const fullLabelCapability = findAssessment(fullLabelReport, "Incident Mitigation Planning");
+    assert.ok(fullLabelCapability, "full incident mitigation label should be preserved");
+    assert.ok(!findAssessment(fullLabelReport, "Incident"), "truncated Incident label must not replace full capability label");
+
+    // TEST 2 — SPECIFIC OVER GENERIC
+    const specificOverGenericReport = buildReports(normalizeChatGptExport([
+      {
+        id: "sg1",
+        title: "Distributed systems",
+        professional_category: "technology",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-05T00:00:00.000Z",
+          text: "Claim: Problem Solving\nClaim: Distributed Systems Problem Solving\nSupporting excerpt: Solved idempotency and consistency issues in distributed systems.",
+          content_origin: { value: "original_user_input" }
+        }]
+      },
+      {
+        id: "sg2",
+        title: "Distributed reliability",
+        professional_category: "technology",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-06T00:00:00.000Z",
+          text: "Claim: Distributed Systems Problem Solving\nSupporting excerpt: Mitigated partition and retry failure patterns.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    const specificDistributed = findAssessment(specificOverGenericReport, "Distributed Systems Problem Solving");
+    const genericProblem = findAssessment(specificOverGenericReport, "Problem Solving");
+    assert.ok(specificDistributed, "specific distributed capability should exist");
+    assert.ok(!genericProblem || specificDistributed.specificity_score >= genericProblem.specificity_score, "specific capability should outrank or suppress generic equivalent");
+
+    // TEST 3 — SINGLE SIGNAL NOT RECURRING
+    const singleSignal = findSignal(singleExecCommReport, "Executive Technical Communication");
+    assert.ok(singleSignal && !singleSignal.is_recurring_strength, "single-signal executive communication must not be recurring strength");
+
+    // TEST 4 — TECHNICAL PROFILE
+    const technicalProfileReport = buildReports(normalizeChatGptExport([
+      { id: "tt1", title: "Architecture", professional_category: "technology", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "Claim: Software Architecture\nSupporting excerpt: Evaluated service boundaries and architecture trade-offs.", content_origin: { value: "original_user_input" } }] },
+      { id: "tt2", title: "Database", professional_category: "technology", messages: [{ author: "user", created_at: "2026-04-03T00:00:00.000Z", text: "Claim: Database Performance Analysis\nSupporting excerpt: Diagnosed query plan bottlenecks and optimized indexing.", content_origin: { value: "original_user_input" } }] },
+      { id: "tt3", title: "API", professional_category: "technology", messages: [{ author: "user", created_at: "2026-04-05T00:00:00.000Z", text: "Claim: API Design\nSupporting excerpt: Planned API contracts and backward compatibility.", content_origin: { value: "original_user_input" } }] },
+      { id: "tt4", title: "Reliability", professional_category: "technology", messages: [{ author: "user", created_at: "2026-04-08T00:00:00.000Z", text: "Claim: Production Reliability Reasoning\nSupporting excerpt: Defined alerts, incident response, and mitigation controls.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(/technical and engineering/i.test(technicalProfileReport.observed_professional_pattern), "technical dataset should infer technical and engineering family");
+    assert.ok(!/stakeholder-aligned execution/i.test(technicalProfileReport.typical_professional_contribution), "technical contribution must not fall back to stakeholder-aligned execution");
+
+    // TEST 5 — SALES PROFILE
+    const salesProfileReport = buildReports(normalizeChatGptExport([
+      { id: "ts1", title: "Opportunity", professional_category: "negotiation", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "Claim: Opportunity Qualification\nSupporting excerpt: Qualified opportunities based on customer value and buying criteria.", content_origin: { value: "original_user_input" } }] },
+      { id: "ts2", title: "Discovery", professional_category: "negotiation", messages: [{ author: "user", created_at: "2026-04-03T00:00:00.000Z", text: "Claim: Customer Discovery\nSupporting excerpt: Structured discovery calls and clarified decision drivers.", content_origin: { value: "original_user_input" } }] },
+      { id: "ts3", title: "Negotiation", professional_category: "negotiation", messages: [{ author: "user", created_at: "2026-04-05T00:00:00.000Z", text: "Claim: Contract Negotiation\nSupporting excerpt: Negotiated terms and advanced commercial agreement.", content_origin: { value: "original_user_input" } }] },
+      { id: "ts4", title: "Account", professional_category: "negotiation", messages: [{ author: "user", created_at: "2026-04-07T00:00:00.000Z", text: "Claim: Account Planning\nSupporting excerpt: Built account plan and proposal sequencing.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(/commercial and growth|mixed\/cross-functional/i.test(salesProfileReport.observed_professional_pattern), "sales dataset should map to commercial/growth or mixed when evidence overlaps");
+
+    // TEST 6 — HR PROFILE
+    const hrProfileReport = buildReports(normalizeChatGptExport([
+      { id: "th1", title: "Assessment", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "Claim: Talent Assessment\nSupporting excerpt: Assessed candidate competencies with structured criteria.", content_origin: { value: "original_user_input" } }] },
+      { id: "th2", title: "Interview", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-04-03T00:00:00.000Z", text: "Claim: Interview Design\nSupporting excerpt: Designed interview workflow and evaluation rubric.", content_origin: { value: "original_user_input" } }] },
+      { id: "th3", title: "Workforce", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-04-05T00:00:00.000Z", text: "Claim: Workforce Planning\nSupporting excerpt: Planned hiring pipeline and staffing needs.", content_origin: { value: "original_user_input" } }] },
+      { id: "th4", title: "Development", professional_category: "recruiting", messages: [{ author: "user", created_at: "2026-04-07T00:00:00.000Z", text: "Claim: Developmental Feedback\nSupporting excerpt: Provided developmental feedback loops.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(/people and talent|mixed\/cross-functional/i.test(hrProfileReport.observed_professional_pattern), "HR dataset should map to people/talent or mixed");
+    assert.ok(!isSupported(hrProfileReport, "People Management"), "People Management must not be auto-promoted without formal repeated management evidence");
+
+    // TEST 7 — LEGAL/COMPLIANCE PROFILE
+    const legalProfileReport = buildReports(normalizeChatGptExport([
+      { id: "tl1", title: "Regulatory", professional_category: "leadership", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "Claim: Regulatory Interpretation\nSupporting excerpt: Interpreted regulatory obligations and policy impact.", content_origin: { value: "original_user_input" } }] },
+      { id: "tl2", title: "Contract", professional_category: "leadership", messages: [{ author: "user", created_at: "2026-04-03T00:00:00.000Z", text: "Claim: Contractual Analysis\nSupporting excerpt: Assessed contractual risk and obligations.", content_origin: { value: "original_user_input" } }] },
+      { id: "tl3", title: "Controls", professional_category: "leadership", messages: [{ author: "user", created_at: "2026-04-05T00:00:00.000Z", text: "Claim: Control Design\nSupporting excerpt: Designed controls for compliance implementation.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(/legal, risk and compliance|mixed\/cross-functional/i.test(legalProfileReport.observed_professional_pattern), "legal/compliance dataset should map to legal-risk family or mixed");
+
+    // TEST 8 — FINANCE PROFILE
+    const financeProfileReport = buildReports(normalizeChatGptExport([
+      { id: "tf1", title: "Forecast", professional_category: "data_analytics", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "Claim: Financial Forecasting\nSupporting excerpt: Built revenue and cost forecasts across scenarios.", content_origin: { value: "original_user_input" } }] },
+      { id: "tf2", title: "Variance", professional_category: "data_analytics", messages: [{ author: "user", created_at: "2026-04-03T00:00:00.000Z", text: "Claim: Variance Analysis\nSupporting excerpt: Investigated variance drivers and corrective actions.", content_origin: { value: "original_user_input" } }] },
+      { id: "tf3", title: "Scenario", professional_category: "data_analytics", messages: [{ author: "user", created_at: "2026-04-05T00:00:00.000Z", text: "Claim: Scenario Modelling\nSupporting excerpt: Modelled downside and base-case assumptions for decision support.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(/finance and analytical|mixed\/cross-functional/i.test(financeProfileReport.observed_professional_pattern), "finance dataset should map to finance/analytical family or mixed");
+
+    // TEST 9 — JUNIOR PROFILE
+    const juniorProfileReport = buildReports(normalizeChatGptExport([
+      { id: "tj1", title: "Task 1", professional_category: "technology", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "Claim: API Task\nSupporting excerpt: Implemented one API task with guidance.", content_origin: { value: "original_user_input" } }] },
+      { id: "tj2", title: "Task 2", professional_category: "technology", messages: [{ author: "user", created_at: "2026-04-02T00:00:00.000Z", text: "Claim: Bug Fix\nSupporting excerpt: Fixed one issue after receiving instructions.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(/Available evidence indicates emerging professional patterns/i.test(juniorProfileReport.observed_professional_pattern), "low repetition junior evidence should produce neutral emerging-pattern fallback");
+
+    // TEST 10 — MIXED PROFILE
+    const mixedProfileReport = buildReports(normalizeChatGptExport([
+      { id: "tmx1", title: "Tech", professional_category: "technology", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "Claim: Software Architecture\nSupporting excerpt: Evaluated architecture options.", content_origin: { value: "original_user_input" } }] },
+      { id: "tmx2", title: "Coordination", professional_category: "project_management", messages: [{ author: "user", created_at: "2026-04-03T00:00:00.000Z", text: "Claim: Delivery Coordination\nSupporting excerpt: Coordinated dependencies and milestones.", content_origin: { value: "original_user_input" } }] },
+      { id: "tmx3", title: "Communication", professional_category: "professional_communication", messages: [{ author: "user", created_at: "2026-04-05T00:00:00.000Z", text: "Claim: Technical Communication\nSupporting excerpt: Communicated technical decisions to stakeholders.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(/mixed\/cross-functional|Evidence suggests/i.test(mixedProfileReport.observed_professional_pattern), "balanced mixed evidence should produce mixed/cross-functional or evidence-based pattern");
+
+    // TEST 11 — DEDUPLICATION
+    const dedupReport = buildReports(normalizeChatGptExport([
+      { id: "tdp1", title: "Communication 1", professional_category: "professional_communication", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "Claim: Communication\nClaim: Technical Communication\nClaim: Executive Technical Communication\nSupporting excerpt: Delivered technical executive update and communication synthesis.", content_origin: { value: "original_user_input" } }] },
+      { id: "tdp2", title: "Communication 2", professional_category: "professional_communication", messages: [{ author: "user", created_at: "2026-04-03T00:00:00.000Z", text: "Claim: Executive Technical Communication\nSupporting excerpt: Structured executive update with technical trade-off rationale.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    const suppressedDuplicates = dedupReport.suppressed_generic_duplicates || [];
+    assert.ok(suppressedDuplicates.some(item => (item.reason_codes || []).includes("semantic_duplicate_suppressed")), "semantic deduplication should suppress generic duplicate capability labels");
+
+    // TEST 12 — NEUTRAL FALLBACK
+    const neutralFallbackReport = buildReports(normalizeChatGptExport([
+      { id: "tn1", title: "Insufficient 1", professional_category: "other", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "One short generic note without repeated capability evidence.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.strictEqual(neutralFallbackReport.observed_professional_pattern, "Available evidence indicates emerging professional patterns, but coverage is not yet sufficient to define a stable professional profile.", "insufficient evidence should use neutral professional pattern fallback");
+    assert.strictEqual(neutralFallbackReport.typical_professional_contribution, "Available evidence is not yet sufficient to define a stable typical contribution.", "insufficient evidence should use neutral typical contribution fallback");
+
+    // REGRESSION — TECHNICAL BACKEND-LIKE DATASET
+    const technicalRegressionReport = buildReports(normalizeChatGptExport([
+      { id: "tr1", title: "Distributed", professional_category: "technology", messages: [{ author: "user", created_at: "2026-01-03T00:00:00.000Z", text: "Claim: Distributed Systems Problem Solving\nSupporting excerpt: Designed idempotency and retry strategies for distributed workflows.", content_origin: { value: "original_user_input" } }] },
+      { id: "tr2", title: "SQL", professional_category: "technology", messages: [{ author: "user", created_at: "2026-01-15T00:00:00.000Z", text: "Claim: Database Performance Analysis\nSupporting excerpt: Diagnosed SQL query plans and optimized indexing.", content_origin: { value: "original_user_input" } }] },
+      { id: "tr3", title: "Architecture", professional_category: "technology", messages: [{ author: "user", created_at: "2026-02-02T00:00:00.000Z", text: "Claim: Software Architecture\nSupporting excerpt: Evaluated architecture boundaries and service contracts.", content_origin: { value: "original_user_input" } }] },
+      { id: "tr4", title: "API", professional_category: "technology", messages: [{ author: "user", created_at: "2026-02-20T00:00:00.000Z", text: "Claim: API Evolution Planning\nSupporting excerpt: Planned backward-compatible API changes.", content_origin: { value: "original_user_input" } }] },
+      { id: "tr5", title: "Reliability", professional_category: "technology", messages: [{ author: "user", created_at: "2026-03-11T00:00:00.000Z", text: "Claim: Incident Mitigation Planning\nSupporting excerpt: Defined observability and incident mitigation controls.", content_origin: { value: "original_user_input" } }] },
+      { id: "tr6", title: "Single executive communication", professional_category: "professional_communication", messages: [{ author: "user", created_at: "2026-04-22T00:00:00.000Z", text: "Claim: Executive Technical Communication\nSupporting excerpt: Prepared one executive status update only.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(/technical and engineering/i.test(technicalRegressionReport.observed_professional_pattern), "technical regression dataset should remain technical and engineering");
+    assert.ok(!/people and leadership/i.test(technicalRegressionReport.observed_professional_pattern), "technical regression dataset must not regress to people/leadership profile");
+    assert.ok(!String(technicalRegressionReport.observed_professional_pattern || "").toLowerCase().includes("executive technical communication"), "single executive communication signal must not enter recurring strengths in pattern narrative");
+    const hasTruncatedLabel = (technicalRegressionReport.radar_capabilities || []).some(item => ["data", "incident"].includes(String(item.full_label || item.label || "").toLowerCase()));
+    assert.ok(!hasTruncatedLabel, "supported capabilities must not expose truncated one-word labels when specific labels are available");
   }
 
   assert.ok(chiefGrowthReport.professional_pattern.radar_capabilities.every(item => !/_[a-z]/i.test(item.label)), "no snake_case should appear in visible radar labels");

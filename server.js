@@ -1944,6 +1944,302 @@ function shortCapabilityLabel(label) {
   return map[label] || label;
 }
 
+const capabilityAcronyms = new Set(["API", "SQL", "AI", "ML", "HR", "BI", "KPI", "UX", "UI", "SLA", "SLO", "ETL"]);
+const genericCapabilityTerms = new Set([
+  "capability", "skill", "skills", "professional", "work", "general", "generic", "execution", "planning",
+  "communication", "collaboration", "leadership", "strategy", "data", "incident", "risk", "analysis", "management",
+  "learning", "domain", "knowledge", "reasoning", "awareness", "improvement", "problem", "solving", "decision", "making"
+]);
+const weakLabelPrefixes = [/^claim\s*:/i, /^candidate\s*:/i, /^display\s*label\s*:/i, /^candidate[_\s-]?concept\s*:/i];
+const counterNarrativeFragments = [
+  "does not demonstrate", "does not establish", "single example", "one communication example",
+  "counter-evidence", "counter evidence", "not sufficient", "insufficient"
+];
+
+const capabilityFamilies = [
+  {
+    id: "technical_and_engineering",
+    label: "technical and engineering",
+    keywords: ["software", "architecture", "distributed", "database", "sql", "api", "reliability", "security", "incident", "migration", "backend", "platform"],
+    dimensions: ["execution", "problem_solving", "data_reasoning", "risk_awareness", "quality_improvement", "domain_knowledge"],
+    actions: ["analyses", "designs", "evaluates", "implements"],
+    objects: ["technical systems", "architecture trade-offs", "reliability constraints"],
+    outcomes: ["controlled implementation", "reliable delivery", "risk reduction"]
+  },
+  {
+    id: "commercial_and_growth",
+    label: "commercial and growth",
+    keywords: ["opportunity", "customer", "negotiation", "proposal", "account", "pipeline", "revenue", "pricing", "market", "sales"],
+    dimensions: ["communication", "planning", "decision_making", "collaboration"],
+    actions: ["develops", "negotiates", "structures", "advances"],
+    objects: ["commercial opportunities", "customer needs", "account priorities"],
+    outcomes: ["clearer decisions", "customer value", "measurable growth"]
+  },
+  {
+    id: "operations_and_delivery",
+    label: "operations and delivery",
+    keywords: ["delivery", "workflow", "operations", "process", "milestone", "dependency", "service", "governance"],
+    dimensions: ["execution", "planning", "collaboration", "quality_improvement"],
+    actions: ["coordinates", "structures", "verifies", "improves"],
+    objects: ["operational workflows", "delivery plans", "execution dependencies"],
+    outcomes: ["controlled execution", "measurable improvement", "reliable implementation"]
+  },
+  {
+    id: "people_and_talent",
+    label: "people and talent",
+    keywords: ["talent", "interview", "workforce", "mentoring", "developmental", "learning", "feedback", "hiring"],
+    dimensions: ["learning", "communication", "collaboration", "leadership"],
+    actions: ["assesses", "develops", "facilitates", "coordinates"],
+    objects: ["talent decisions", "capability development", "learning pathways"],
+    outcomes: ["capability development", "clearer decisions", "stronger alignment"]
+  },
+  {
+    id: "legal_risk_and_compliance",
+    label: "legal, risk and compliance",
+    keywords: ["regulatory", "compliance", "contract", "control", "policy", "legal", "governance", "audit"],
+    dimensions: ["risk_awareness", "decision_making", "planning", "domain_knowledge"],
+    actions: ["interprets", "assesses", "structures", "advises"],
+    objects: ["regulatory requirements", "contractual obligations", "control frameworks"],
+    outcomes: ["compliant delivery", "risk reduction", "controlled execution"]
+  },
+  {
+    id: "finance_and_analytical",
+    label: "finance and analytical",
+    keywords: ["forecast", "variance", "scenario", "financial", "budget", "cost", "margin", "analysis"],
+    dimensions: ["data_reasoning", "decision_making", "planning"],
+    actions: ["evaluates", "models", "analyses", "advises"],
+    objects: ["financial scenarios", "material drivers", "decision options"],
+    outcomes: ["decision-ready recommendations", "measurable improvement", "risk reduction"]
+  },
+  {
+    id: "product_and_design",
+    label: "product and design",
+    keywords: ["product", "discovery", "ux", "design", "backlog", "roadmap", "proposition", "user"],
+    dimensions: ["planning", "decision_making", "communication", "execution"],
+    actions: ["explores", "prioritizes", "structures", "translates"],
+    objects: ["product problems", "user needs", "delivery trade-offs"],
+    outcomes: ["customer value", "clearer decisions", "controlled execution"]
+  },
+  {
+    id: "healthcare_and_clinical",
+    label: "healthcare and clinical",
+    keywords: ["clinical", "patient", "diagnostic", "care", "treatment", "medical"],
+    dimensions: ["decision_making", "risk_awareness", "domain_knowledge"],
+    actions: ["assesses", "evaluates", "coordinates", "advises"],
+    objects: ["clinical evidence", "care pathways", "risk-sensitive decisions"],
+    outcomes: ["controlled execution", "risk reduction", "clearer decisions"]
+  },
+  {
+    id: "research_and_knowledge",
+    label: "research and knowledge",
+    keywords: ["research", "evidence", "method", "insight", "knowledge", "study", "synthesis"],
+    dimensions: ["learning", "data_reasoning", "communication", "domain_knowledge"],
+    actions: ["investigates", "synthesizes", "analyses", "communicates"],
+    objects: ["knowledge sources", "evidence patterns", "decision context"],
+    outcomes: ["clearer decisions", "measurable improvement", "capability development"]
+  }
+];
+
+function normalizeLabelTokens(label) {
+  return normalizeDomainTerm(label)
+    .split(" ")
+    .filter(Boolean);
+}
+
+function preserveAcronyms(label) {
+  return String(label || "")
+    .split(/\s+/)
+    .map(token => {
+      const clean = token.replace(/[^a-zA-Z0-9]/g, "");
+      const upper = clean.toUpperCase();
+      if (capabilityAcronyms.has(upper)) return token.replace(clean, upper);
+      return token;
+    })
+    .join(" ")
+    .trim();
+}
+
+function cleanCapabilityLabelText(value) {
+  let out = String(value || "").trim();
+  for (const prefix of weakLabelPrefixes) out = out.replace(prefix, "");
+  out = out
+    .replace(/[\[\]{}()]/g, " ")
+    .replace(/[;]+/g, ",")
+    .replace(/\s+/g, " ")
+    .trim();
+  return preserveAcronyms(out);
+}
+
+function looksCounterNarrativeLabel(label) {
+  const lower = normalizeDomainTerm(label);
+  return counterNarrativeFragments.some(fragment => lower.includes(normalizeDomainTerm(fragment)));
+}
+
+function isTooGenericSingleWord(label) {
+  const tokens = normalizeLabelTokens(label);
+  if (tokens.length !== 1) return false;
+  return genericCapabilityTerms.has(tokens[0]);
+}
+
+function isTooGenericLabel(label) {
+  const tokens = normalizeLabelTokens(label);
+  if (!tokens.length) return true;
+  if (tokens.length === 1) return genericCapabilityTerms.has(tokens[0]);
+  if (tokens.length <= 3 && tokens.every(token => genericCapabilityTerms.has(token))) return true;
+  return false;
+}
+
+function resolveCapabilityDisplayLabel(capability) {
+  const canonicalLabel = cleanCapabilityLabelText(capability.canonical_label);
+  const displayLabel = cleanCapabilityLabelText(capability.display_label);
+  const conceptLabel = cleanCapabilityLabelText(capability.candidate_concept);
+  const fallbackLabel = cleanCapabilityLabelText(capability.label) || cleanCapabilityLabelText(capability.dimension_label) || cleanCapabilityLabelText(capability.parent_dimension);
+
+  const validCanonical = canonicalLabel && canonicalLabel.length >= 3 && !looksCounterNarrativeLabel(canonicalLabel);
+  const validDisplay = displayLabel && displayLabel.length >= 3 && !looksCounterNarrativeLabel(displayLabel);
+  const validConcept = conceptLabel && conceptLabel.length >= 3 && !looksCounterNarrativeLabel(conceptLabel);
+
+  const canonicalIsGeneric = validCanonical && isTooGenericLabel(canonicalLabel);
+  const displayIsSpecific = validDisplay && !isTooGenericLabel(displayLabel);
+  const conceptIsSpecific = validConcept && !isTooGenericLabel(conceptLabel);
+
+  let selected = "Capability";
+  if (validCanonical && !canonicalIsGeneric) selected = canonicalLabel;
+  else if (displayIsSpecific) selected = displayLabel;
+  else if (conceptIsSpecific) selected = conceptLabel;
+  else if (validCanonical) selected = canonicalLabel;
+  else if (validDisplay) selected = displayLabel;
+  else if (validConcept) selected = conceptLabel;
+  else if (fallbackLabel) selected = fallbackLabel;
+
+  const normalized = selected
+    .replace(/[_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalizeLabelTokens(normalized)
+    .map(token => {
+      const upper = token.toUpperCase();
+      if (capabilityAcronyms.has(upper)) return upper;
+      return token.charAt(0).toUpperCase() + token.slice(1);
+    })
+    .join(" ")
+    .trim();
+}
+
+function capabilitySpecificityScore(capability) {
+  const label = String(capability.full_label || capability.label || "");
+  const tokens = normalizeLabelTokens(label);
+  const genericCount = tokens.filter(token => genericCapabilityTerms.has(token)).length;
+  const multiTokenWeight = Math.min(3, Math.max(0, tokens.length - 1)) * 0.8;
+  const explicitWeight = capability.sources && capability.sources.includes("explicit_claim") ? 2.2 : 0;
+  const domainTermWeight = tokens.some(token => token.length >= 6 && !genericCapabilityTerms.has(token)) ? 1.4 : 0;
+  const actionWeight = /analysis|planning|design|evaluation|mitigation|negotiation|forecast|facilitation|implementation|communication|coordination|synthesis|discovery|assessment|interpretation|modelling|modeling/i.test(label) ? 1.3 : 0;
+  const canonicalWeight = capability.canonical_dimension && !["communication", "collaboration", "leadership", "execution", "planning", "data_reasoning", "risk_awareness"].includes(capability.canonical_dimension) ? 1.1 : 0.4;
+  const genericPenalty = genericCount * 0.9;
+  const singleWordPenalty = tokens.length <= 1 ? 2.2 : 0;
+  const archetypeOnlyPenalty = capability.sources && capability.sources.includes("archetype") && !capability.sources.includes("canonical") ? 1.2 : 0;
+  const score = 1.2 + multiTokenWeight + explicitWeight + domainTermWeight + actionWeight + canonicalWeight - genericPenalty - singleWordPenalty - archetypeOnlyPenalty;
+  return Math.round(Math.max(0, score) * 1000) / 1000;
+}
+
+function capabilitySemanticRoot(label) {
+  const tokens = normalizeLabelTokens(label).filter(token => !genericCapabilityTerms.has(token));
+  return tokens.slice(0, 4).join("_") || normalizeDomainTerm(label);
+}
+
+function semanticSimilarity(a, b) {
+  const aTokens = new Set(normalizeLabelTokens(a));
+  const bTokens = new Set(normalizeLabelTokens(b));
+  const common = Array.from(aTokens).filter(token => bTokens.has(token)).length;
+  const union = new Set(Array.from(aTokens).concat(Array.from(bTokens))).size || 1;
+  return common / union;
+}
+
+function deduplicateCapabilityAssessments(assessments) {
+  const ordered = assessments
+    .slice()
+    .sort((a, b) => Number(b.specificity_score || 0) - Number(a.specificity_score || 0) || Number(b.dominance_score || 0) - Number(a.dominance_score || 0) || String(a.full_label || a.label).localeCompare(String(b.full_label || b.label)));
+  const kept = [];
+  const suppressed = [];
+
+  for (const candidate of ordered) {
+    const root = capabilitySemanticRoot(candidate.full_label || candidate.label);
+    const duplicate = kept.find(item => {
+      const itemRoot = capabilitySemanticRoot(item.full_label || item.label);
+      if (itemRoot === root) return true;
+      const overlap = semanticSimilarity(item.full_label || item.label, candidate.full_label || candidate.label);
+      return overlap >= 0.65;
+    });
+    if (!duplicate) {
+      kept.push(candidate);
+      continue;
+    }
+    suppressed.push({
+      ...candidate,
+      is_duplicate_of: duplicate.full_label || duplicate.label,
+      reason_codes: Array.from(new Set((candidate.reason_codes || []).concat(["semantic_duplicate_suppressed"])))
+    });
+  }
+
+  return { kept, suppressed };
+}
+
+function selectRecurringStrengths(assessments) {
+  return assessments
+    .filter(item => ["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state))
+    .filter(item => Number(item.distinct_conversation_count || 0) >= 2)
+    .filter(item => Number(item.dominance_score || 0) >= 9)
+    .filter(item => Number(item.specificity_score || 0) >= 2.6)
+    .filter(item => Number(item.counter_evidence_count || 0) === 0)
+    .filter(item => !(item.reason_codes || []).includes("category_only_match"))
+    .sort((a, b) => Number(b.dominance_score || 0) - Number(a.dominance_score || 0) || Number(b.specificity_score || 0) - Number(a.specificity_score || 0))
+    .slice(0, 5);
+}
+
+function inferProfessionalFamily(recurringStrengths) {
+  const strengths = Array.isArray(recurringStrengths) ? recurringStrengths : [];
+  if (strengths.length < 2) return { id: "mixed_cross_functional", label: "mixed/cross-functional" };
+
+  const scored = capabilityFamilies.map(family => {
+    let score = 0;
+    for (const capability of strengths) {
+      const label = normalizeDomainTerm(capability.full_label || capability.label);
+      const dominance = Number(capability.dominance_score || 0);
+      if (family.keywords.some(keyword => label.includes(normalizeDomainTerm(keyword)))) score += 1.4 + Math.min(3, dominance * 0.08);
+      if (family.dimensions.includes(capability.parent_dimension || capability.canonical_dimension)) score += 0.9;
+    }
+    return { family, score: Math.round(score * 1000) / 1000 };
+  }).sort((a, b) => b.score - a.score);
+
+  const top = scored[0];
+  const second = scored[1];
+  if (!top || top.score < 2.2) return { id: "mixed_cross_functional", label: "mixed/cross-functional" };
+  if (second && top.score < second.score * 1.2) return { id: "mixed_cross_functional", label: "mixed/cross-functional" };
+  return { id: top.family.id, label: top.family.label };
+}
+
+function composeProfessionalPatternFromStrengths(family, recurringStrengths) {
+  const strengths = Array.isArray(recurringStrengths) ? recurringStrengths : [];
+  if (strengths.length < 2) {
+    return "Available evidence indicates emerging professional patterns, but coverage is not yet sufficient to define a stable professional profile.";
+  }
+  const labels = strengths.slice(0, 5).map(item => String(item.full_label || item.label).toLowerCase());
+  return `Evidence suggests a ${family.label} profile with recurring strength in ${joinHuman(labels)}.`;
+}
+
+function composeTypicalContributionFromStrengths(family, recurringStrengths) {
+  const strengths = Array.isArray(recurringStrengths) ? recurringStrengths : [];
+  if (strengths.length < 2) {
+    return "Available evidence is not yet sufficient to define a stable typical contribution.";
+  }
+  const familyConfig = capabilityFamilies.find(item => item.id === family.id);
+  const actions = familyConfig ? familyConfig.actions : ["analyses", "structures", "coordinates"];
+  const objects = familyConfig ? familyConfig.objects : ["professional workflows", "decision contexts", "execution plans"];
+  const outcomes = familyConfig ? familyConfig.outcomes : ["clearer decisions", "controlled execution", "measurable improvement"];
+  return `Typically ${actions.slice(0, 3).join(", ")} ${objects.slice(0, 2).join(" and ")} to drive ${outcomes.slice(0, 2).join(" and ")}.`;
+}
+
 function normalizeCapabilityKey(label) {
   return normalizeDomainTerm(label).replace(/\s+/g, " ").trim();
 }
@@ -2350,7 +2646,7 @@ function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, 
     }
   }
 
-  const assessments = Array.from(candidateRows.values())
+  const assessmentsRaw = Array.from(candidateRows.values())
     .filter(item => item.label && !/_/.test(item.label))
     .map(item => {
       const managerialRule = managerialRuleFor(item.label);
@@ -2428,10 +2724,22 @@ function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, 
         genericCapability
       });
 
-      return {
+      const fullLabel = resolveCapabilityDisplayLabel({
+        canonical_label: item.canonical_dimension ? humanReadableCapability(canonicalDimensionDisplay[item.canonical_dimension] || item.canonical_dimension) : null,
+        display_label: item.label,
+        candidate_concept: item.label,
         label: item.label,
-        short_label: item.short_label,
+        dimension_label: item.canonical_dimension ? humanReadableCapability(item.canonical_dimension) : null,
+        parent_dimension: item.canonical_dimension
+      });
+
+      const base = {
+        label: fullLabel,
+        full_label: fullLabel,
+        short_label: fullLabel,
+        canonical_label: item.canonical_dimension ? humanReadableCapability(canonicalDimensionDisplay[item.canonical_dimension] || item.canonical_dimension) : null,
         canonical_dimension: item.canonical_dimension,
+        parent_dimension: item.canonical_dimension || null,
         coverage: Math.max(35, Math.min(100, Number(item.coverage || 0))),
         strength: Math.max(35, Math.min(100, Number(item.strength || 0))),
         confidence: item.confidence,
@@ -2442,35 +2750,71 @@ function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, 
         distinct_conversation_count: distinctConversationCount,
         counter_evidence_count: item.counterEvidenceCount,
         sources: Array.from(item.sources),
-        reason_codes: reasonCodes,
+        reason_codes: Array.from(new Set(reasonCodes)),
         primary_reason_code: reasonCodes[0] || null,
         managerial_behavior_categories: managerialCoverage.categoriesMatched
       };
+      const specificityScore = capabilitySpecificityScore(base);
+      return {
+        ...base,
+        specificity_score: specificityScore
+      };
     })
-    .sort((a, b) => Number(b.dominance_score || 0) - Number(a.dominance_score || 0) || String(a.label).localeCompare(String(b.label)));
+    .sort((a, b) => Number(b.dominance_score || 0) - Number(a.dominance_score || 0) || Number(b.specificity_score || 0) - Number(a.specificity_score || 0) || String(a.label).localeCompare(String(b.label)));
+
+  const deduped = deduplicateCapabilityAssessments(assessmentsRaw);
+  const assessments = deduped.kept.map(item => {
+    const supported = ["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state);
+    const emerging = ["signal", "emerging"].includes(item.capability_state);
+    return {
+      ...item,
+      is_supported: supported,
+      is_emerging: emerging,
+      is_recurring_strength: false
+    };
+  });
+
+  const recurringStrengths = selectRecurringStrengths(assessments);
+  const recurringKeys = new Set(recurringStrengths.map(item => normalizeCapabilityKey(item.full_label || item.label)));
+  for (const item of assessments) {
+    item.is_recurring_strength = recurringKeys.has(normalizeCapabilityKey(item.full_label || item.label));
+  }
 
   const supported = assessments
-    .filter(item => ["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state))
+    .filter(item => item.is_supported)
     .slice(0, 6);
   const emerging = assessments
-    .filter(item => ["signal", "emerging"].includes(item.capability_state))
+    .filter(item => item.is_emerging)
     .slice(0, 10);
   const excluded = assessments
-    .filter(item => !["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state) && item.reason_codes && item.reason_codes.length)
+    .filter(item => !item.is_supported && item.reason_codes && item.reason_codes.length)
     .slice(0, 15)
     .map(item => ({
-      label: item.label,
+      label: item.full_label || item.label,
       capability_state: item.capability_state,
       reason_codes: item.reason_codes,
       evidence_count: item.evidence_count,
       distinct_conversation_count: item.distinct_conversation_count,
-      dominance_score: item.dominance_score
+      dominance_score: item.dominance_score,
+      specificity_score: item.specificity_score
     }));
+
+  const suppressedDuplicates = deduped.suppressed.slice(0, 20).map(item => ({
+    label: item.full_label || item.label,
+    suppressed_by: item.is_duplicate_of,
+    reason_codes: item.reason_codes,
+    evidence_count: item.evidence_count,
+    distinct_conversation_count: item.distinct_conversation_count,
+    dominance_score: item.dominance_score,
+    specificity_score: item.specificity_score
+  }));
 
   return {
     supported,
     emerging,
     excluded,
+    recurring_strengths: recurringStrengths,
+    suppressed_duplicates: suppressedDuplicates,
     all: assessments
   };
 }
@@ -2522,11 +2866,31 @@ function buildProfessionalPattern(normalized, temporalMaturity, language = "en")
 
   const capabilityAssessment = buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, secondaryArchetypes);
   const radarCapabilities = capabilityAssessment.supported;
-  const observedPattern = capabilityDrivenPatternSummary(
-    capabilityAssessment.all,
-    combineArchetypePattern(primaryArchetype, secondaryArchetypes)
-  );
-  const typicalContribution = combineContribution(primaryArchetype, secondaryArchetypes);
+  const recurringStrengths = capabilityAssessment.recurring_strengths || [];
+  const allowSparseSpecificSignals = Array.isArray(normalized) && normalized.length >= 3;
+  const fallbackCandidates = capabilityAssessment.all
+    .filter(item => {
+      if (item.is_supported) return true;
+      if (!item.is_emerging) return false;
+      const evidenceCount = Number(item.evidence_count || 0);
+      const dominance = Number(item.dominance_score || 0);
+      const specificity = Number(item.specificity_score || 0);
+      const hasArchetype = Array.isArray(item.sources) && item.sources.includes("archetype");
+      const hasExplicitClaim = Array.isArray(item.sources) && item.sources.includes("explicit_claim");
+      if (evidenceCount >= 2 && dominance >= 6.4) return true;
+      if (hasArchetype && evidenceCount >= 4 && dominance >= 8.0) return true;
+      if (allowSparseSpecificSignals && hasExplicitClaim && specificity >= 6.0 && dominance >= 6.0) return true;
+      return false;
+    })
+    .filter(item => Number(item.specificity_score || 0) >= 2.4)
+    .sort((a, b) => Number(b.dominance_score || 0) - Number(a.dominance_score || 0) || Number(b.specificity_score || 0) - Number(a.specificity_score || 0));
+  const fallbackPatternStrengths = recurringStrengths.length < 2 && fallbackCandidates.length >= 2
+    ? fallbackCandidates.slice(0, 5)
+    : [];
+  const patternStrengths = recurringStrengths.length >= 2 ? recurringStrengths : fallbackPatternStrengths;
+  const inferredFamily = inferProfessionalFamily(patternStrengths);
+  const observedPattern = composeProfessionalPatternFromStrengths(inferredFamily, patternStrengths);
+  const typicalContribution = composeTypicalContributionFromStrengths(inferredFamily, patternStrengths);
 
   const limitations = [];
   if (!dominant || !dominant.passes_threshold) limitations.push("Dominant domain does not pass minimum evidence thresholds for a strong role label.");
@@ -2537,11 +2901,11 @@ function buildProfessionalPattern(normalized, temporalMaturity, language = "en")
   return {
     hierarchy: ["evidence_item", "observed_activity", "capability", "domain", "professional_signature"],
     signature_text: observedPattern,
-    signature_mode: primaryArchetype ? "archetype_driven" : "insufficient_evidence",
+    signature_mode: recurringStrengths.length >= 2 ? "archetype_driven" : patternStrengths.length >= 2 ? "evidence_weighted" : "insufficient_evidence",
     dominant_domain: dominant ? dominant.domain : "uncertain",
     secondary_domains: secondaryDomains.map(item => item.domain),
     dominant_domain_share: dominant ? Number(dominant.weighted_share.toFixed(4)) : 0,
-    main_capabilities: radarCapabilities.map(item => item.label),
+    main_capabilities: patternStrengths.length ? patternStrengths.map(item => item.full_label || item.label) : radarCapabilities.map(item => item.full_label || item.label),
     attribution_note: "Attribution measures how directly evidence comes from user-authored messages versus pasted, AI-generated or external content.",
     thresholds: {
       min_supporting_evidence_items: 3,
@@ -2567,11 +2931,16 @@ function buildProfessionalPattern(normalized, temporalMaturity, language = "en")
     primary_archetype: primaryArchetype ? { id: primaryArchetype.id, label: primaryArchetype.label, score: Number(primaryArchetype.weighted_score.toFixed(3)) } : null,
     secondary_archetypes: secondaryArchetypes.map(item => ({ id: item.id, label: item.label, score: Number(item.weighted_score.toFixed(3)) })),
     observed_professional_pattern: observedPattern,
+    professional_family: inferredFamily,
     professional_domains_observed: domainWeighting.domains.slice(0, 5).map(item => item.domain),
     typical_professional_contribution: typicalContribution,
     radar_capabilities: radarCapabilities,
     emerging_signals: capabilityAssessment.emerging.length ? capabilityAssessment.emerging : undefined,
     excluded_capabilities: capabilityAssessment.excluded.length ? capabilityAssessment.excluded : undefined,
+    recurring_strengths: recurringStrengths.length ? recurringStrengths : undefined,
+    suppressed_generic_duplicates: capabilityAssessment.suppressed_duplicates && capabilityAssessment.suppressed_duplicates.length
+      ? capabilityAssessment.suppressed_duplicates
+      : undefined,
     capability_assessments: capabilityAssessment.all.slice(0, 20),
     limitations
   };
