@@ -84,6 +84,8 @@ async function parsedPdf(buffer) {
 }
 
 async function main() {
+  const runNewTests = process.env.TEST_SCOPE !== "existing";
+
   assert.ok(fs.existsSync(serverPath), "server.js exists");
   assert.ok(fs.existsSync(samplePath), "synthetic sample exists");
   assert.ok(fs.existsSync(evidencePackPath), "evidence pack sample exists");
@@ -628,6 +630,168 @@ async function main() {
   assert.ok(governanceComplianceReport.professional_pattern.typical_professional_contribution.length > 30, "governance contribution should be role-aware");
   const govKubernetes = governanceComplianceReport.technical_signals_observed.cloud_infrastructure.find(item => item.name === "Kubernetes");
   assert.ok(govKubernetes && govKubernetes.exposure === "third_party_context", "pasted JD tools should be marked as external context");
+
+  if (runNewTests) {
+    const findCapability = (items, label) => (items || []).find(item => String(item.label || "").toLowerCase() === String(label || "").toLowerCase());
+    const isSupported = (pattern, label) => Boolean(findCapability(pattern.radar_capabilities, label));
+    const findSignal = (pattern, label) => findCapability(pattern.emerging_signals, label);
+    const findAssessment = (pattern, label) => findCapability(pattern.capability_assessments, label);
+
+    // TEST 1 — SINGLE MENTORING EVIDENCE
+    const singleMentoringReport = buildReports(normalizeChatGptExport([
+      {
+        id: "tm1",
+        title: "Single mentoring",
+        professional_category: "professional_communication",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-01T00:00:00.000Z",
+          text: "Claim: Technical Mentoring\nSupporting excerpt: Mentored one junior developer once.\nCounter-evidence: A single mentoring example does not demonstrate formal people management or sustained team leadership.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    const technicalMentoringSignal = findSignal(singleMentoringReport, "Technical Mentoring");
+    assert.ok(technicalMentoringSignal && technicalMentoringSignal.capability_state === "signal", "single mentoring remains Technical Mentoring signal");
+    assert.ok(!isSupported(singleMentoringReport, "Team Leadership"), "single mentoring must not promote Team Leadership");
+    assert.ok(!isSupported(singleMentoringReport, "People Management"), "single mentoring must not promote People Management");
+    const feedbackManagementAssessment = findAssessment(singleMentoringReport, "Feedback Management");
+    assert.ok(!feedbackManagementAssessment || feedbackManagementAssessment.capability_state !== "demonstrated", "single mentoring must not demonstrate Feedback Management");
+
+    // TEST 2 — SINGLE EXECUTIVE COMMUNICATION EVIDENCE
+    const singleExecCommReport = buildReports(normalizeChatGptExport([
+      {
+        id: "te1",
+        title: "Single executive update",
+        professional_category: "professional_communication",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-02T00:00:00.000Z",
+          text: "Claim: Executive Technical Communication\nClaim: Information Synthesis\nSupporting excerpt: Prepared one executive status update with technical synthesis.\nCounter-evidence: One communication example does not establish broad executive leadership responsibility.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    assert.ok(findSignal(singleExecCommReport, "Executive Technical Communication"), "single executive communication is tracked as signal");
+    assert.ok(!isSupported(singleExecCommReport, "Stakeholder Alignment"), "single executive update must not promote Stakeholder Alignment");
+    assert.ok(!isSupported(singleExecCommReport, "Meeting Facilitation"), "single executive update must not promote Meeting Facilitation");
+    assert.ok(!isSupported(singleExecCommReport, "Executive Leadership"), "single executive update must not promote Executive Leadership");
+
+    // TEST 3 — REPEATED ARCHITECTURE EVIDENCE
+    const repeatedArchitectureReport = buildReports(normalizeChatGptExport([
+      {
+        id: "ta1",
+        title: "Architecture 1",
+        professional_category: "technology",
+        messages: [{
+          author: "user",
+          created_at: "2026-01-01T00:00:00.000Z",
+          text: "Claim: Software Architecture\nClaim: Architecture Trade-off Evaluation\nSupporting excerpt: Evaluated service boundaries and reliability trade-offs for distributed systems.",
+          content_origin: { value: "original_user_input" }
+        }]
+      },
+      {
+        id: "ta2",
+        title: "Architecture 2",
+        professional_category: "technology",
+        messages: [{
+          author: "user",
+          created_at: "2026-02-01T00:00:00.000Z",
+          text: "Claim: Software Architecture\nClaim: Architecture Trade-off Evaluation\nSupporting excerpt: Compared architecture options and migration constraints.",
+          content_origin: { value: "original_user_input" }
+        }]
+      },
+      {
+        id: "ta3",
+        title: "Architecture 3",
+        professional_category: "technology",
+        messages: [{
+          author: "user",
+          created_at: "2026-03-01T00:00:00.000Z",
+          text: "Claim: Software Architecture\nClaim: Architecture Trade-off Evaluation\nSupporting excerpt: Finalized architecture decision for API evolution and observability.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    const softwareArchitecture = findCapability(repeatedArchitectureReport.radar_capabilities, "Software Architecture");
+    assert.ok(softwareArchitecture && ["demonstrated", "strongly_demonstrated", "attested"].includes(softwareArchitecture.capability_state), "repeated architecture promotes Software Architecture");
+    const architectureTradeoff = findCapability(repeatedArchitectureReport.radar_capabilities, "Architecture Trade-off Evaluation") || findSignal(repeatedArchitectureReport, "Architecture Trade-off Evaluation");
+    assert.ok(architectureTradeoff, "architecture trade-off is at least emerging under repeated architecture evidence");
+    assert.ok(/technology|architecture|technical|engineering/i.test(repeatedArchitectureReport.observed_professional_pattern), "repeated architecture keeps technical professional pattern");
+
+    // TEST 4 — COUNTER-EVIDENCE OVERRIDE
+    const counterOverrideReport = buildReports(normalizeChatGptExport([
+      {
+        id: "tc1",
+        title: "Mentoring with explicit limits",
+        professional_category: "professional_communication",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-03T00:00:00.000Z",
+          text: "Claim: Technical Mentoring\nClaim: Team Leadership\nClaim: People Management\nSupporting excerpt: Mentored one junior developer once.\nCounter-evidence: A single mentoring example does not demonstrate formal people management or sustained team leadership.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    assert.ok(!isSupported(counterOverrideReport, "People Management"), "counter-evidence blocks People Management promotion");
+    assert.ok(!isSupported(counterOverrideReport, "Team Leadership"), "counter-evidence blocks Team Leadership promotion");
+    const mentoringSignal = findSignal(counterOverrideReport, "Technical Mentoring");
+    assert.ok(mentoringSignal && mentoringSignal.capability_state === "signal", "technical mentoring remains a signal with counter-evidence");
+    const excludedTeamLeadership = (counterOverrideReport.excluded_capabilities || []).find(item => String(item.label).toLowerCase() === "team leadership");
+    assert.ok(excludedTeamLeadership && excludedTeamLeadership.reason_codes.includes("counter_evidence_block"), "managerial exclusion stores readable reason codes");
+
+    // TEST 5 — DOMINANT TECHNICAL PROFILE
+    const dominantTechnicalReport = buildReports(normalizeChatGptExport([
+      { id: "td1", title: "Distributed", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Claim: Distributed Systems Problem Solving\nSupporting excerpt: Solved idempotency and consistency trade-offs in distributed services.", content_origin: { value: "original_user_input" } }] },
+      { id: "td2", title: "Architecture", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-03T00:00:00.000Z", text: "Claim: Software Architecture\nSupporting excerpt: Evaluated architecture boundaries and reliability constraints.", content_origin: { value: "original_user_input" } }] },
+      { id: "td3", title: "API", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-05T00:00:00.000Z", text: "Claim: API Evolution Planning\nSupporting excerpt: Planned backward-compatible API changes and migration.", content_origin: { value: "original_user_input" } }] },
+      { id: "td4", title: "Security", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-07T00:00:00.000Z", text: "Claim: Application Security Awareness\nSupporting excerpt: Evaluated secure defaults and auth risk.", content_origin: { value: "original_user_input" } }] },
+      { id: "td5", title: "Reliability", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-09T00:00:00.000Z", text: "Claim: Production Reliability Reasoning\nSupporting excerpt: Planned incident mitigation and observability improvements.", content_origin: { value: "original_user_input" } }] },
+      { id: "td6", title: "Single communication", professional_category: "professional_communication", messages: [{ author: "user", created_at: "2026-05-11T00:00:00.000Z", text: "Claim: Executive Technical Communication\nSupporting excerpt: One executive status update.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(/technology|architecture|technical|engineering/i.test(dominantTechnicalReport.observed_professional_pattern), "technical majority keeps technical professional pattern");
+    assert.ok(!/people\s*&\s*leadership|leadership-oriented|people and leadership/i.test(dominantTechnicalReport.observed_professional_pattern), "technical majority must not become people/leadership profile");
+
+    // TEST 6 — CATEGORY MUST NOT PROMOTE CAPABILITY
+    const categoryNotPromoteReport = buildReports(normalizeChatGptExport([
+      { id: "tp1", title: "API planning 1", professional_category: "collaboration", messages: [{ author: "user", created_at: "2026-04-01T00:00:00.000Z", text: "Claim: API Evolution Planning\nSupporting excerpt: Planned non-breaking API changes and versioning strategy.", content_origin: { value: "original_user_input" } }] },
+      { id: "tp2", title: "API planning 2", professional_category: "collaboration", messages: [{ author: "user", created_at: "2026-04-10T00:00:00.000Z", text: "Claim: API Evolution Planning\nSupporting excerpt: Aligned schema evolution with migration constraints.", content_origin: { value: "original_user_input" } }] },
+      { id: "tp3", title: "API planning 3", professional_category: "collaboration", messages: [{ author: "user", created_at: "2026-04-20T00:00:00.000Z", text: "Claim: API Evolution Planning\nSupporting excerpt: Evaluated endpoint deprecation and compatibility.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(isSupported(categoryNotPromoteReport, "Api Evolution Planning"), "explicit API evidence is promoted even under collaboration category");
+    assert.ok(!isSupported(categoryNotPromoteReport, "Stakeholder Alignment"), "collaboration category alone must not promote Stakeholder Alignment");
+    assert.ok(!isSupported(categoryNotPromoteReport, "Team Leadership"), "collaboration category alone must not promote Team Leadership");
+
+    // TEST 7 — GENERIC CAPABILITY PENALTY
+    const genericPenaltyReport = buildReports(normalizeChatGptExport([
+      { id: "tg1", title: "Dist 1", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-01T00:00:00.000Z", text: "Claim: Distributed Systems Problem Solving\nClaim: Problem Solving\nSupporting excerpt: Solved idempotency and retry issues in distributed services.", content_origin: { value: "original_user_input" } }] },
+      { id: "tg2", title: "Dist 2", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-02T00:00:00.000Z", text: "Claim: Distributed Systems Problem Solving\nSupporting excerpt: Mitigated partition failures and consistency risk.", content_origin: { value: "original_user_input" } }] },
+      { id: "tg3", title: "Dist 3", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-03T00:00:00.000Z", text: "Claim: Distributed Systems Problem Solving\nSupporting excerpt: Addressed replication lag and incident impact.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    const distributedScore = findAssessment(genericPenaltyReport, "Distributed Systems Problem Solving");
+    const genericProblemScore = findAssessment(genericPenaltyReport, "Problem Solving");
+    assert.ok(distributedScore, "distributed systems capability must be assessed");
+    assert.ok(!genericProblemScore || distributedScore.dominance_score > genericProblemScore.dominance_score, "specific distributed capability must dominate generic problem solving");
+
+    // TEST 8 — WEAK ML EXPLORATION
+    const weakMlReport = buildReports(normalizeChatGptExport([
+      {
+        id: "tml1",
+        title: "Weak ML exploration",
+        professional_category: "technology",
+        messages: [{
+          author: "user",
+          created_at: "2026-05-04T00:00:00.000Z",
+          text: "Claim: Machine Learning Exploration\nSupporting excerpt: I asked one generic question about a recommendation model.\nCounter-evidence: low confidence, no validation, no implementation evidence.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    const mlSignal = findSignal(weakMlReport, "Machine Learning Exploration");
+    assert.ok(mlSignal && mlSignal.capability_state === "signal", "weak ML evidence remains Machine Learning Exploration signal");
+    assert.ok(!isSupported(weakMlReport, "Machine Learning Engineering"), "weak ML evidence must not promote ML Engineering");
+    assert.ok(!isSupported(weakMlReport, "Recommendation Systems Expertise"), "weak ML evidence must not promote recommendation expertise");
+  }
 
   assert.ok(chiefGrowthReport.professional_pattern.radar_capabilities.every(item => !/_[a-z]/i.test(item.label)), "no snake_case should appear in visible radar labels");
   console.log("All tests passed.");

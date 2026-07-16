@@ -1944,6 +1944,237 @@ function shortCapabilityLabel(label) {
   return map[label] || label;
 }
 
+function normalizeCapabilityKey(label) {
+  return normalizeDomainTerm(label).replace(/\s+/g, " ").trim();
+}
+
+function confidenceScoreValue(confidence) {
+  if (confidence === "high") return 0.9;
+  if (confidence === "medium") return 0.65;
+  if (confidence === "low") return 0.4;
+  return 0.5;
+}
+
+const genericCapabilityKeys = new Set([
+  "leadership",
+  "communication",
+  "collaboration",
+  "strategic thinking",
+  "problem solving",
+  "stakeholder management",
+  "decision making"
+]);
+
+const managerialCapabilityRules = {
+  "team leadership": {
+    minDistinctConversations: 3,
+    minBehaviorCategories: 3,
+    behaviorCategories: {
+      coordination_of_multiple_people: ["coordina", "coordinate", "multiple people", "cross-functional", "team"],
+      responsibility_assignment: ["delegate", "delega", "responsabilita", "ownership", "clarify roles", "ruoli"],
+      conflict_resolution: ["conflict", "conflitto", "disagreement", "resolve tension"],
+      team_prioritisation: ["team priorit", "prioritization", "priorita del team", "roadmap prioritization"],
+      delivery_oversight: ["delivery oversight", "tracking delivery", "milestone tracking", "delivery governance"],
+      mentoring_repeated: ["mentoring", "coach", "feedback loop", "career guidance"],
+      team_decision_making: ["team decision", "decision facilitation", "collective decision"],
+      blockers_removal: ["remove blocker", "sblocco", "escalation", "unblock"],
+      team_planning: ["team planning", "capacity planning", "workload allocation"]
+    }
+  },
+  "stakeholder alignment": {
+    minDistinctConversations: 2,
+    minBehaviorCategories: 2,
+    behaviorCategories: {
+      stakeholder_needs: ["stakeholder needs", "stakeholder priority", "expectation"],
+      conflicting_priorities: ["conflicting priorities", "trade-off alignment", "competing priorities"],
+      negotiation: ["negotia", "negozia", "agreement", "alignment of expectations"],
+      cross_function_coordination: ["across functions", "cross-functional", "cross org", "multi-team coordination"],
+      decision_facilitation: ["decision facilitation", "facilitate decision", "agreement on responsibilities"]
+    }
+  },
+  "meeting facilitation": {
+    minDistinctConversations: 2,
+    minBehaviorCategories: 3,
+    behaviorCategories: {
+      agenda_definition: ["agenda", "agenda definition", "meeting agenda"],
+      moderation: ["moderate", "moderation", "facilitation", "discussion facilitation"],
+      decision_capture: ["decision capture", "decision log", "action item", "action ownership"],
+      follow_up: ["follow-up", "follow up", "governance", "meeting outcomes"],
+      time_management: ["timebox", "time management", "on time"]
+    }
+  },
+  "feedback management": {
+    minDistinctConversations: 2,
+    minBehaviorCategories: 2,
+    behaviorCategories: {
+      structured_feedback_loops: ["feedback loop", "structured feedback", "retrospective"],
+      collection_prioritization: ["collect feedback", "feedback prioritization", "feedback triage"],
+      performance_feedback: ["performance feedback", "behavioral feedback", "development plan"],
+      closure_followup: ["closure", "follow-up on feedback", "feedback actions"]
+    }
+  },
+  "people management": {
+    minDistinctConversations: 2,
+    minBehaviorCategories: 3,
+    behaviorCategories: {
+      performance_management: ["performance review", "performance management", "objectives", "goal setting"],
+      career_development: ["career development", "growth plan", "development plan"],
+      hiring_staffing: ["hiring", "staffing", "headcount", "recruiting ownership"],
+      workload_allocation: ["workload allocation", "resource allocation", "capacity planning"],
+      formal_people_responsibility: ["formal responsibility for people", "people manager", "line manager", "team accountability"]
+    }
+  }
+};
+
+const managerialCounterPhrases = [
+  "does not demonstrate",
+  "does not establish",
+  "single mentoring",
+  "single communication",
+  "not sustained",
+  "non dimostra",
+  "una singola",
+  "single example",
+  "not formal"
+];
+
+function capabilityStateToLegacyLevel(state) {
+  if (state === "attested" || state === "strongly_demonstrated") return "strongly_supported";
+  if (state === "demonstrated") return "recurring";
+  if (state === "emerging") return "observed";
+  return "emerging";
+}
+
+function evaluateCapabilityState(stats) {
+  if (stats.attested) return "attested";
+  if (stats.counterEvidenceCount > 0 && stats.evidenceCount <= 2) return "signal";
+  if (stats.counterEvidenceCount >= 2) return "signal";
+  if (stats.evidenceCount >= 4 && stats.distinctConversationCount >= 3 && stats.confidenceScore >= 0.72 && stats.counterEvidenceCount === 0) {
+    return "strongly_demonstrated";
+  }
+  if (stats.evidenceCount >= 3 && stats.distinctConversationCount >= 2 && stats.confidenceScore >= 0.55 && stats.counterEvidenceCount === 0) {
+    return "demonstrated";
+  }
+  if (stats.evidenceCount >= 2 && stats.distinctConversationCount >= 2 && stats.confidenceScore >= 0.45 && stats.counterEvidenceCount <= 1) {
+    return "emerging";
+  }
+  return "signal";
+}
+
+function isManagerialCapability(label) {
+  return Boolean(managerialCapabilityRules[normalizeCapabilityKey(label)]);
+}
+
+function managerialRuleFor(label) {
+  return managerialCapabilityRules[normalizeCapabilityKey(label)] || null;
+}
+
+function capabilityCounterEvidenceHits(messages, label) {
+  const key = normalizeCapabilityKey(label);
+  const keyTokens = key.split(" ").filter(Boolean);
+  let count = 0;
+  for (const message of messages) {
+    if (!message.attributable) continue;
+    const lower = String(message.lower || "");
+    const hasCounterPhrase = managerialCounterPhrases.some(phrase => lower.includes(phrase));
+    if (!hasCounterPhrase) continue;
+    if (keyTokens.some(token => token.length > 3 && lower.includes(token))) count += 1;
+  }
+  return count;
+}
+
+function managerialBehaviorCoverage(messages, label) {
+  const rule = managerialRuleFor(label);
+  if (!rule) return { categoriesMatched: [], distinctConversations: 0, evidenceCount: 0 };
+  const matched = new Set();
+  const conversations = new Set();
+  let evidenceCount = 0;
+  for (const message of messages) {
+    if (!message.attributable) continue;
+    const lower = String(message.lower || "");
+    let localHit = false;
+    for (const [category, terms] of Object.entries(rule.behaviorCategories)) {
+      if (terms.some(term => lower.includes(term))) {
+        matched.add(category);
+        localHit = true;
+      }
+    }
+    if (localHit) {
+      evidenceCount += 1;
+      conversations.add(message.conversation.id);
+    }
+  }
+  return {
+    categoriesMatched: Array.from(matched),
+    distinctConversations: conversations.size,
+    evidenceCount
+  };
+}
+
+function capabilityDominanceScore(input) {
+  const positive = Math.min(10, Number(input.evidenceCount || 0));
+  const conversations = Math.min(6, Number(input.distinctConversationCount || 0));
+  const confidence = Math.max(0, Math.min(1, Number(input.confidenceScore || 0.5)));
+  const attribution = Math.min(8, Number(input.directEvidenceCount || 0)) * 0.22 + Math.min(8, Number(input.attributableEvidenceCount || 0)) * 0.08;
+  const recency = Math.max(0, Math.min(1, Number(input.recencyScore || 0.6)));
+  const contextDiversity = Math.min(4, Number(input.contextDiversity || 0));
+  const explicitMapping = Math.min(10, Number(input.explicitHits || 0));
+  const repeatedBehavior = Math.min(6, Number(input.repeatedBehaviorCount || 0));
+  const counterPenalty = Math.min(6, Number(input.counterEvidenceCount || 0));
+  const singleSourcePenalty = input.singleSource ? 0.8 : 0;
+  const weakMappingPenalty = input.weakMapping ? 1.1 : 0;
+  const ambiguityPenalty = Math.min(3, Number(input.uncertainCount || 0)) * 0.35;
+  const genericPenalty = input.genericCapability ? 1.0 : 0;
+
+  const score =
+    positive * 1.25 +
+    conversations * 1.35 +
+    confidence * 2.1 +
+    attribution +
+    recency * 1.05 +
+    contextDiversity * 0.55 +
+    explicitMapping * 0.55 +
+    repeatedBehavior * 0.4 -
+    counterPenalty * 1.6 -
+    singleSourcePenalty -
+    weakMappingPenalty -
+    ambiguityPenalty -
+    genericPenalty;
+
+  return Math.round(score * 1000) / 1000;
+}
+
+function capabilityDrivenPatternSummary(capabilityAssessments, fallbackSummary) {
+  const pool = Array.isArray(capabilityAssessments) ? capabilityAssessments : [];
+  const ranked = pool
+    .filter(item => ["demonstrated", "strongly_demonstrated", "attested", "emerging"].includes(item.capability_state))
+    .sort((a, b) => Number(b.dominance_score || 0) - Number(a.dominance_score || 0) || String(a.label).localeCompare(String(b.label)))
+    .slice(0, 8);
+  if (ranked.length < 3) return fallbackSummary;
+
+  const technicalHints = ["api", "architecture", "distributed", "reliability", "database", "security", "migration", "backend", "sql", "incident"];
+  const managerialHints = ["leadership", "stakeholder", "meeting", "people management", "feedback management"];
+
+  let technicalScore = 0;
+  let managerialScore = 0;
+  for (const capability of ranked) {
+    const label = normalizeCapabilityKey(capability.label);
+    const dominance = Number(capability.dominance_score || 0);
+    if (technicalHints.some(term => label.includes(term))) technicalScore += Math.max(0.5, dominance);
+    if (managerialHints.some(term => label.includes(term))) managerialScore += Math.max(0.5, dominance);
+    if (capability.canonical_dimension && ["execution", "problem_solving", "planning", "domain_knowledge", "data_reasoning", "risk_awareness", "quality_improvement"].includes(capability.canonical_dimension)) {
+      technicalScore += Math.max(0.25, dominance * 0.2);
+    }
+  }
+
+  if (technicalScore <= managerialScore * 1.2) return fallbackSummary;
+  const topLabels = ranked
+    .slice()
+    .slice(0, 6)
+    .map(item => String(item.label).toLowerCase());
+  return `Evidence suggests a technical and engineering profile with recurring strength in ${joinHuman(topLabels)}.`;
+}
+
 function archetypeCategoryBoost(archetypeId, category) {
   const map = {
     growth_revenue: ["strategy", "negotiation", "marketing", "sales_business_development"],
@@ -1957,7 +2188,7 @@ function archetypeCategoryBoost(archetypeId, category) {
     sales_partnerships: ["negotiation", "sales_business_development", "professional_communication"],
     communication_stakeholder: ["professional_communication", "leadership", "project_management"]
   };
-  return (map[archetypeId] || []).includes(category) ? 0.8 : 0;
+  return (map[archetypeId] || []).includes(category) ? 0.2 : 0;
 }
 
 function combineArchetypePattern(primary, secondaries) {
@@ -1975,82 +2206,273 @@ function combineContribution(primary, secondaries) {
 }
 
 function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, secondaryArchetypes) {
-  const supported = new Map();
-  const canonical = (temporalMaturity && temporalMaturity.dimensions || [])
-    .filter(dimension => dimension.derivation === "canonical_ontology_dimension")
-    .filter(dimension => !["insufficient_evidence", "counter_evidence_only"].includes(dimension.status));
-  for (const dimension of canonical) {
-    const label = humanReadableCapability(canonicalDimensionDisplay[dimension.canonical_dimension || dimension.id] || dimension.label || dimension.id);
-    supported.set(label, {
-      label,
-      short_label: shortCapabilityLabel(label),
-      canonical_dimension: dimension.canonical_dimension || dimension.id,
-      coverage: Number(dimension.evidence_coverage || 0),
-      strength: Number(dimension.capability_score || dimension.evidence_coverage || 0),
-      confidence: dimension.confidence || "medium",
-      level: dimension.status || "observed",
-      score: Number(dimension.evidence_coverage || 0),
-      sources: ["canonical"]
-    });
-  }
-
+  const candidateRows = new Map();
   const messageStream = collectAttributableUserMessages(normalized);
-  const selectedArchetypes = [primaryArchetype].concat(secondaryArchetypes).filter(Boolean);
-  for (const archetype of selectedArchetypes) {
-    for (const capability of archetype.capability_labels) {
-      const label = humanReadableCapability(capability);
-      const previous = supported.get(label) || {
+  const latestMessageDate = messageStream
+    .map(message => message.created_at || message.conversation.created_at || null)
+    .filter(Boolean)
+    .sort()
+    .slice(-1)[0] || null;
+
+  const ensureCandidate = (label, canonicalDimension = null) => {
+    const key = normalizeCapabilityKey(label);
+    if (!candidateRows.has(key)) {
+      candidateRows.set(key, {
+        key,
         label,
         short_label: shortCapabilityLabel(label),
-        canonical_dimension: null,
+        canonical_dimension: canonicalDimension,
         coverage: 0,
         strength: 0,
         confidence: "medium",
         level: "observed",
+        capability_state: "signal",
         score: 0,
-        sources: []
-      };
+        sources: new Set(),
+        evidenceCount: 0,
+        distinctConversations: new Set(),
+        directEvidenceCount: 0,
+        attributableEvidenceCount: 0,
+        explicitHits: 0,
+        uncertainCount: 0,
+        counterEvidenceCount: 0,
+        sourceKinds: new Set(),
+        recencyAccumulator: 0,
+        recencySamples: 0,
+        reason_codes: []
+      });
+    }
+    const row = candidateRows.get(key);
+    if (!row.canonical_dimension && canonicalDimension) row.canonical_dimension = canonicalDimension;
+    return row;
+  };
+
+  const canonical = (temporalMaturity && temporalMaturity.dimensions || [])
+    .filter(dimension => dimension.radar_eligible)
+    .filter(dimension => !["insufficient_evidence", "counter_evidence_only"].includes(dimension.status));
+  for (const dimension of canonical) {
+    const labelSource = dimension.derivation === "semantic_capability_extraction"
+      ? dimension.label
+      : (canonicalDimensionDisplay[dimension.canonical_dimension || dimension.id] || dimension.label || dimension.id);
+    const label = humanReadableCapability(labelSource);
+    const candidate = ensureCandidate(label, dimension.canonical_dimension || dimension.id);
+    candidate.coverage = Math.max(candidate.coverage, Number(dimension.evidence_coverage || 0));
+    candidate.strength = Math.max(candidate.strength, Number(dimension.capability_score || dimension.evidence_coverage || 0));
+    candidate.confidence = dimension.confidence || candidate.confidence;
+    candidate.level = dimension.status || candidate.level;
+    candidate.score = Math.max(candidate.score, Number(dimension.evidence_coverage || 0));
+    candidate.sources.add("canonical");
+    candidate.evidenceCount += Number(dimension.positive_count || 0);
+    candidate.directEvidenceCount += Number(dimension.direct_user_evidence_count || 0);
+    candidate.attributableEvidenceCount += Number(dimension.positive_count || 0);
+    candidate.uncertainCount += Number(dimension.uncertain_count || 0);
+    candidate.counterEvidenceCount += Number(dimension.negative_count || 0);
+    candidate.explicitHits += Number(dimension.positive_count || 0);
+    const dimensionConversations = Math.max(1, Number(dimension.unique_conversation_count || 0));
+    for (let index = 0; index < dimensionConversations; index += 1) {
+      candidate.distinctConversations.add(`dimension:${dimension.id}:${index}`);
+    }
+  }
+
+  for (const message of messageStream) {
+    if (!message.attributable) continue;
+    const lines = String(message.text || "").split(/\r?\n/);
+    for (const line of lines) {
+      const match = /^(claim|candidate_concept|candidate|display label|display_label)\s*:\s*(.+)$/i.exec(String(line).trim());
+      if (!match) continue;
+      const rawLabel = String(match[2] || "")
+        .replace(/\s+/g, " ")
+        .replace(/[.;:,]+$/g, "")
+        .trim()
+        .slice(0, 84);
+      if (!rawLabel) continue;
+      const label = humanReadableCapability(rawLabel);
+      const row = ensureCandidate(label, null);
+      row.sources.add("explicit_claim");
+      row.evidenceCount += 1;
+      row.attributableEvidenceCount += 1;
+      if (sourceValue(message) === "original_user_input") row.directEvidenceCount += 1;
+      row.explicitHits += 2;
+      row.coverage = Math.max(row.coverage, 40);
+      row.strength = Math.max(row.strength, 42);
+      row.distinctConversations.add(message.conversation.id);
+      row.sourceKinds.add(sourceValue(message));
+      row.recencyAccumulator += recencyWeightForDate(message.created_at || message.conversation.created_at, latestMessageDate);
+      row.recencySamples += 1;
+    }
+  }
+
+  const selectedArchetypes = [primaryArchetype].concat(secondaryArchetypes).filter(Boolean);
+  for (const archetype of selectedArchetypes) {
+    for (const capability of archetype.capability_labels) {
+      const label = humanReadableCapability(capability);
+      const previous = ensureCandidate(label, null);
       const relatedTerms = archetype.signals.slice(0, 16);
       let termHits = 0;
       let directHits = 0;
+      let attributedHits = 0;
+      const localConversations = new Set();
+      const localSources = new Set();
+      let recencyAccumulator = 0;
+      let recencySamples = 0;
       for (const message of messageStream) {
         const lower = String(message.lower || "");
         const hits = relatedTerms.filter(term => lower.includes(String(term).toLowerCase())).length;
         if (!hits) continue;
         termHits += hits;
+        if (message.attributable) attributedHits += hits;
         if (sourceValue(message) === "original_user_input") directHits += hits;
+        localConversations.add(message.conversation.id);
+        localSources.add(sourceValue(message));
+        recencyAccumulator += recencyWeightForDate(message.created_at || message.conversation.created_at, latestMessageDate);
+        recencySamples += 1;
       }
-      const evidenceScore = Math.min(100, Math.round(previous.score + termHits * 6 + directHits * 3 + (archetype.preferred_radar_labels.includes(capability) ? 16 : 8)));
-      const coverage = Math.max(previous.coverage, Math.min(100, Math.round((termHits * 8) + (directHits * 6))));
+      const evidenceScore = Math.min(100, Math.round(previous.score + termHits * 6 + directHits * 3 + (archetype.preferred_radar_labels.includes(capability) ? 8 : 3)));
+      const coverage = Math.max(previous.coverage, Math.min(100, Math.round((termHits * 7) + (directHits * 6))));
       const confidence = directHits >= 4 ? "high" : directHits >= 2 ? "medium" : "low";
       const level = evidenceScore >= 75 ? "strongly_supported" : evidenceScore >= 55 ? "recurring" : "observed";
-      supported.set(label, {
-        ...previous,
-        short_label: shortCapabilityLabel(label),
-        coverage,
-        strength: Math.max(previous.strength, evidenceScore),
-        confidence: previous.confidence === "high" ? "high" : confidence,
-        level,
-        score: Math.max(previous.score, evidenceScore),
-        sources: Array.from(new Set(previous.sources.concat(["archetype"])))
-      });
+
+      previous.short_label = shortCapabilityLabel(label);
+      previous.coverage = coverage;
+      previous.strength = Math.max(previous.strength, evidenceScore);
+      previous.confidence = previous.confidence === "high" ? "high" : confidence;
+      previous.level = level;
+      previous.score = Math.max(previous.score, evidenceScore);
+      previous.sources.add("archetype");
+      previous.evidenceCount += termHits;
+      previous.directEvidenceCount += directHits;
+      previous.attributableEvidenceCount += attributedHits;
+      previous.explicitHits += termHits;
+      previous.recencyAccumulator += recencyAccumulator;
+      previous.recencySamples += recencySamples;
+      for (const conversationId of localConversations) previous.distinctConversations.add(conversationId);
+      for (const sourceKind of localSources) previous.sourceKinds.add(sourceKind);
     }
   }
 
-  const ranked = Array.from(supported.values())
+  const assessments = Array.from(candidateRows.values())
     .filter(item => item.label && !/_/.test(item.label))
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, 6)
+    .map(item => {
+      const managerialRule = managerialRuleFor(item.label);
+      const managerialCoverage = managerialBehaviorCoverage(messageStream, item.label);
+      const counterFromMessages = capabilityCounterEvidenceHits(messageStream, item.label);
+      item.counterEvidenceCount += counterFromMessages;
+
+      const confidenceScore = confidenceScoreValue(item.confidence);
+      const recencyScore = item.recencySamples
+        ? item.recencyAccumulator / item.recencySamples
+        : 0.62;
+      const distinctConversationCount = item.distinctConversations.size;
+      const contextDiversity = item.sourceKinds.size;
+      const genericCapability = genericCapabilityKeys.has(item.key);
+      const weakMapping = item.explicitHits === 0;
+      const singleSource = contextDiversity <= 1;
+
+      let state = evaluateCapabilityState({
+        attested: false,
+        evidenceCount: item.evidenceCount,
+        distinctConversationCount,
+        confidenceScore,
+        counterEvidenceCount: item.counterEvidenceCount
+      });
+
+      const reasonCodes = [];
+      const archetypeOnly = item.sources.has("archetype") && !item.sources.has("canonical");
+      if (archetypeOnly) {
+        reasonCodes.push("category_only_match");
+        if (["demonstrated", "strongly_demonstrated", "attested"].includes(state)) {
+          state = "emerging";
+        }
+      }
+      if (managerialRule) {
+        if (managerialCoverage.distinctConversations < managerialRule.minDistinctConversations) {
+          reasonCodes.push("insufficient_distinct_conversations");
+        }
+        if (managerialCoverage.categoriesMatched.length < managerialRule.minBehaviorCategories) {
+          reasonCodes.push("insufficient_managerial_behaviours");
+        }
+        if (item.counterEvidenceCount > 0) {
+          reasonCodes.push("counter_evidence_block");
+        }
+        if (item.explicitHits > 0 && managerialCoverage.categoriesMatched.length === 0) {
+          reasonCodes.push("generic_lexical_match_only");
+        }
+        if (archetypeOnly && item.explicitHits <= 1) {
+          reasonCodes.push("category_only_match");
+        }
+        if (reasonCodes.length) {
+          state = reasonCodes.includes("counter_evidence_block") || reasonCodes.includes("insufficient_distinct_conversations")
+            ? "signal"
+            : state === "demonstrated" || state === "strongly_demonstrated" || state === "attested"
+              ? "emerging"
+              : state;
+        }
+      } else if (item.counterEvidenceCount > 0 && (state === "demonstrated" || state === "strongly_demonstrated")) {
+        state = "emerging";
+      }
+
+      const dominanceScore = capabilityDominanceScore({
+        evidenceCount: item.evidenceCount,
+        distinctConversationCount,
+        confidenceScore,
+        directEvidenceCount: item.directEvidenceCount,
+        attributableEvidenceCount: item.attributableEvidenceCount,
+        recencyScore,
+        contextDiversity,
+        explicitHits: item.explicitHits,
+        repeatedBehaviorCount: managerialCoverage.categoriesMatched.length,
+        counterEvidenceCount: item.counterEvidenceCount,
+        singleSource,
+        weakMapping,
+        uncertainCount: item.uncertainCount,
+        genericCapability
+      });
+
+      return {
+        label: item.label,
+        short_label: item.short_label,
+        canonical_dimension: item.canonical_dimension,
+        coverage: Math.max(35, Math.min(100, Number(item.coverage || 0))),
+        strength: Math.max(35, Math.min(100, Number(item.strength || 0))),
+        confidence: item.confidence,
+        capability_state: state,
+        level: capabilityStateToLegacyLevel(state),
+        dominance_score: dominanceScore,
+        evidence_count: item.evidenceCount,
+        distinct_conversation_count: distinctConversationCount,
+        counter_evidence_count: item.counterEvidenceCount,
+        sources: Array.from(item.sources),
+        reason_codes: reasonCodes,
+        primary_reason_code: reasonCodes[0] || null,
+        managerial_behavior_categories: managerialCoverage.categoriesMatched
+      };
+    })
+    .sort((a, b) => Number(b.dominance_score || 0) - Number(a.dominance_score || 0) || String(a.label).localeCompare(String(b.label)));
+
+  const supported = assessments
+    .filter(item => ["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state))
+    .slice(0, 6);
+  const emerging = assessments
+    .filter(item => ["signal", "emerging"].includes(item.capability_state))
+    .slice(0, 10);
+  const excluded = assessments
+    .filter(item => !["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state) && item.reason_codes && item.reason_codes.length)
+    .slice(0, 15)
     .map(item => ({
       label: item.label,
-      short_label: item.short_label,
-      canonical_dimension: item.canonical_dimension,
-      coverage: Math.max(35, Math.min(100, Number(item.coverage || 0))),
-      strength: Math.max(35, Math.min(100, Number(item.strength || 0))),
-      confidence: item.confidence,
-      level: item.level
+      capability_state: item.capability_state,
+      reason_codes: item.reason_codes,
+      evidence_count: item.evidence_count,
+      distinct_conversation_count: item.distinct_conversation_count,
+      dominance_score: item.dominance_score
     }));
-  return ranked;
+
+  return {
+    supported,
+    emerging,
+    excluded,
+    all: assessments
+  };
 }
 
 function buildProfessionalPattern(normalized, temporalMaturity, language = "en") {
@@ -2087,14 +2509,23 @@ function buildProfessionalPattern(normalized, temporalMaturity, language = "en")
   }).sort((a, b) => b.weighted_score - a.weighted_score);
 
   const top = scores[0];
-  const primaryArchetype = top && top.weighted_score >= 2 ? top : null;
+  const primaryArchetype = top &&
+    top.weighted_score >= 2 &&
+    top.attributable_hits >= 4 &&
+    top.direct_hits >= 2
+    ? top
+    : null;
   const secondaryArchetypes = scores
     .slice(1)
     .filter(item => primaryArchetype && item.weighted_score >= Math.max(1.4, primaryArchetype.weighted_score * 0.38))
     .slice(0, 3);
 
-  const radarCapabilities = buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, secondaryArchetypes);
-  const observedPattern = combineArchetypePattern(primaryArchetype, secondaryArchetypes);
+  const capabilityAssessment = buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, secondaryArchetypes);
+  const radarCapabilities = capabilityAssessment.supported;
+  const observedPattern = capabilityDrivenPatternSummary(
+    capabilityAssessment.all,
+    combineArchetypePattern(primaryArchetype, secondaryArchetypes)
+  );
   const typicalContribution = combineContribution(primaryArchetype, secondaryArchetypes);
 
   const limitations = [];
@@ -2139,6 +2570,9 @@ function buildProfessionalPattern(normalized, temporalMaturity, language = "en")
     professional_domains_observed: domainWeighting.domains.slice(0, 5).map(item => item.domain),
     typical_professional_contribution: typicalContribution,
     radar_capabilities: radarCapabilities,
+    emerging_signals: capabilityAssessment.emerging.length ? capabilityAssessment.emerging : undefined,
+    excluded_capabilities: capabilityAssessment.excluded.length ? capabilityAssessment.excluded : undefined,
+    capability_assessments: capabilityAssessment.all.slice(0, 20),
     limitations
   };
 }
@@ -2400,9 +2834,9 @@ function classifyCandidateSemanticType(candidate, sentence) {
   if (/\b(user|assistant|stakeholder|cliente|team|manager|actor)\b/.test(text) && text.split(" ").length <= 2) return "actor";
   if (/\b(role|ruolo|position|job|titolo)\b/.test(text)) return "role";
   if (/\b(daily|weekly|monthly|often|sempre|frequentemente|ricorrente|occasionale)\b/.test(text)) return "frequency";
-  if (candidateText.split(" ").length <= 3 && !/\b(decision|adaptability|coordination|planning|analysis|improvement|leadership|execution|problem|risk|quality|communication|responsibility|judgment|reasoning)\b/.test(candidateText)) return "specialization";
+  if (candidateText.split(" ").length <= 3 && !/\b(decision|adaptability|coordination|planning|analysis|improvement|leadership|execution|problem|risk|quality|communication|responsibility|judgment|reasoning|mentoring|feedback|facilitation|synthesis)\b/.test(candidateText)) return "specialization";
   if (/\b(responsible|responsibility|ownership|owns|gestisce|coordina|guida|responsabilita|governa|supervisiona)\b/.test(text)) return "responsibility";
-  if (/\b(adaptability|reasoning|decision|problem solving|problem-solving|planning|communication|leadership|execution|judgment|analysis|prioritization|coordination|improvement|risk awareness|quality|governance|applies|defines|manages|coordinates|adatta|decide|definisce|analizza|pianifica|migliora|comunica|collabora|valuta)\b/.test(text)) return "capability";
+  if (/\b(adaptability|reasoning|decision|problem solving|problem-solving|planning|communication|leadership|execution|judgment|analysis|prioritization|coordination|improvement|risk awareness|quality|governance|mentoring|feedback|facilitation|synthesis|applies|defines|manages|coordinates|adatta|decide|definisce|analizza|pianifica|migliora|comunica|collabora|valuta)\b/.test(text)) return "capability";
   if (/\b(asks|reviews|aligns|prioritizes|validates|monitors|chiede|revisiona|allinea|prioritizza|valida|monitora)\b/.test(text)) return "behavior";
   if (/\b(project|product|clinical|technical|commercial|operational|creative|legal|finance|produzione|documentario)\b/.test(text)) return "domain";
   return "unknown";
@@ -2423,9 +2857,12 @@ function mapCandidateToCanonicalDimension(candidate, sentence) {
   if (/\b(decision|scelta|decide|judgment|valuta)\b/.test(text)) return "decision_making";
   if (/\b(problem|causa|diagnosi|solve|risolve)\b/.test(text)) return "problem_solving";
   if (/\b(communicat|spiega|messaggio|tono)\b/.test(text)) return "communication";
+  if (/\b(mentoring|mentor|coaching|knowledge sharing|feedback)\b/.test(text)) return "learning";
+  if (/\b(executive communication|executive update|information synthesis|synthesis)\b/.test(text)) return "communication";
   if (/\b(coordina|team|collabora|stakeholder)\b/.test(text)) return "collaboration";
   if (/\b(risk|rischio|mitiga)\b/.test(text)) return "risk_awareness";
   if (/\b(data|metric|kpi|dato|misura)\b/.test(text)) return "data_reasoning";
+  if (/\b(machine learning|recommendation|model exploration)\b/.test(text)) return "domain_knowledge";
   if (/\b(quality|qualita|review|migliora|standard)\b/.test(text)) return "quality_improvement";
   return "domain_knowledge";
 }
@@ -2444,8 +2881,8 @@ function extractCandidateConceptsFromEvidence(text) {
   const sentences = source.split(/[.!?;\n]+/).map(sentence => sentence.trim()).filter(sentence => sentence.length >= 12);
   const candidates = [];
   const capabilityPatterns = [
-    /\b([a-zA-Z][a-zA-Z\s-]{2,60}?(?:decision-making|decision making|adaptability|reasoning|planning|communication|leadership|execution|problem-solving|problem solving|coordination|improvement|risk awareness|quality improvement|judgment|analysis|governance))\b/gi,
-    /\b((?:clinical|commercial|operational|creative|technical|strategic|intraoperative|cross-functional|data|quality|risk)\s+[a-zA-Z-]{4,30})\b/gi,
+    /\b([a-zA-Z][a-zA-Z\s-]{2,60}?(?:decision-making|decision making|adaptability|reasoning|planning|communication|leadership|execution|problem-solving|problem solving|coordination|improvement|risk awareness|quality improvement|judgment|analysis|governance|exploration))\b/gi,
+    /\b((?:clinical|commercial|operational|creative|technical|strategic|intraoperative|cross-functional|data|quality|risk|machine)\s+[a-zA-Z-]{4,30})\b/gi,
     /\b(?:specialization|specialisation|specializzazione|domain|dominio)\s*(?:in|su|:)?\s*([a-zA-Z][a-zA-Z\s-]{3,50})/gi,
     /\b((?:coordino|gestisco|guido|definisco|valuto|analizzo|pianifico|miglioro|comunico|collaboro|adatto)\s+[^,.]{4,70})/gi
   ];
@@ -2521,7 +2958,7 @@ function discoverSemanticCapabilityDimensions(normalized) {
   }
 
   const dimensions = Array.from(groups.values())
-    .filter(group => group.evidence.length >= 2 && group.conversations.size >= 2)
+    .filter(group => group.evidence.length >= 1 && group.conversations.size >= 1)
     .sort((a, b) => b.conversations.size - a.conversations.size || b.evidence.length - a.evidence.length)
     .map(group => ({
       id: `semantic_${group.canonical_dimension}_${normalizeDomainTerm(group.display_label).replace(/\s+/g, "_").slice(0, 36)}`,
@@ -3466,6 +3903,13 @@ function pdfCoverageMeta(value, language = "en") {
   return { label: language === "it" ? "Limitata" : "Limited", color: "#b64f35" };
 }
 
+function attributionNarrativeLabel(value) {
+  const key = String(value || "").toLowerCase();
+  if (key === "direct") return "mostly user-authored evidence";
+  if (key === "mixed") return "a mix of user-authored and contextual evidence";
+  return "mostly contextual or AI-assisted evidence";
+}
+
 function strengthLabel(level, language = "en") {
   const map = language === "it"
     ? { emerging: "Emergente", observed: "Supportata", recurring: "Supportata", strongly_supported: "Fortemente supportata" }
@@ -3537,18 +3981,26 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
       ? `${notAssessed.join(" · ")}${vm.notAssessed.additional ? ` · +${vm.notAssessed.additional} additional dimensions` : ""}`
       : "All eligible dimensions had sufficient evidence for assessment.";
 
-    const headerH = 70;
-    const topRowH = 96;
-    const kpiH = 82;
-    const bottomRowH = 196;
+    const headerH = 74;
+    const topRowH = 100;
+    const kpiH = 86;
+    const bottomRowH = 188;
     const footerH = 34;
 
     let y = margin;
 
     drawRoundedPanel(doc, margin, y, contentWidth, headerH, { fill: "#0f3e3a", stroke: "#0f3e3a", radius: 10 });
     doc.fillColor("#d2ece7").font("Helvetica-Bold").fontSize(11).text("EviLayer Snapshot", margin + 14, y + 10);
-    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(18).text(sanitizeReportText(vm.profile, { maxChars: 72, isTitle: true, fallback: "Professional profile" }), margin + 14, y + 26, { width: 320, lineBreak: false });
-    drawFittedText(doc, sanitizeReportText(vm.headline, { maxChars: 180, fallback: "The analyzed evidence shows recurring professional signals across multiple work contexts." }), margin + 14, y + 48, 520, 16, { font: "Helvetica", maxFontSize: 8.4, minFontSize: 7.8, color: "#f0f6f5", lineGap: 0 });
+    drawFittedText(
+      doc,
+      sanitizeReportText(vm.profile, { maxChars: 72, isTitle: true, fallback: "Professional profile" }),
+      margin + 14,
+      y + 26,
+      360,
+      18,
+      { font: "Helvetica-Bold", maxFontSize: 17, minFontSize: 13, color: "#ffffff", lineGap: 0 }
+    );
+    drawFittedText(doc, sanitizeReportText(vm.headline, { maxChars: 160, fallback: "The analyzed evidence shows recurring professional signals across multiple work contexts." }), margin + 14, y + 46, 520, 24, { font: "Helvetica", maxFontSize: 8.2, minFontSize: 7.4, color: "#f0f6f5", lineGap: 0 });
     doc.fillColor("#d2ece7").font("Helvetica").fontSize(8.5)
       .text(`Observation period: ${sanitizeReportText(vm.period && vm.period.label, { maxChars: 32, isTitle: true, fallback: "-" })}`, margin + 540, y + 12, { width: 190, align: "right" })
       .text(`Period analyzed: ${sanitizeReportText(vm.period && vm.period.range, { maxChars: 52, isTitle: true, fallback: "-" })}`, margin + 540, y + 26, { width: 190, align: "right" })
@@ -3579,10 +4031,10 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
     const kpiWidth = (contentWidth - 20 - kpiGap * 3) / 4;
     metrics.forEach((kpi, index) => {
       const x = margin + 10 + index * (kpiWidth + kpiGap);
-      drawRoundedPanel(doc, x, y + 22, kpiWidth, 50, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 7 });
+      drawRoundedPanel(doc, x, y + 22, kpiWidth, 54, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 7 });
       doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(12).text(String(kpi.value), x + 7, y + 26, { width: kpiWidth - 14, lineBreak: false });
-      drawFittedText(doc, sanitizeReportText(kpi.label, { maxChars: 38, isTitle: true, fallback: "Metric" }), x + 7, y + 40, kpiWidth - 14, 10, { font: "Helvetica-Bold", maxFontSize: 7.5, minFontSize: 7, color: "#1d3b38" });
-      drawFittedText(doc, sanitizeReportText(kpi.helper, { maxChars: 50, fallback: "" }), x + 7, y + 52, kpiWidth - 14, 18, { font: "Helvetica", maxFontSize: 6.9, minFontSize: 6.5, color: "#5b7470" });
+      drawFittedText(doc, sanitizeReportText(kpi.label, { maxChars: 38, isTitle: true, fallback: "Metric" }), x + 7, y + 40, kpiWidth - 14, 11, { font: "Helvetica-Bold", maxFontSize: 7.5, minFontSize: 7, color: "#1d3b38" });
+      drawFittedText(doc, sanitizeReportText(kpi.helper, { maxChars: 48, fallback: "" }), x + 7, y + 53, kpiWidth - 14, 18, { font: "Helvetica", maxFontSize: 6.8, minFontSize: 6.4, color: "#5b7470" });
     });
 
     y += kpiH + gap;
@@ -3594,43 +4046,45 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
       doc.fillColor("#4e6662").font("Helvetica").fontSize(9).text("Not enough evidence to assess this capability.", margin + 10, y + 30);
     } else {
       capabilityRows.forEach((row, index) => {
-        const cardY = y + 24 + index * 33;
-        drawRoundedPanel(doc, margin + 10, cardY, capW - 20, 28, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 6 });
-        doc.fillColor("#163331").font("Helvetica-Bold").fontSize(8.7).text(sanitizeReportText(row.label, { maxChars: 44, isTitle: true, fallback: "Capability" }), margin + 16, cardY + 6, { width: 165, lineBreak: false });
-        drawFittedText(doc, `${row.evidenceStrength} · ${row.evidenceCoverage} · ${row.attribution} attribution`, margin + 186, cardY + 6, 210, 10, { font: "Helvetica", maxFontSize: 7.3, minFontSize: 6.8, color: "#4f6763" });
-        const countLine = row.evidenceItemCount && row.conversationCount
-          ? `${row.evidenceItemCount} evidence items across ${row.conversationCount} conversations`
-          : "";
-        drawFittedText(doc, countLine, margin + 398, cardY + 6, 95, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.6, align: "right", color: "#4f6763" });
+        const rowGap = 2;
+        const rowHeight = 29;
+        const cardY = y + 24 + index * (rowHeight + rowGap);
+        const cardX = margin + 10;
+        const cardW = capW - 20;
+        drawRoundedPanel(doc, cardX, cardY, cardW, rowHeight, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 6 });
+        drawFittedText(doc, sanitizeReportText(row.label, { maxChars: 48, isTitle: true, fallback: "Capability" }), cardX + 6, cardY + 4, 250, 10, { font: "Helvetica-Bold", maxFontSize: 8.4, minFontSize: 7.6, color: "#163331" });
+        const evidenceLine = row.evidenceItemCount && row.conversationCount
+          ? `${row.evidenceStrength} by ${row.conversationCount} conversations and ${row.evidenceItemCount} evidence items · ${row.evidenceCoverage} · ${row.attribution} attribution`
+          : `${row.evidenceStrength} by recurring attributable evidence · ${row.evidenceCoverage} · ${row.attribution} attribution`;
+        drawFittedText(doc, evidenceLine, cardX + 6, cardY + 15, cardW - 12, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.5, color: "#4f6763" });
       });
     }
 
     const rightX = margin + capW + gap;
-    drawRoundedPanel(doc, rightX, y, rightW, 68, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
+    drawRoundedPanel(doc, rightX, y, rightW, 74, { fill: "#ffffff", stroke: "#c9dbd7", radius: 8 });
     doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.8).text("Not Assessed", rightX + 10, y + 8);
-    drawFittedText(doc, notAssessedText, rightX + 10, y + 24, rightW - 20, 36, { font: "Helvetica", maxFontSize: 8.2, minFontSize: 7.4, color: "#4f6763" });
+    drawFittedText(doc, notAssessedText, rightX + 10, y + 24, rightW - 20, 42, { font: "Helvetica", maxFontSize: 8.1, minFontSize: 7.3, color: "#4f6763" });
 
-    drawRoundedPanel(doc, rightX, y + 76, rightW, bottomRowH - 76, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
-    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.6).text("Methodology and verification", rightX + 10, y + 84);
+    drawRoundedPanel(doc, rightX, y + 80, rightW, bottomRowH - 80, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
+    doc.fillColor("#0f3e3a").font("Helvetica-Bold").fontSize(8.6).text("Methodology and verification", rightX + 10, y + 88);
     drawFittedText(
       doc,
       sanitizeReportText(vm.verification, { maxChars: 260, fallback: "AI-assisted analysis based on user-provided content. The evidence has not been independently verified." }),
       rightX + 10,
-      y + 98,
+      y + 102,
       rightW - 20,
       52,
       { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.7, color: "#4f6763" }
     );
     doc.fillColor("#4f6763").font("Helvetica").fontSize(7)
-      .text(`Direct evidence: ${vm.attribution.directPercent}%`, rightX + 10, y + 152, { width: rightW - 20 })
-      .text(`Mixed attribution: ${vm.attribution.mixedPercent}%`, rightX + 10, y + 160, { width: rightW - 20 })
-      .text(`External or AI context: ${vm.attribution.contextualPercent}%`, rightX + 10, y + 168, { width: rightW - 20 });
+      .text(`Direct evidence: ${vm.attribution.directPercent}%`, rightX + 10, y + 156, { width: rightW - 20 })
+      .text(`Mixed attribution: ${vm.attribution.mixedPercent}%`, rightX + 10, y + 164, { width: rightW - 20 })
+      .text(`External or AI context: ${vm.attribution.contextualPercent}%`, rightX + 10, y + 172, { width: rightW - 20 });
 
     y += bottomRowH + gap;
     drawRoundedPanel(doc, margin, y, contentWidth, footerH, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 8 });
-    doc.fillColor("#4f6763").font("Helvetica").fontSize(7.3)
-      .text(`Report ID: ${sanitizeReportText(config.sanitized_profile_name, { maxChars: 32, isTitle: true, fallback: "profile" })}-${config.generated_at}`, margin + 12, y + 10, { width: 280 })
-      .text(`Methodology version: ${sanitizeReportText(vm.methodologyVersion, { maxChars: 24, isTitle: true, fallback: "snapshot-v11" })}`, margin + 530, y + 10, { width: 200, align: "right" });
+    drawFittedText(doc, `Report ID: ${sanitizeReportText(config.sanitized_profile_name, { maxChars: 32, isTitle: true, fallback: "profile" })}-${config.generated_at}`, margin + 12, y + 10, 330, 12, { font: "Helvetica", maxFontSize: 7.3, minFontSize: 6.8, color: "#4f6763" });
+    drawFittedText(doc, `Methodology version: ${sanitizeReportText(vm.methodologyVersion, { maxChars: 24, isTitle: true, fallback: "snapshot-v11" })}`, margin + 500, y + 10, 230, 12, { font: "Helvetica", maxFontSize: 7.3, minFontSize: 6.8, color: "#4f6763", align: "right" });
   });
 }
 
