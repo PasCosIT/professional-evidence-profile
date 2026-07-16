@@ -9,6 +9,8 @@ let state = {
 };
 
 const PROMPT_PREFS_KEY = "aiWorkPassportPromptPrefsV1";
+const SESSION_STATE_KEY = "professionalEvidenceProfileState";
+const SESSION_STATE_VERSION = "2026-07-16-selection-v2";
 const PromptBuilder = window.PromptBuilder || null;
 const ConversationSelection = window.ConversationSelection || null;
 let promptGeneratedPayload = null;
@@ -1764,6 +1766,7 @@ function persistState() {
   try {
     const safeState = {
       ...state,
+      __state_version: SESSION_STATE_VERSION,
       reportConfig: state.reportConfig
         ? {
             ...state.reportConfig,
@@ -1772,7 +1775,7 @@ function persistState() {
           }
         : null
     };
-    sessionStorage.setItem("professionalEvidenceProfileState", JSON.stringify(safeState));
+    sessionStorage.setItem(SESSION_STATE_KEY, JSON.stringify(safeState));
     savePromptPreferences(buildCurrentReportConfig());
   } catch (error) {
     console.warn("Unable to persist local session", error);
@@ -1787,13 +1790,19 @@ function restoreState() {
       if ($("#aiSourceSelect")) $("#aiSourceSelect").value = String(prefs.source_platform || "");
       if ($("#exportModeSelect")) $("#exportModeSelect").value = String(prefs.export_mode || "quick");
     }
-    const raw = sessionStorage.getItem("professionalEvidenceProfileState");
+    const raw = sessionStorage.getItem(SESSION_STATE_KEY);
     if (!raw) {
       updateExportPrompt();
       renderEmptySnapshot();
       return;
     }
     const restored = JSON.parse(raw);
+    if (!restored || restored.__state_version !== SESSION_STATE_VERSION) {
+      sessionStorage.removeItem(SESSION_STATE_KEY);
+      updateExportPrompt();
+      renderEmptySnapshot();
+      return;
+    }
     state = {
       sessionId: restored.sessionId || null,
       conversations: restored.conversations || [],
