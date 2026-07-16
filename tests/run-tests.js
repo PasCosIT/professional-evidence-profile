@@ -943,6 +943,134 @@ async function main() {
     assert.strictEqual(neutralFallbackReport.observed_professional_pattern, "Available evidence indicates emerging professional patterns, but coverage is not yet sufficient to define a stable professional profile.", "insufficient evidence should use neutral professional pattern fallback");
     assert.strictEqual(neutralFallbackReport.typical_professional_contribution, "Available evidence is not yet sufficient to define a stable typical contribution.", "insufficient evidence should use neutral typical contribution fallback");
 
+    // TARGETED TEST 1 — CLAIM FRAGMENT REJECTION
+    const claimFragmentReport = buildReports(normalizeChatGptExport([
+      {
+        id: "cf1",
+        title: "Claim fragment rejection",
+        professional_category: "professional_communication",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-20T00:00:00.000Z",
+          text: "Claim: The user translated technical complexity into decision-oriented communication\nDisplay_label: Executive Technical Communication\nCandidate_concept: Executive technical communication\nSupporting excerpt: One executive status update.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    assert.ok(findAssessment(claimFragmentReport, "Executive Technical Communication"), "claim fragment should resolve to Executive Technical Communication");
+    assert.ok(!findAssessment(claimFragmentReport, "The User Translated Technical Complexity Into Decision Oriented Communication"), "claim fragment must not be promoted as capability label");
+
+    // TARGETED TEST 2 — FULL LABEL PRESERVATION (INCIDENT)
+    const incidentPreservationReport = buildReports(normalizeChatGptExport([
+      {
+        id: "ip1",
+        title: "Incident label preservation",
+        professional_category: "technology",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-21T00:00:00.000Z",
+          text: "Display_label: Incident Mitigation Planning\nClaim: Incident Mitigation Planning\nSupporting excerpt: Planned incident mitigation actions and rollback checkpoints.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    assert.ok(findAssessment(incidentPreservationReport, "Incident Mitigation Planning"), "Incident Mitigation Planning should be preserved as full label");
+    assert.ok(!findAssessment(incidentPreservationReport, "Incident"), "Incident one-word truncation should not replace full incident label");
+
+    // TARGETED TEST 3 — DATA REASONING PRESERVATION
+    const dataPreservationReport = buildReports(normalizeChatGptExport([
+      {
+        id: "dp1",
+        title: "Data label preservation",
+        professional_category: "data_analytics",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-22T00:00:00.000Z",
+          text: "Display_label: Data Reasoning\nClaim: Data Reasoning\nSupporting excerpt: Interpreted KPI trends and confidence ranges.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    assert.ok(findAssessment(dataPreservationReport, "Data Reasoning"), "Data Reasoning should be preserved as full label");
+    assert.ok(!findAssessment(dataPreservationReport, "Data"), "Data one-word truncation should not replace Data Reasoning");
+
+    // TARGETED TEST 4 — SINGLE EMERGING NOT RECURRING
+    const singleEmergingReport = buildReports(normalizeChatGptExport([
+      {
+        id: "se1",
+        title: "Single emerging communication",
+        professional_category: "professional_communication",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-23T00:00:00.000Z",
+          text: "Claim: Executive Technical Communication\nSupporting excerpt: One executive status update with technical synthesis.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    const singleEmergingSignal = findSignal(singleEmergingReport, "Executive Technical Communication") || findAssessment(singleEmergingReport, "Executive Technical Communication");
+    assert.ok(singleEmergingSignal && !singleEmergingSignal.is_recurring_strength, "single emerging capability must not become recurring strength");
+    assert.ok(!String(singleEmergingReport.observed_professional_pattern || "").toLowerCase().includes("executive technical communication"), "single emerging capability must not appear in recurring-strength professional pattern sentence");
+
+    // TARGETED TEST 5 + 6 — RECURRING ONLY + GRAMMATICAL LIST
+    const recurringOnlyReport = buildReports(normalizeChatGptExport([
+      { id: "ro1", title: "Incident 1", professional_category: "technology", messages: [{ author: "user", created_at: "2026-01-10T00:00:00.000Z", text: "Claim: Incident Mitigation Planning\nSupporting excerpt: Planned incident mitigation controls for release risk.", content_origin: { value: "original_user_input" } }] },
+      { id: "ro2", title: "Incident 2", professional_category: "technology", messages: [{ author: "user", created_at: "2026-02-12T00:00:00.000Z", text: "Claim: Incident Mitigation Planning\nSupporting excerpt: Coordinated rollback checkpoints and incident contingencies.", content_origin: { value: "original_user_input" } }] },
+      { id: "ro3", title: "Data 1", professional_category: "data_analytics", messages: [{ author: "user", created_at: "2026-03-12T00:00:00.000Z", text: "Claim: Data Reasoning\nSupporting excerpt: Interpreted KPI distribution and trend reliability.", content_origin: { value: "original_user_input" } }] },
+      { id: "ro4", title: "Data 2", professional_category: "data_analytics", messages: [{ author: "user", created_at: "2026-04-14T00:00:00.000Z", text: "Claim: Data Reasoning\nSupporting excerpt: Evaluated data quality and confidence intervals for decision support.", content_origin: { value: "original_user_input" } }] },
+      { id: "ro5", title: "Database 1", professional_category: "technology", messages: [{ author: "user", created_at: "2026-05-15T00:00:00.000Z", text: "Claim: Database Performance Analysis\nSupporting excerpt: Diagnosed query bottlenecks and indexing strategy.", content_origin: { value: "original_user_input" } }] },
+      { id: "ro6", title: "Database 2", professional_category: "technology", messages: [{ author: "user", created_at: "2026-06-16T00:00:00.000Z", text: "Claim: Database Performance Analysis\nSupporting excerpt: Validated execution plans and optimized latency hotspots.", content_origin: { value: "original_user_input" } }] },
+      { id: "ro7", title: "Single executive", professional_category: "professional_communication", messages: [{ author: "user", created_at: "2026-06-20T00:00:00.000Z", text: "Claim: Executive Technical Communication\nSupporting excerpt: One executive status update only.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    const recurringLabels = (recurringOnlyReport.recurring_strengths || []).map(item => String(item.full_label || item.label).toLowerCase());
+    assert.ok(recurringLabels.includes("incident mitigation planning"), "recurring strengths should include Incident Mitigation Planning");
+    assert.ok(recurringLabels.includes("data reasoning"), "recurring strengths should include Data Reasoning");
+    assert.ok(!recurringLabels.includes("executive technical communication"), "single emerging communication must not enter recurring strengths");
+    const recurringSentence = String(recurringOnlyReport.observed_professional_pattern || "").toLowerCase();
+    assert.ok(recurringSentence.includes("incident mitigation planning"), "pattern should include recurring incident label");
+    assert.ok(recurringSentence.includes("data reasoning"), "pattern should include recurring data label");
+    assert.ok(!recurringSentence.includes("executive technical communication"), "pattern should exclude single emerging communication");
+    assert.ok(!/,,/.test(recurringSentence), "grammatical list must not contain duplicate commas");
+    assert.ok(!/(into|with|through|for|by|and)\.$/.test(recurringSentence), "grammatical list must not end with dangling preposition");
+
+    // TARGETED TEST 7 — INVALID LABEL FILTER
+    const invalidFilterReport = buildReports(normalizeChatGptExport([
+      {
+        id: "if1",
+        title: "Invalid labels",
+        professional_category: "technology",
+        messages: [{
+          author: "user",
+          created_at: "2026-06-24T00:00:00.000Z",
+          text: "Claim: user translated technical complexity into\nClaim: The user analysed\nClaim: incident\nClaim: data\nDisplay_label: Incident Mitigation Planning\nCandidate_concept: Data Reasoning\nSupporting excerpt: Technical narrative and data interpretation evidence.",
+          content_origin: { value: "original_user_input" }
+        }]
+      }
+    ])).professional_pattern;
+    assert.ok(findAssessment(invalidFilterReport, "Incident Mitigation Planning"), "invalid claim fragments should fall back to specific incident label");
+    assert.ok(findAssessment(invalidFilterReport, "Data Reasoning"), "invalid generic one-word labels should fall back to specific data label");
+    assert.ok(!findAssessment(invalidFilterReport, "User Translated Technical Complexity Into"), "invalid narrative label must be filtered out");
+
+    // TARGETED TEST 8 — SUPPORTED CAPABILITIES FULL LABEL
+    const supportedFullLabelReport = recurringOnlyReport;
+    const supportedLabels = (supportedFullLabelReport.radar_capabilities || []).map(item => String(item.full_label || item.label).toLowerCase());
+    assert.ok(supportedLabels.includes("incident mitigation planning"), "supported capabilities should keep full Incident Mitigation Planning label");
+    assert.ok(supportedLabels.includes("data reasoning"), "supported capabilities should keep full Data Reasoning label");
+    assert.ok(!supportedLabels.includes("incident."), "supported capabilities should not contain punctuated truncated Incident label");
+    assert.ok(!supportedLabels.includes("data."), "supported capabilities should not contain punctuated truncated Data label");
+
+    // TARGETED TEST 9 — NEUTRAL FALLBACK WITHOUT RECURRING STRENGTHS
+    const noRecurringReport = buildReports(normalizeChatGptExport([
+      { id: "nr1", title: "Single 1", professional_category: "technology", messages: [{ author: "user", created_at: "2026-06-25T00:00:00.000Z", text: "Claim: API Task\nSupporting excerpt: Implemented one API task with guidance.", content_origin: { value: "original_user_input" } }] },
+      { id: "nr2", title: "Single 2", professional_category: "professional_communication", messages: [{ author: "user", created_at: "2026-06-26T00:00:00.000Z", text: "Claim: Executive Technical Communication\nSupporting excerpt: One executive status update.", content_origin: { value: "original_user_input" } }] }
+    ])).professional_pattern;
+    assert.ok(
+      /not yet sufficient to define stable recurring strengths/i.test(String(noRecurringReport.observed_professional_pattern || "")) ||
+      /coverage is not yet sufficient to define a stable professional profile/i.test(String(noRecurringReport.observed_professional_pattern || "")),
+      "without recurring demonstrated strengths pattern must use conservative fallback"
+    );
+    assert.ok(!String(noRecurringReport.observed_professional_pattern || "").toLowerCase().includes("executive technical communication"), "neutral fallback must not promote emerging signal as recurring strength");
+
     // REGRESSION — TECHNICAL BACKEND-LIKE DATASET
     const technicalRegressionReport = buildReports(normalizeChatGptExport([
       { id: "tr1", title: "Distributed", professional_category: "technology", messages: [{ author: "user", created_at: "2026-01-03T00:00:00.000Z", text: "Claim: Distributed Systems Problem Solving\nSupporting excerpt: Designed idempotency and retry strategies for distributed workflows.", content_origin: { value: "original_user_input" } }] },

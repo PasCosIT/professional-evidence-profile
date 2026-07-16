@@ -775,6 +775,11 @@ function compactCapabilityLabel(label, language = getReportLanguage()) {
   return limitChars(direct || String(label || ""), 26);
 }
 
+function resolveSnapshotCapabilityLabel(item) {
+  const raw = item && (item.resolved_label || item.full_label || item.label || item.short_label) ? String(item.resolved_label || item.full_label || item.label || item.short_label) : "";
+  return raw.replace(/[.!?]+$/g, "").replace(/\s+/g, " ").trim();
+}
+
 function professionalCategoryLabel(category, language = getReportLanguage()) {
   const labels = {
     strategy: language === "it" ? "strategia e prioritizzazione" : "strategy and prioritization",
@@ -982,7 +987,7 @@ function buildSnapshotData() {
     ? professionalPattern.radar_capabilities
       .filter(item => item && item.label)
       .map(item => ({
-        label: compactCapabilityLabel(item.short_label || item.label, language),
+        label: resolveSnapshotCapabilityLabel(item) || compactCapabilityLabel(item.short_label || item.label, language),
         canonical_dimension: item.canonical_dimension || null,
         coverage: Number(item.coverage || 0),
         strength: Number(item.strength || item.coverage || 0),
@@ -993,6 +998,14 @@ function buildSnapshotData() {
         confidenceLabel: texts.confidence[item.confidence] || item.confidence || "medium"
       }))
       .slice(0, 6)
+    : [];
+  const recurringSummaryLabels = Array.isArray(professionalPattern && professionalPattern.recurring_strengths)
+    ? professionalPattern.recurring_strengths
+      .filter(item => item && item.is_recurring_strength)
+      .map(item => resolveSnapshotCapabilityLabel(item))
+      .filter(Boolean)
+      .filter((label, index, arr) => arr.findIndex(candidate => String(candidate).toLowerCase() === String(label).toLowerCase()) === index)
+      .slice(0, 3)
     : [];
   const axes = patternAxes.length ? patternAxes : canonicalFallbackAxes;
   const allDimensions = (temporal.dimensions || [])
@@ -1101,7 +1114,7 @@ function buildSnapshotData() {
       ? `${config.selected_months || 6} ${Number(config.selected_months || 6) === 1 ? "mese" : "mesi"}`
       : `${config.selected_months || 6} month${Number(config.selected_months || 6) === 1 ? "" : "s"}`,
     axes,
-    summary: buildSnapshotSummary(axes, notAssessed, language),
+    summary: buildSnapshotSummary(axes, notAssessed, language, recurringSummaryLabels),
     kpis: [
       { value: String(professionalConversations || "-"), label: limitChars(texts.analyzedConversations, 24), note: limitWords(texts.retainedNote, 8), meter: Math.min(100, professionalConversations * 10) },
       { value: String(evidenceItems || "-"), label: limitChars(texts.evidenceItems, 24), note: limitWords(texts.evidenceNote, 8), meter: Math.min(100, evidenceItems * 3) },
@@ -1658,13 +1671,13 @@ function computeAttributablePercentage(coverage, evidenceItems) {
   return Math.round(((direct + mixed * 0.5) / total) * 100);
 }
 
-function buildSnapshotSummary(axes, notAssessed, language = getReportLanguage()) {
+function buildSnapshotSummary(axes, notAssessed, language = getReportLanguage(), recurringLabels = []) {
   if (!axes.length) {
     return language === "it"
       ? "Le conversazioni professionali analizzate non contengono abbastanza evidenza attribuibile per sostenere un profilo di capacita nel periodo selezionato."
       : "The analyzed professional conversations do not contain enough attributable evidence to support a visual capability profile for the selected period.";
   }
-  const top = axes.slice(0, 3).map(axis => axis.label);
+  const top = recurringLabels.length ? recurringLabels : axes.slice(0, 3).map(axis => axis.label);
   if (language === "it") {
     const limitation = notAssessed.length ? "Le dimensioni con evidenza insufficiente restano non valutate." : "Nessuna area non supportata viene letta come bassa capacita.";
     return `Le conversazioni professionali analizzate mostrano evidenze ricorrenti in ${joinHuman(top)}. Il pattern osservabile piu forte e ${axes[0].label}. ${limitation}`;

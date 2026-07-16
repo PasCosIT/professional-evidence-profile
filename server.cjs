@@ -1955,6 +1955,8 @@ const counterNarrativeFragments = [
   "does not demonstrate", "does not establish", "single example", "one communication example",
   "counter-evidence", "counter evidence", "not sufficient", "insufficient"
 ];
+const danglingLabelEndings = new Set(["into", "with", "through", "for", "by", "and"]);
+const narrativeLeadVerbs = new Set(["translated", "analysed", "analyzed", "identified", "implemented", "managed", "coordinated", "designed", "built", "defined", "prepared", "created", "reviewed", "optimized", "improved", "solved"]);
 
 const capabilityFamilies = [
   {
@@ -2089,28 +2091,64 @@ function isTooGenericLabel(label) {
   return false;
 }
 
-function resolveCapabilityDisplayLabel(capability) {
+function isValidCapabilityLabel(label, options = {}) {
+  const cleaned = cleanCapabilityLabelText(label)
+    .replace(/[.!?]+$/g, "")
+    .trim();
+  if (!cleaned) return false;
+  if (cleaned.length < 3 || cleaned.length > 84) return false;
+  if (/[\r\n]/.test(cleaned)) return false;
+
+  const tokens = normalizeLabelTokens(cleaned);
+  if (!tokens.length || tokens.length > 7) return false;
+
+  const lower = normalizeDomainTerm(cleaned);
+  if (!lower) return false;
+  if (lower.startsWith("the user ")) return false;
+  if (/^user\s+/.test(lower)) {
+    const second = tokens[1] || "";
+    if (narrativeLeadVerbs.has(second)) return false;
+  }
+  if (/^(translated|analysed|analyzed|identified|implemented|managed|coordinated|designed|built|defined|prepared|created|reviewed|optimized|improved|solved)\b/.test(lower)) return false;
+  if (/\b(i|we|you|they|he|she)\b/.test(lower)) return false;
+  if (/\b(is|are|was|were|has|have|had|did|does)\b/.test(lower)) return false;
+  if (/[,;:]/.test(cleaned)) return false;
+  if (cleaned.includes("  ")) return false;
+
+  const finalToken = tokens[tokens.length - 1];
+  if (danglingLabelEndings.has(finalToken)) return false;
+
+  const allowGenericSingleWord = Boolean(options.allowGenericSingleWord);
+  if (!allowGenericSingleWord && tokens.length === 1 && genericCapabilityTerms.has(tokens[0])) return false;
+  return true;
+}
+
+function resolveFinalCapabilityLabel(capability) {
   const canonicalLabel = cleanCapabilityLabelText(capability.canonical_label);
+  const canonicalSpecificLabel = cleanCapabilityLabelText(capability.canonical_specific_label || "");
+  const fullLabel = cleanCapabilityLabelText(capability.full_label);
   const displayLabel = cleanCapabilityLabelText(capability.display_label);
   const conceptLabel = cleanCapabilityLabelText(capability.candidate_concept);
-  const fallbackLabel = cleanCapabilityLabelText(capability.label) || cleanCapabilityLabelText(capability.dimension_label) || cleanCapabilityLabelText(capability.parent_dimension);
+  const dimensionLabel = cleanCapabilityLabelText(capability.dimension_label || capability.parent_dimension || capability.canonical_dimension || "");
 
-  const validCanonical = canonicalLabel && canonicalLabel.length >= 3 && !looksCounterNarrativeLabel(canonicalLabel);
-  const validDisplay = displayLabel && displayLabel.length >= 3 && !looksCounterNarrativeLabel(displayLabel);
-  const validConcept = conceptLabel && conceptLabel.length >= 3 && !looksCounterNarrativeLabel(conceptLabel);
+  const canonicalSpecificCandidate = canonicalSpecificLabel || canonicalLabel;
+  if (canonicalSpecificCandidate && !isTooGenericLabel(canonicalSpecificCandidate) && isValidCapabilityLabel(canonicalSpecificCandidate)) {
+    return { label: canonicalSpecificCandidate, source: "canonical_specific" };
+  }
+  if (fullLabel && isValidCapabilityLabel(fullLabel)) return { label: fullLabel, source: "full_label" };
+  if (displayLabel && isValidCapabilityLabel(displayLabel)) return { label: displayLabel, source: "display_label" };
+  if (conceptLabel && isValidCapabilityLabel(conceptLabel)) return { label: conceptLabel, source: "candidate_concept" };
+  if (canonicalLabel && isValidCapabilityLabel(canonicalLabel, { allowGenericSingleWord: true })) return { label: canonicalLabel, source: "canonical_dimension" };
+  if (dimensionLabel && isValidCapabilityLabel(dimensionLabel, { allowGenericSingleWord: true })) return { label: dimensionLabel, source: "canonical_dimension" };
+  return { label: "Capability", source: "fallback" };
+}
 
-  const canonicalIsGeneric = validCanonical && isTooGenericLabel(canonicalLabel);
-  const displayIsSpecific = validDisplay && !isTooGenericLabel(displayLabel);
-  const conceptIsSpecific = validConcept && !isTooGenericLabel(conceptLabel);
-
-  let selected = "Capability";
-  if (validCanonical && !canonicalIsGeneric) selected = canonicalLabel;
-  else if (displayIsSpecific) selected = displayLabel;
-  else if (conceptIsSpecific) selected = conceptLabel;
-  else if (validCanonical) selected = canonicalLabel;
-  else if (validDisplay) selected = displayLabel;
-  else if (validConcept) selected = conceptLabel;
-  else if (fallbackLabel) selected = fallbackLabel;
+function resolveCapabilityDisplayLabel(capability) {
+  const resolved = resolveFinalCapabilityLabel({
+    ...capability,
+    full_label: capability.full_label || capability.label
+  });
+  const selected = resolved.label;
 
   const normalized = selected
     .replace(/[_/]+/g, " ")
@@ -2189,6 +2227,7 @@ function selectRecurringStrengths(assessments) {
   return assessments
     .filter(item => ["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state))
     .filter(item => Number(item.distinct_conversation_count || 0) >= 2)
+    .filter(item => Number(item.evidence_count || 0) >= 2)
     .filter(item => Number(item.dominance_score || 0) >= 9)
     .filter(item => Number(item.specificity_score || 0) >= 2.6)
     .filter(item => Number(item.counter_evidence_count || 0) === 0)
@@ -2221,10 +2260,18 @@ function inferProfessionalFamily(recurringStrengths) {
 
 function composeProfessionalPatternFromStrengths(family, recurringStrengths) {
   const strengths = Array.isArray(recurringStrengths) ? recurringStrengths : [];
-  if (strengths.length < 2) {
-    return "Available evidence indicates emerging professional patterns, but coverage is not yet sufficient to define a stable professional profile.";
+  const labels = strengths
+    .map(item => resolveFinalCapabilityLabel(item).label)
+    .filter(label => isValidCapabilityLabel(label))
+    .filter((label, index, arr) => arr.findIndex(candidate => normalizeCapabilityKey(candidate) === normalizeCapabilityKey(label)) === index)
+    .slice(0, 5)
+    .map(label => String(label).toLowerCase());
+  if (!labels.length) {
+    if (!family || family.id === "mixed_cross_functional") {
+      return "Available evidence indicates emerging professional patterns, but coverage is not yet sufficient to define a stable professional profile.";
+    }
+    return `Evidence suggests a ${family.label} profile, although available evidence is not yet sufficient to define stable recurring strengths.`;
   }
-  const labels = strengths.slice(0, 5).map(item => String(item.full_label || item.label).toLowerCase());
   return `Evidence suggests a ${family.label} profile with recurring strength in ${joinHuman(labels)}.`;
 }
 
@@ -2582,6 +2629,7 @@ function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, 
         .trim()
         .slice(0, 84);
       if (!rawLabel) continue;
+      if (!isValidCapabilityLabel(rawLabel, { allowGenericSingleWord: true })) continue;
       const label = humanReadableCapability(rawLabel);
       const row = ensureCandidate(label, null);
       row.sources.add("explicit_claim");
@@ -2724,7 +2772,9 @@ function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, 
         genericCapability
       });
 
-      const fullLabel = resolveCapabilityDisplayLabel({
+      const resolvedLabelInfo = resolveFinalCapabilityLabel({
+        canonical_specific_label: item.canonical_dimension ? humanReadableCapability(canonicalDimensionDisplay[item.canonical_dimension] || item.canonical_dimension) : null,
+        full_label: item.label,
         canonical_label: item.canonical_dimension ? humanReadableCapability(canonicalDimensionDisplay[item.canonical_dimension] || item.canonical_dimension) : null,
         display_label: item.label,
         candidate_concept: item.label,
@@ -2732,10 +2782,13 @@ function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, 
         dimension_label: item.canonical_dimension ? humanReadableCapability(item.canonical_dimension) : null,
         parent_dimension: item.canonical_dimension
       });
+      const fullLabel = resolvedLabelInfo.label;
 
       const base = {
         label: fullLabel,
         full_label: fullLabel,
+        resolved_label: fullLabel,
+        label_source: resolvedLabelInfo.source,
         short_label: fullLabel,
         canonical_label: item.canonical_dimension ? humanReadableCapability(canonicalDimensionDisplay[item.canonical_dimension] || item.canonical_dimension) : null,
         canonical_dimension: item.canonical_dimension,
@@ -2791,6 +2844,8 @@ function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, 
     .slice(0, 15)
     .map(item => ({
       label: item.full_label || item.label,
+      resolved_label: item.resolved_label || item.full_label || item.label,
+      label_source: item.label_source || "fallback",
       capability_state: item.capability_state,
       reason_codes: item.reason_codes,
       evidence_count: item.evidence_count,
@@ -2801,6 +2856,8 @@ function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, 
 
   const suppressedDuplicates = deduped.suppressed.slice(0, 20).map(item => ({
     label: item.full_label || item.label,
+    resolved_label: item.resolved_label || item.full_label || item.label,
+    label_source: item.label_source || "fallback",
     suppressed_by: item.is_duplicate_of,
     reason_codes: item.reason_codes,
     evidence_count: item.evidence_count,
@@ -2889,7 +2946,14 @@ function buildProfessionalPattern(normalized, temporalMaturity, language = "en")
     : [];
   const patternStrengths = recurringStrengths.length >= 2 ? recurringStrengths : fallbackPatternStrengths;
   const inferredFamily = inferProfessionalFamily(patternStrengths);
-  const observedPattern = composeProfessionalPatternFromStrengths(inferredFamily, patternStrengths);
+  const recurringNarrativeStrengths = recurringStrengths
+    .filter(item => item.is_recurring_strength)
+    .filter(item => ["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state))
+    .filter(item => Number(item.distinct_conversation_count || 0) >= 2)
+    .filter(item => Number(item.evidence_count || 0) >= 2)
+    .filter(item => Number(item.counter_evidence_count || 0) === 0)
+    .filter(item => !(item.reason_codes || []).includes("category_only_match"));
+  const observedPattern = composeProfessionalPatternFromStrengths(inferredFamily, recurringNarrativeStrengths);
   const typicalContribution = composeTypicalContributionFromStrengths(inferredFamily, patternStrengths);
 
   const limitations = [];
@@ -2905,7 +2969,7 @@ function buildProfessionalPattern(normalized, temporalMaturity, language = "en")
     dominant_domain: dominant ? dominant.domain : "uncertain",
     secondary_domains: secondaryDomains.map(item => item.domain),
     dominant_domain_share: dominant ? Number(dominant.weighted_share.toFixed(4)) : 0,
-    main_capabilities: patternStrengths.length ? patternStrengths.map(item => item.full_label || item.label) : radarCapabilities.map(item => item.full_label || item.label),
+    main_capabilities: recurringNarrativeStrengths.length ? recurringNarrativeStrengths.map(item => item.resolved_label || item.full_label || item.label) : [],
     attribution_note: "Attribution measures how directly evidence comes from user-authored messages versus pasted, AI-generated or external content.",
     thresholds: {
       min_supporting_evidence_items: 3,
@@ -2937,7 +3001,7 @@ function buildProfessionalPattern(normalized, temporalMaturity, language = "en")
     radar_capabilities: radarCapabilities,
     emerging_signals: capabilityAssessment.emerging.length ? capabilityAssessment.emerging : undefined,
     excluded_capabilities: capabilityAssessment.excluded.length ? capabilityAssessment.excluded : undefined,
-    recurring_strengths: recurringStrengths.length ? recurringStrengths : undefined,
+    recurring_strengths: recurringNarrativeStrengths.length ? recurringNarrativeStrengths : undefined,
     suppressed_generic_duplicates: capabilityAssessment.suppressed_duplicates && capabilityAssessment.suppressed_duplicates.length
       ? capabilityAssessment.suppressed_duplicates
       : undefined,
