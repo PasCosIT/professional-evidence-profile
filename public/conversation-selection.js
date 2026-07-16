@@ -19,9 +19,13 @@
     if (hasOwnBoolean(entry.automatically_selected) && entry.automatically_selected) return true;
     if (hasOwnBoolean(selection.automatically_selected) && selection.automatically_selected) return true;
 
+    const classification = String(entry.classification || "");
+    if (classification === "personal" || classification === "excluded_sensitive") return false;
+    if (classification === "professional") return true;
+
     if (hasOwnBoolean(entry.approved)) return entry.approved;
 
-    return String(entry.classification || "") === "professional";
+    return false;
   }
 
   function applyUserConversationSelection(conversation, include) {
