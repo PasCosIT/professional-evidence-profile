@@ -4158,11 +4158,10 @@ function drawFittedText(doc, text, x, y, width, height, style = {}) {
   const content = String(text || "").trim();
   while (fontSize >= minSize) {
     const measureStyle = { ...style, fontSize };
-    const fitted = truncateTextToHeight(doc, content, width, height, measureStyle);
-    if (measureTextHeight(doc, fitted, width, measureStyle) <= height) {
+    if (measureTextHeight(doc, content, width, measureStyle) <= height) {
       doc.save();
       doc.font(style.font || "Helvetica").fontSize(fontSize).fillColor(style.color || "#1f2726");
-      doc.text(fitted, x, y, { width, height, lineGap: style.lineGap ?? 1, align: style.align || "left", ellipsis: true });
+      doc.text(content, x, y, { width, height, lineGap: style.lineGap ?? 1, align: style.align || "left", ellipsis: true });
       doc.restore();
       return;
     }
@@ -4402,9 +4401,14 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
     const pageWidth = doc.page.width;
     const contentWidth = pageWidth - margin * 2;
 
-    const vmCandidate = model.reportViewModel && typeof model.reportViewModel === "object"
-      ? model.reportViewModel
-      : ReportViewModel.buildReportViewModel(model);
+    const vmBuilder = typeof ReportViewModel.buildSnapshotViewModel === "function"
+      ? ReportViewModel.buildSnapshotViewModel
+      : ReportViewModel.buildReportViewModel;
+    const vmCandidate = model.snapshotViewModel && typeof model.snapshotViewModel === "object"
+      ? model.snapshotViewModel
+      : model.reportViewModel && typeof model.reportViewModel === "object"
+        ? model.reportViewModel
+        : vmBuilder(model);
     const vm = ReportViewModel.validateReportViewModel(vmCandidate).model;
     const contexts = (vm.contexts || []).slice(0, 4);
     const capabilityRows = (vm.capabilities || []).slice(0, 5);
@@ -4485,11 +4489,11 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
         const cardX = margin + 10;
         const cardW = capW - 20;
         drawRoundedPanel(doc, cardX, cardY, cardW, rowHeight, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 6 });
-        drawFittedText(doc, sanitizeReportText(row.label, { maxChars: 48, isTitle: true, fallback: "Capability" }), cardX + 6, cardY + 4, 250, 10, { font: "Helvetica-Bold", maxFontSize: 8.4, minFontSize: 7.6, color: "#163331" });
+        drawFittedText(doc, sanitizeReportText(row.label, { maxChars: 48, isTitle: true, fallback: "Capability" }), cardX + 6, cardY + 4, 250, 12, { font: "Helvetica-Bold", maxFontSize: 8.4, minFontSize: 7.2, color: "#163331" });
         const evidenceLine = row.evidenceItemCount && row.conversationCount
           ? `${row.evidenceStrength} by ${row.conversationCount} conversations and ${row.evidenceItemCount} evidence items · ${row.evidenceCoverage} · ${row.attribution} attribution`
           : `${row.evidenceStrength} by recurring attributable evidence · ${row.evidenceCoverage} · ${row.attribution} attribution`;
-        drawFittedText(doc, evidenceLine, cardX + 6, cardY + 15, cardW - 12, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.5, color: "#4f6763" });
+        drawFittedText(doc, evidenceLine, cardX + 6, cardY + 17, cardW - 12, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.5, color: "#4f6763" });
       });
     }
 

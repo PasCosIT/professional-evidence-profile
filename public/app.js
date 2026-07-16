@@ -506,7 +506,7 @@ function renderEmptySnapshot() {
 
 function renderSnapshotPreview() {
   const snapshot = buildSnapshotData();
-  const vm = snapshot.reportViewModel || null;
+  const vm = snapshot.snapshotViewModel || snapshot.reportViewModel || null;
   if (!vm || !window.ReportViewModel || typeof window.ReportViewModel.renderSnapshotHtml !== "function") {
     $("#snapshotPreviewHost").innerHTML = `<div class="snapshot-empty">Snapshot model unavailable.</div>`;
     return;
@@ -1152,16 +1152,18 @@ function buildSnapshotData() {
   };
 
   const reportVmApi = window.ReportViewModel;
-  if (!reportVmApi || typeof reportVmApi.buildReportViewModel !== "function" || typeof reportVmApi.validateReportViewModel !== "function") {
+  const buildVm = reportVmApi && (reportVmApi.buildSnapshotViewModel || reportVmApi.buildReportViewModel);
+  if (!buildVm || typeof reportVmApi.validateReportViewModel !== "function") {
     return rawSnapshot;
   }
-  const candidateVm = reportVmApi.buildReportViewModel(rawSnapshot);
+  const candidateVm = buildVm(rawSnapshot);
   const vmValidation = reportVmApi.validateReportViewModel(candidateVm);
   if (vmValidation.warnings && vmValidation.warnings.length) {
     console.warn("[snapshot-vm] validation warnings", vmValidation.warnings);
   }
   return {
     ...rawSnapshot,
+    snapshotViewModel: vmValidation.model,
     reportViewModel: vmValidation.model
   };
 }
@@ -1679,11 +1681,9 @@ function buildSnapshotSummary(axes, notAssessed, language = getReportLanguage(),
   }
   const top = recurringLabels.length ? recurringLabels : axes.slice(0, 3).map(axis => axis.label);
   if (language === "it") {
-    const limitation = notAssessed.length ? "Le dimensioni con evidenza insufficiente restano non valutate." : "Nessuna area non supportata viene letta come bassa capacita.";
-    return `Le conversazioni professionali analizzate mostrano evidenze ricorrenti in ${joinHuman(top)}. Il pattern osservabile piu forte e ${axes[0].label}. ${limitation}`;
+    return `Le conversazioni professionali analizzate mostrano evidenze ricorrenti in ${joinHuman(top)}.`;
   }
-  const limitation = notAssessed.length ? "Dimensions without enough evidence remain not assessed." : "No unsupported areas are scored as low ability.";
-  return `The analyzed professional conversations show recurring evidence around ${joinHuman(top)}. The strongest observable pattern is ${axes[0].label}. ${limitation}`;
+  return `The analyzed professional conversations show recurring evidence around ${joinHuman(top)}.`;
 }
 
 function buildSnapshotInterpretation(axes, notAssessed, language = getReportLanguage()) {

@@ -318,6 +318,88 @@ async function main() {
     assert.ok(!normalizedFixtureLower.includes(token), `preview html must not include forbidden token ${token}`);
   }
 
+  // SHARED VIEW MODEL PARITY — FRONTEND/PDF
+  const paritySnapshot = {
+    personName: "Parity Profile",
+    extractedDate: "2026-07-16",
+    dataRange: "2026-01-01 - 2026-07-16",
+    observationPeriod: "6 months",
+    summary: "The analyzed professional conversations show recurring evidence around Incident Mitigation Planning and Data Reasoning.",
+    professionalSignature: "Evidence suggests a technical and engineering profile with recurring strength in incident mitigation planning and data reasoning.",
+    typicalContribution: "Typically analyses reliability constraints, structures mitigation actions and communicates evidence-based decisions.",
+    observedDomains: ["technology integrations"],
+    kpis: [
+      { value: "6", label: "Professional conversations", note: "Retained" },
+      { value: "18", label: "Evidence items", note: "Attributed" },
+      { value: "2", label: "Demonstrated capabilities", note: "Supported" },
+      { value: "70%", label: "Weighted attribution", note: "Direct + mixed" }
+    ],
+    axes: [
+      {
+        label: "Incident.",
+        resolved_label: "Incident Mitigation Planning",
+        full_label: "Incident Mitigation Planning",
+        canonical_label: "Risk awareness",
+        display_label: "Incident Mitigation Planning",
+        level: "recurring",
+        assessed: true,
+        coverage: 72,
+        strength: 74,
+        confidence: "high",
+        positive_count: 3,
+        unique_conversation_count: 2
+      },
+      {
+        label: "Data.",
+        resolved_label: "Data Reasoning",
+        full_label: "Data Reasoning",
+        canonical_label: "Data reasoning",
+        display_label: "Data Reasoning",
+        level: "strongly_supported",
+        assessed: true,
+        coverage: 76,
+        strength: 78,
+        confidence: "high",
+        positive_count: 4,
+        unique_conversation_count: 3
+      }
+    ],
+    evidenceMix: {
+      attributable: 70,
+      segments: [
+        { tone: "direct", value: 50 },
+        { tone: "mixed", value: 20 },
+        { tone: "external", value: 20 },
+        { tone: "ai", value: 10 }
+      ]
+    },
+    analyzedConversationCount: 6,
+    totalEvidenceItemCount: 18
+  };
+
+  const sharedVm = ReportViewModel.validateReportViewModel(ReportViewModel.buildSnapshotViewModel(paritySnapshot)).model;
+  const legacyVm = ReportViewModel.validateReportViewModel(ReportViewModel.buildReportViewModel(paritySnapshot)).model;
+  assert.strictEqual(sharedVm.headline, legacyVm.headline, "same view model: buildSnapshotViewModel and buildReportViewModel remain aligned");
+  assert.strictEqual(sharedVm.professionalPattern, legacyVm.professionalPattern, "same view model: pattern is aligned");
+  assert.strictEqual(sharedVm.typicalContribution, legacyVm.typicalContribution, "same view model: contribution is aligned");
+
+  const parityPayload = { ...paritySnapshot, snapshotViewModel: sharedVm };
+  const parityPdf = await renderSnapshotPdf(parityPayload, pdfConfig);
+  const parityParsed = await parsedPdf(parityPdf);
+  const parityText = parityParsed.text.replace(/\s+/g, " ").trim();
+
+  assert.ok(parityText.includes("Incident Mitigation Planning"), "full capability label Incident Mitigation Planning appears in PDF");
+  assert.ok(parityText.includes("Data Reasoning"), "full capability label Data Reasoning appears in PDF");
+  assert.ok(!parityText.includes("Incident."), "PDF must not show first-token Incident.");
+  assert.ok(!parityText.includes("Data."), "PDF must not show first-token Data.");
+  assert.ok(parityText.includes(sharedVm.headline.replace(/\s+/g, " ").trim()), "headline parity between frontend view model and PDF");
+  assert.ok(parityText.includes(sharedVm.professionalPattern.replace(/\s+/g, " ").trim()), "pattern parity between frontend view model and PDF");
+  assert.ok(parityText.includes(sharedVm.typicalContribution.replace(/\s+/g, " ").trim()), "typical contribution parity between frontend view model and PDF");
+  assert.ok(!parityText.includes("The strongest observable pattern is Incident."), "legacy strongest observable pattern sentence is not auto-added in PDF");
+
+  const parityCapabilityLabels = (sharedVm.capabilities || []).map(item => item.label);
+  assert.deepStrictEqual(parityCapabilityLabels, ["Incident Mitigation Planning", "Data Reasoning"], "payload parity: supported capability labels are identical and complete");
+
   const pdfFixtures = [
     { ...pdfSnapshot, personName: "A" },
     { ...pdfSnapshot, personName: "Very Long Professional Profile Name With Multiple Corporate Segments And Regional Scope" },

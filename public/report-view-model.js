@@ -219,8 +219,14 @@
        .map(function (word) { return word.charAt(0).toUpperCase() + word.slice(1); })
        .join(" ");
    }
+
+  function resolveCapabilitySourceLabel(axis) {
+    if (!axis || typeof axis !== "object") return "Capability";
+    var chosen = axis.resolved_label || axis.full_label || axis.canonical_label || axis.display_label || axis.label || axis.canonical_dimension || axis.dimension;
+    return capabilityDisplayLabel(chosen);
+  }
  
-   function buildReportViewModel(input) {
+   function buildSnapshotViewModel(input) {
      var source = input || {};
      var attribution = calculateAttributionSummary(source.evidenceMix || []);
  
@@ -233,7 +239,7 @@
         var hasEvidenceContext = assessed || coverage >= 35 || (!Number.isNaN(evidenceItemCount) && evidenceItemCount > 0) || (!Number.isNaN(conversationCount) && conversationCount > 0);
         if (!hasEvidenceContext) return null;
          return {
-           label: capabilityDisplayLabel(axis.label || axis.canonical_dimension || axis.dimension),
+           label: resolveCapabilitySourceLabel(axis),
            evidenceStrength: strengthLabel(axis.level),
           evidenceCoverage: coverageLabel(coverage),
            attribution: dominantAttribution(axis.source_breakdown || {}, attribution),
@@ -285,6 +291,7 @@
      var evidenceCount = Number(source.totalEvidenceItemCount || 0);
  
      var model = {
+       viewModelVersion: "snapshot-shared-v1",
        profile: cleanText(source.personName) || "Professional profile",
        reportDate: formatHumanDate(source.extractedDate),
        period: {
@@ -328,6 +335,10 @@
      };
  
      return model;
+   }
+
+   function buildReportViewModel(input) {
+     return buildSnapshotViewModel(input);
    }
  
    function validateReportViewModel(model) {
@@ -450,6 +461,7 @@
     CAPABILITY_LABELS: CAPABILITY_LABELS,
     validateGeneratedSentence: validateGeneratedSentence,
     calculateAttributionSummary: calculateAttributionSummary,
+    buildSnapshotViewModel: buildSnapshotViewModel,
     buildReportViewModel: buildReportViewModel,
     validateReportViewModel: validateReportViewModel,
     renderSnapshotHtml: renderSnapshotHtml,
