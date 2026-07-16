@@ -1,0 +1,283 @@
+{
+  "schema": "professional_evidence_pack_v1",
+  "generated_for": "EviLayer Multi-Profile Test A",
+  "generated_at": "2026-07-16",
+  "period": {
+    "from": "2026-04-16",
+    "to": "2026-07-16"
+  },
+  "source": {
+    "type": "synthetic_ai_assisted_work_test",
+    "verification": "synthetic_not_verified",
+    "limitations": [
+      "Synthetic profile for EviLayer validation",
+      "Includes strong, weak and counter-evidence",
+      "Infer profile from evidence, not file name"
+    ],
+    "expected_profile_note": "People and talent profile; no formal people management should be inferred"
+  },
+  "conversations": [
+    {
+      "id": "hr_001",
+      "title": "Structured interview framework",
+      "date": "2026-04-20",
+      "professional_category": "talent_acquisition",
+      "classification": "professional",
+      "summary": "Designed behavioural interview questions, scoring anchors and bias controls.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "talent_assessment",
+          "candidate_concept": "Structured interviewing",
+          "candidate_type": "capability",
+          "display_label": "Structured Interview Design",
+          "claim": "Created a repeatable interview process linked to role requirements and observable behaviours.",
+          "supporting_excerpt": "Each question should map to one competency, include behavioural anchors and be scored before panel discussion.",
+          "counter_evidence": null,
+          "confidence": "high"
+        },
+        {
+          "dimension": "risk_awareness",
+          "candidate_concept": "Interview bias mitigation",
+          "candidate_type": "capability",
+          "display_label": "Interview Bias Mitigation",
+          "claim": "Introduced controls to reduce halo effect and unstructured judgement.",
+          "supporting_excerpt": "Interviewers should score independently before calibration to avoid anchoring.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "hr_002",
+      "title": "Candidate scorecard calibration",
+      "date": "2026-05-02",
+      "professional_category": "talent_acquisition",
+      "classification": "professional",
+      "summary": "Calibrated a candidate scorecard with hiring managers.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "decision_making",
+          "candidate_concept": "Candidate evaluation calibration",
+          "candidate_type": "capability",
+          "display_label": "Candidate Assessment Calibration",
+          "claim": "Distinguished critical criteria from developable skills.",
+          "supporting_excerpt": "Separate minimum requirements from capabilities that can be developed in the first six months.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "hr_003",
+      "title": "Workforce capability gap analysis",
+      "date": "2026-05-11",
+      "professional_category": "workforce_planning",
+      "classification": "professional",
+      "summary": "Mapped future capability needs and gaps.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "planning",
+          "candidate_concept": "Capability gap analysis",
+          "candidate_type": "capability",
+          "display_label": "Workforce Capability Planning",
+          "claim": "Mapped business priorities to current gaps and hiring or development actions.",
+          "supporting_excerpt": "For each roadmap priority, identify required capability, current coverage, gap severity and response.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "hr_004",
+      "title": "Learning pathway design",
+      "date": "2026-05-23",
+      "professional_category": "learning_development",
+      "classification": "professional",
+      "summary": "Designed a role-based learning pathway.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "learning",
+          "candidate_concept": "Role-based learning design",
+          "candidate_type": "capability",
+          "display_label": "Learning Pathway Design",
+          "claim": "Structured learning around work outcomes rather than course completion.",
+          "supporting_excerpt": "A module is complete only when the learner applies the behaviour in a work task and receives feedback.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "hr_005",
+      "title": "Development feedback for an employee",
+      "date": "2026-06-04",
+      "professional_category": "people_development",
+      "classification": "professional",
+      "summary": "Prepared developmental feedback grounded in observable behaviour.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "collaboration",
+          "candidate_concept": "Developmental feedback",
+          "candidate_type": "capability",
+          "display_label": "Developmental Feedback",
+          "claim": "Framed feedback around specific behaviour, impact and a practical improvement plan.",
+          "supporting_excerpt": "Describe the observed behaviour, explain its impact and agree one action to test.",
+          "counter_evidence": "A single feedback example does not demonstrate formal people management.",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "hr_006",
+      "title": "Internal mobility criteria",
+      "date": "2026-06-12",
+      "professional_category": "talent_management",
+      "classification": "professional",
+      "summary": "Defined transparent internal mobility criteria.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "governance",
+          "candidate_concept": "Internal mobility framework",
+          "candidate_type": "capability",
+          "display_label": "Internal Mobility Design",
+          "claim": "Proposed evidence-based mobility criteria covering capability, motivation and readiness.",
+          "supporting_excerpt": "Mobility decisions should combine demonstrated capability, learning agility and readiness.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "hr_007",
+      "title": "Recruitment funnel analysis",
+      "date": "2026-06-21",
+      "professional_category": "talent_analytics",
+      "classification": "professional",
+      "summary": "Analysed hiring funnel conversion by stage.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "data_reasoning",
+          "candidate_concept": "Recruitment funnel analysis",
+          "candidate_type": "capability",
+          "display_label": "Talent Acquisition Analytics",
+          "claim": "Separated volume issues from assessment quality issues.",
+          "supporting_excerpt": "Analyse stage-by-stage before changing sourcing volume.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "hr_008",
+      "title": "Employer branding copy",
+      "date": "2026-06-28",
+      "professional_category": "employer_branding",
+      "classification": "professional",
+      "summary": "Refined employer branding copy for a technical audience.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "communication",
+          "candidate_concept": "Employer value proposition messaging",
+          "candidate_type": "capability",
+          "display_label": "Employer Brand Communication",
+          "claim": "Translated employee experience themes into candidate-facing messaging.",
+          "supporting_excerpt": "Lead with the work people will do, autonomy and growth support.",
+          "counter_evidence": null,
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "hr_009",
+      "title": "Headcount budgeting question",
+      "date": "2026-07-03",
+      "professional_category": "workforce_planning",
+      "classification": "professional",
+      "summary": "Asked for a headcount budget template with little context.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "finance",
+          "candidate_concept": "Headcount cost exploration",
+          "candidate_type": "activity",
+          "display_label": "Headcount Budget Exploration",
+          "claim": "Explored workforce cost planning.",
+          "supporting_excerpt": "Create a headcount budget for next year.",
+          "counter_evidence": "No cost assumptions, hiring plan or scenario validation were provided.",
+          "confidence": "low"
+        }
+      ]
+    },
+    {
+      "id": "hr_010",
+      "title": "Manager coaching session",
+      "date": "2026-07-09",
+      "professional_category": "people_development",
+      "classification": "professional",
+      "summary": "Helped structure a coaching conversation.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "collaboration",
+          "candidate_concept": "Manager coaching support",
+          "candidate_type": "capability",
+          "display_label": "Coaching Conversation Design",
+          "claim": "Structured a coaching discussion around reflection and commitments.",
+          "supporting_excerpt": "Define the desired outcome, explore options and choose one observable commitment.",
+          "counter_evidence": "This does not demonstrate ownership of the manager's performance.",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "hr_011",
+      "title": "Hiring process retrospective",
+      "date": "2026-07-13",
+      "professional_category": "talent_acquisition",
+      "classification": "professional",
+      "summary": "Identified bottlenecks in a slow hiring process.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "quality_improvement",
+          "candidate_concept": "Hiring process improvement",
+          "candidate_type": "capability",
+          "display_label": "Hiring Process Optimisation",
+          "claim": "Identified approval delays, unclear ownership and inconsistent feedback.",
+          "supporting_excerpt": "Measure time lost, assign one decision owner and define a feedback deadline.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "hr_012",
+      "title": "Team performance review request",
+      "date": "2026-07-15",
+      "professional_category": "people_management",
+      "classification": "professional",
+      "summary": "Asked AI to draft reviews without behavioural evidence.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "people_management",
+          "candidate_concept": "Performance review exploration",
+          "candidate_type": "activity",
+          "display_label": "Performance Review Exploration",
+          "claim": "Explored performance review drafting.",
+          "supporting_excerpt": "Write performance reviews for my team based on role expectations.",
+          "counter_evidence": "No specific observations, objectives, outcomes or direct management evidence were supplied.",
+          "confidence": "low"
+        }
+      ]
+    }
+  ]
+}

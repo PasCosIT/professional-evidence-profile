@@ -1,0 +1,273 @@
+{
+  "schema": "professional_evidence_pack_v1",
+  "generated_for": "EviLayer Multi-Profile Test C",
+  "generated_at": "2026-07-16",
+  "period": {
+    "from": "2026-04-16",
+    "to": "2026-07-16"
+  },
+  "source": {
+    "type": "synthetic_ai_assisted_work_test",
+    "verification": "synthetic_not_verified",
+    "limitations": [
+      "Synthetic profile for EviLayer validation",
+      "Includes strong, weak and counter-evidence",
+      "Infer profile from evidence, not file name"
+    ],
+    "expected_profile_note": "Legal, risk and compliance profile; no executive leadership should be inferred"
+  },
+  "conversations": [
+    {
+      "id": "legal_001",
+      "title": "Regulatory applicability analysis",
+      "date": "2026-04-21",
+      "professional_category": "compliance",
+      "classification": "professional",
+      "summary": "Analysed whether a regulatory requirement applied to a digital service.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "regulatory",
+          "candidate_concept": "Regulatory applicability assessment",
+          "candidate_type": "capability",
+          "display_label": "Regulatory Interpretation",
+          "claim": "Separated scope, entity, activity and jurisdiction before concluding applicability.",
+          "supporting_excerpt": "Establish whether entity, activity and territory fall within scope before assessing the obligation.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "legal_002",
+      "title": "Data processing agreement review",
+      "date": "2026-05-01",
+      "professional_category": "legal",
+      "classification": "professional",
+      "summary": "Reviewed a data processing agreement and identified responsibility gaps.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "legal_analysis",
+          "candidate_concept": "Contractual risk assessment",
+          "candidate_type": "capability",
+          "display_label": "Contractual Risk Assessment",
+          "claim": "Identified unclear roles, subprocessor controls and breach responsibilities.",
+          "supporting_excerpt": "The clause does not clearly allocate notification timing, subprocessor approval or audit rights.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "legal_003",
+      "title": "Compliance control design",
+      "date": "2026-05-10",
+      "professional_category": "compliance",
+      "classification": "professional",
+      "summary": "Translated a policy obligation into an operational control.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "governance",
+          "candidate_concept": "Operational control design",
+          "candidate_type": "capability",
+          "display_label": "Compliance Control Design",
+          "claim": "Converted a policy requirement into owner, frequency, evidence and exception handling.",
+          "supporting_excerpt": "A control needs an owner, frequency, retained evidence and escalation path.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "legal_004",
+      "title": "Third-party risk questionnaire",
+      "date": "2026-05-22",
+      "professional_category": "risk",
+      "classification": "professional",
+      "summary": "Improved a third-party risk questionnaire.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "risk_assessment",
+          "candidate_concept": "Third-party risk evaluation",
+          "candidate_type": "capability",
+          "display_label": "Third-Party Risk Assessment",
+          "claim": "Prioritised questions based on data access, criticality and control dependency.",
+          "supporting_excerpt": "Question depth should increase with criticality, sensitive data exposure and control dependency.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "legal_005",
+      "title": "Policy exception process",
+      "date": "2026-06-03",
+      "professional_category": "governance",
+      "classification": "professional",
+      "summary": "Designed a policy exception workflow.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "governance",
+          "candidate_concept": "Policy exception governance",
+          "candidate_type": "capability",
+          "display_label": "Policy Exception Management",
+          "claim": "Defined criteria, approval authority, expiry and compensating controls.",
+          "supporting_excerpt": "Every exception needs rationale, risk owner, compensating control and expiry date.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "legal_006",
+      "title": "Regulatory change impact assessment",
+      "date": "2026-06-11",
+      "professional_category": "compliance",
+      "classification": "professional",
+      "summary": "Assessed impacts of a regulatory change.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "planning",
+          "candidate_concept": "Regulatory change implementation",
+          "candidate_type": "capability",
+          "display_label": "Regulatory Change Management",
+          "claim": "Mapped new obligations to processes, systems, policies and owners.",
+          "supporting_excerpt": "Translate each obligation into process impact, system change, policy update, owner and date.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "legal_007",
+      "title": "Contract negotiation redlines",
+      "date": "2026-06-20",
+      "professional_category": "legal",
+      "classification": "professional",
+      "summary": "Prepared redline positions for liability, termination and audit clauses.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "negotiation",
+          "candidate_concept": "Contract negotiation planning",
+          "candidate_type": "capability",
+          "display_label": "Contract Negotiation",
+          "claim": "Distinguished non-negotiable protections from tradeable terms.",
+          "supporting_excerpt": "Protect liability boundaries and data obligations first; trade operational details where risk remains acceptable.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "legal_008",
+      "title": "Incident notification assessment",
+      "date": "2026-06-27",
+      "professional_category": "compliance",
+      "classification": "professional",
+      "summary": "Assessed whether an incident triggered notification obligations.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "decision_making",
+          "candidate_concept": "Notification obligation assessment",
+          "candidate_type": "capability",
+          "display_label": "Regulatory Incident Assessment",
+          "claim": "Evaluated facts, affected data, severity and statutory timing.",
+          "supporting_excerpt": "Document what happened, affected categories, likely impact and clock start before deciding notification.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "legal_009",
+      "title": "Board compliance update",
+      "date": "2026-07-02",
+      "professional_category": "communication",
+      "classification": "professional",
+      "summary": "Drafted a concise board update on compliance exposure.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "communication",
+          "candidate_concept": "Executive compliance communication",
+          "candidate_type": "capability",
+          "display_label": "Executive Compliance Communication",
+          "claim": "Translated control gaps into business impact, decision and remediation status.",
+          "supporting_excerpt": "Lead with material exposure, affected obligations, remediation owner and required decision.",
+          "counter_evidence": "One board update does not demonstrate executive leadership.",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "legal_010",
+      "title": "Legal research request",
+      "date": "2026-07-07",
+      "professional_category": "legal",
+      "classification": "professional",
+      "summary": "Asked for a legal conclusion without jurisdiction or sources.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "research",
+          "candidate_concept": "Legal research exploration",
+          "candidate_type": "activity",
+          "display_label": "Legal Research Exploration",
+          "claim": "Explored a legal question.",
+          "supporting_excerpt": "Tell me whether this clause is enforceable.",
+          "counter_evidence": "Jurisdiction, governing law, facts and authoritative sources were not provided.",
+          "confidence": "low"
+        }
+      ]
+    },
+    {
+      "id": "legal_011",
+      "title": "Compliance training outline",
+      "date": "2026-07-12",
+      "professional_category": "compliance",
+      "classification": "professional",
+      "summary": "Created a role-based compliance training outline.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "learning",
+          "candidate_concept": "Role-based compliance education",
+          "candidate_type": "capability",
+          "display_label": "Compliance Training Design",
+          "claim": "Tailored training to decision points and role-specific risks.",
+          "supporting_excerpt": "Replace generic policy slides with scenarios showing decisions each role must make.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "legal_012",
+      "title": "Remediation tracking governance",
+      "date": "2026-07-15",
+      "professional_category": "governance",
+      "classification": "professional",
+      "summary": "Designed remediation tracking with ownership and escalation.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "execution",
+          "candidate_concept": "Compliance remediation tracking",
+          "candidate_type": "capability",
+          "display_label": "Remediation Governance",
+          "claim": "Structured monitoring around accountable owners, evidence and overdue escalation.",
+          "supporting_excerpt": "Do not close remediation until the control is implemented, evidence retained and effectiveness checked.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    }
+  ]
+}

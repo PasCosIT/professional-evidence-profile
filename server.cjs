@@ -684,6 +684,192 @@ const sourceProvenanceWeights = {
   pasted_email: 0.35
 };
 
+const selectionReasonCodes = {
+  selected_professional_explicit: "selected_professional_explicit",
+  selected_professional_classification: "selected_professional_classification",
+  excluded_personal: "excluded_personal",
+  excluded_sensitive: "excluded_sensitive",
+  excluded_low_confidence: "excluded_low_confidence",
+  excluded_user_choice: "excluded_user_choice",
+  excluded_invalid_content: "excluded_invalid_content",
+  excluded_ambiguous: "excluded_ambiguous"
+};
+
+const transversalBehaviourCatalog = [
+  "data_reasoning",
+  "planning",
+  "communication",
+  "decision_making",
+  "problem_solving",
+  "critical_evaluation",
+  "quality_improvement",
+  "risk_awareness",
+  "collaboration",
+  "execution",
+  "learning"
+];
+
+const domainClusterCatalog = [
+  "people_talent",
+  "technical_engineering",
+  "data_analytics",
+  "commercial_growth",
+  "legal_risk_compliance",
+  "finance_economics",
+  "product_design",
+  "operations_delivery",
+  "healthcare_clinical",
+  "research_knowledge",
+  "mixed_unknown"
+];
+
+const domainObjectRules = [
+  { cluster: "people_talent", object: "talent acquisition", terms: ["recruit", "talent", "hiring", "interview", "workforce", "mobility", "people development", "learning pathway", "candidate"] },
+  { cluster: "technical_engineering", object: "software and systems", terms: ["software", "backend", "api", "distributed", "database", "architecture", "kubernetes", "incident", "reliability", "observability", "security"] },
+  { cluster: "data_analytics", object: "data and analytics", terms: ["dataset", "analytics", "kpi", "metric", "query", "sql", "modeling", "modelling"] },
+  { cluster: "commercial_growth", object: "customers and commercial opportunities", terms: ["customer", "pipeline", "account", "proposal", "negotiation", "pricing", "renewal", "commercial", "opportunity", "discovery"] },
+  { cluster: "legal_risk_compliance", object: "contracts and regulation", terms: ["regulatory", "compliance", "contract", "policy", "obligation", "audit", "legal", "notification", "remediation"] },
+  { cluster: "finance_economics", object: "financial planning and economics", terms: ["forecast", "budget", "margin", "variance", "cash flow", "revenue", "financial", "accounting", "investment", "pricing economics", "cost"] },
+  { cluster: "product_design", object: "products and users", terms: ["product", "user", "ux", "design", "backlog", "roadmap", "discovery"] },
+  { cluster: "operations_delivery", object: "operations and processes", terms: ["operations", "workflow", "process", "delivery", "milestone", "service"] },
+  { cluster: "healthcare_clinical", object: "healthcare and clinical matters", terms: ["clinical", "patient", "diagnostic", "care", "medical", "treatment"] },
+  { cluster: "research_knowledge", object: "research and knowledge", terms: ["research", "study", "evidence synthesis", "knowledge", "method"] }
+];
+
+const professionalCategoryClusterMap = {
+  talent_acquisition: "people_talent",
+  workforce_planning: "people_talent",
+  talent_management: "people_talent",
+  people_development: "people_talent",
+  people_management: "people_talent",
+  learning_development: "people_talent",
+  talent_analytics: "people_talent",
+  software_development: "technical_engineering",
+  software_architecture: "technical_engineering",
+  devops: "technical_engineering",
+  security: "technical_engineering",
+  programming: "technical_engineering",
+  data_engineering: "data_analytics",
+  data_analytics: "data_analytics",
+  sales: "commercial_growth",
+  sales_operations: "commercial_growth",
+  business_development: "commercial_growth",
+  account_management: "commercial_growth",
+  legal: "legal_risk_compliance",
+  compliance: "legal_risk_compliance",
+  governance: "legal_risk_compliance",
+  risk: "legal_risk_compliance",
+  finance: "finance_economics",
+  strategy: "product_design",
+  product_management: "product_design",
+  employer_branding: "people_talent"
+};
+
+const familyToClusterMap = {
+  technical_and_engineering: "technical_engineering",
+  commercial_and_growth: "commercial_growth",
+  operations_and_delivery: "operations_delivery",
+  people_and_talent: "people_talent",
+  legal_risk_and_compliance: "legal_risk_compliance",
+  finance_and_analytical: "finance_economics",
+  product_and_design: "product_design",
+  healthcare_and_clinical: "healthcare_clinical",
+  research_and_knowledge: "research_knowledge"
+};
+
+const genericCapabilityWords = new Set([
+  "analysis", "planning", "communication", "learning", "quality", "improvement", "decision", "risk", "collaboration", "execution", "problem", "solving"
+]);
+
+function confidenceValue(confidence) {
+  if (typeof confidence === "number") return Math.max(0, Math.min(1, confidence));
+  const normalized = String(confidence || "").toLowerCase();
+  if (normalized === "high") return 0.85;
+  if (normalized === "medium") return 0.65;
+  if (normalized === "low") return 0.4;
+  return 0.55;
+}
+
+function normalizeLabelForKey(value) {
+  return normalizeDomainTerm(value).replace(/\s+/g, " ").trim();
+}
+
+function inferTransversalBehavioursFromEvidence(item, conversation) {
+  const behaviours = new Set();
+  const dimension = normalizeDomainTerm(item.dimension || "");
+  const text = normalizeDomainTerm([
+    item.candidate_concept,
+    item.display_label,
+    item.claim,
+    item.supporting_excerpt,
+    conversation && conversation.summary,
+    conversation && conversation.title
+  ].filter(Boolean).join(" "));
+
+  const directMappings = {
+    decision_making: "decision_making",
+    problem_solving: "problem_solving",
+    communication: "communication",
+    execution: "execution",
+    collaboration: "collaboration",
+    planning: "planning",
+    learning: "learning",
+    data_reasoning: "data_reasoning",
+    quality_improvement: "quality_improvement",
+    risk_awareness: "risk_awareness",
+    critical_evaluation: "critical_evaluation"
+  };
+  if (directMappings[dimension]) behaviours.add(directMappings[dimension]);
+
+  if (/\b(analysis|analytics|kpi|metric|sql|query|forecast quality)\b/.test(text)) behaviours.add("data_reasoning");
+  if (/\b(plan|roadmap|timeline|window|deprecation|sequence|milestone)\b/.test(text)) behaviours.add("planning");
+  if (/\b(message|proposal|communication|board update|objection)\b/.test(text)) behaviours.add("communication");
+  if (/\b(trade off|decision|qualif|go no go|walk away)\b/.test(text)) behaviours.add("decision_making");
+  if (/\b(root cause|incident|failure|diagnos|mitigation)\b/.test(text)) behaviours.add("problem_solving");
+  if (/\b(review|challenge|evaluate|pragmatic)\b/.test(text)) behaviours.add("critical_evaluation");
+  if (/\b(quality|retro|control|improvement|review)\b/.test(text)) behaviours.add("quality_improvement");
+  if (/\b(risk|compliance|security|exposure|obligation)\b/.test(text)) behaviours.add("risk_awareness");
+  if (/\b(stakeholder|team|partner|calibration|coordination|mentoring)\b/.test(text)) behaviours.add("collaboration");
+  if (/\b(implement|deploy|execution|delivery|worker)\b/.test(text)) behaviours.add("execution");
+  if (/\b(learning|feedback|coaching|training|lesson)\b/.test(text)) behaviours.add("learning");
+
+  if (!behaviours.size) behaviours.add("execution");
+  return Array.from(behaviours).filter(value => transversalBehaviourCatalog.includes(value));
+}
+
+function inferDomainObjectAndCluster(item, conversation) {
+  const fields = [
+    item.candidate_concept,
+    item.display_label,
+    conversation && conversation.professional_category,
+    item.claim,
+    item.supporting_excerpt,
+    conversation && conversation.title,
+    conversation && conversation.summary
+  ];
+  const joined = normalizeDomainTerm(fields.filter(Boolean).join(" "));
+  for (const rule of domainObjectRules) {
+    if (rule.terms.some(term => joined.includes(normalizeDomainTerm(term)))) {
+      return { professional_domain_object: rule.object, domain_cluster: rule.cluster };
+    }
+  }
+  const categoryCluster = professionalCategoryClusterMap[conversation && conversation.professional_category];
+  if (categoryCluster) {
+    const fallbackRule = domainObjectRules.find(rule => rule.cluster === categoryCluster);
+    return {
+      professional_domain_object: fallbackRule ? fallbackRule.object : String(conversation.professional_category || "unknown").replace(/_/g, " "),
+      domain_cluster: categoryCluster
+    };
+  }
+  return { professional_domain_object: "unknown", domain_cluster: "mixed_unknown" };
+}
+
+function isGenericOnlyCapability(label) {
+  const tokens = normalizeDomainTerm(label).split(" ").filter(Boolean);
+  if (!tokens.length) return true;
+  return tokens.length <= 2 && tokens.every(token => genericCapabilityWords.has(token));
+}
+
 const domainStopWords = new Set([
   "about", "above", "after", "again", "against", "all", "also", "and", "any", "are", "because", "been", "before",
   "being", "between", "both", "but", "can", "cannot", "come", "could", "does", "doing", "done", "for", "from",
@@ -1020,8 +1206,57 @@ function normalizeChatGptExport(raw) {
 function normalizeEvidencePack(pack) {
   const conversations = Array.isArray(pack.conversations) ? pack.conversations : [];
   return conversations.map((conversation, index) => {
-    const evidenceText = Array.isArray(conversation.evidence)
-      ? conversation.evidence.map(item => [
+    const evidenceItems = Array.isArray(conversation.evidence)
+      ? conversation.evidence.map((item, evidenceIndex) => {
+        const evidenceId = item.evidence_id || `${conversation.id || `pack_conversation_${index + 1}`}:evidence_${evidenceIndex + 1}`;
+        const semanticText = [
+          item.candidate_concept,
+          item.display_label,
+          item.claim,
+          item.supporting_excerpt
+        ].filter(Boolean).join(" | ");
+        return {
+          evidence_id: evidenceId,
+          conversation_id: conversation.id || `pack_conversation_${index + 1}`,
+          source_field: "structured_evidence",
+          original_text: semanticText,
+          normalized_text: normalizeDomainTerm(semanticText),
+          semantic_text: semanticText,
+          claim: item.claim || null,
+          supporting_excerpt: item.supporting_excerpt || null,
+          candidate_concept: item.candidate_concept || null,
+          display_label: item.display_label || null,
+          candidate_type: item.candidate_type || null,
+          dimension: item.dimension || null,
+          confidence: item.confidence || "medium",
+          counter_evidence: item.counter_evidence || null,
+          attribution: {
+            source: conversation.content_origin_notes || "unknown",
+            score: confidenceValue(item.confidence)
+          },
+          provenance: {
+            source_type: pack.source && pack.source.type ? pack.source.type : "unknown",
+            verification: pack.source && pack.source.verification ? pack.source.verification : "user_provided_not_verified"
+          },
+          date: conversation.date || pack.generated_at || null,
+          professional_category: conversation.professional_category || null,
+          source_role: "user",
+          user_approved: null,
+          synthetic: Boolean(pack.source && String(pack.source.type || "").includes("synthetic")),
+          duplicate_group_id: null,
+          inclusion_status: "pending",
+          reason_codes: [],
+          transversal_behaviours: [],
+          professional_domain_object: null,
+          domain_cluster: null
+        };
+      })
+      : [];
+
+    const text = [
+      conversation.summary || "",
+      conversation.content_origin_notes ? `Content origin: ${conversation.content_origin_notes}` : "",
+      evidenceItems.map(item => [
         item.dimension ? `Dimension: ${item.dimension}` : "",
         item.candidate_concept ? `Candidate: ${item.candidate_concept}` : "",
         item.candidate_type ? `Candidate type: ${item.candidate_type}` : "",
@@ -1030,11 +1265,6 @@ function normalizeEvidencePack(pack) {
         item.supporting_excerpt ? `Evidence: ${item.supporting_excerpt}` : "",
         item.counter_evidence ? `Counter-evidence: ${item.counter_evidence}` : ""
       ].filter(Boolean).join("\n")).join("\n\n")
-      : "";
-    const text = [
-      conversation.summary || "",
-      conversation.content_origin_notes ? `Content origin: ${conversation.content_origin_notes}` : "",
-      evidenceText
     ].filter(Boolean).join("\n\n").trim();
     const normalized = {
       id: conversation.id || `pack_conversation_${index + 1}`,
@@ -1058,15 +1288,29 @@ function normalizeEvidencePack(pack) {
         verification: pack.source && pack.source.verification ? pack.source.verification : "user_provided_not_verified",
         platform: pack.source && pack.source.platform ? String(pack.source.platform) : null,
         export_mode: pack.source && pack.source.export_mode ? String(pack.source.export_mode) : null
+      },
+      summary: conversation.summary || null,
+      content_origin_notes: conversation.content_origin_notes || null,
+      evidence_items: evidenceItems,
+      selection: {
+        classification_input: conversation.classification || null,
+        user_selected: conversation.user_selected === true,
+        explicitly_excluded: conversation.excluded === true || conversation.user_selected === false,
+        automatically_selected: false,
+        selected: false,
+        exclusion_reason: null,
+        reason_codes: []
       }
     };
     const classified = classifyConversation(normalized);
+    const explicitClassification = ["professional", "mixed", "uncertain", "personal", "excluded_sensitive"].includes(conversation.classification)
+      ? conversation.classification
+      : classified.classification;
     return {
       ...normalized,
       ...classified,
-      classification: ["professional", "mixed", "uncertain"].includes(conversation.classification)
-        ? conversation.classification
-        : classified.classification,
+      classification: explicitClassification,
+      approved: explicitClassification === "professional" ? true : classified.approved,
       professional_category: conversation.professional_category || classified.professional_category,
       classification_reason: "Professional Evidence Pack import: sintesi fornita dall'utente, da rivedere prima dell'analisi."
     };
@@ -1157,7 +1401,8 @@ function buildReason(classification, professionalHits, personalScore, length) {
 }
 
 function redactText(text) {
-  let redacted = text;
+  const value = String(text || "");
+  let redacted = value;
   const replacements = [];
   for (const pattern of sensitivePatterns) {
     redacted = redacted.replace(pattern.regex, match => {
@@ -1165,17 +1410,160 @@ function redactText(text) {
       return `[${pattern.label}]`;
     });
   }
-  redacted = redacted.replace(/\b([A-Z][a-z]{2,}\s+[A-Z][a-z]{2,})\b/g, match => {
-    const common = ["Professional Evidence", "Chat Gpt", "New York", "San Francisco"];
+  const professionalLabelTokens = new Set([
+    "analysis", "analytics", "architecture", "assessment", "automation", "bias", "business", "calibration", "capability", "change",
+    "clinical", "coaching", "commercial", "communication", "compliance", "concurrency", "control", "conversation", "contract",
+    "coverage", "data", "database", "delivery", "design", "development", "diagnostic", "discovery", "distributed", "domain",
+    "engineering", "evaluation", "evolution", "execution", "exploration", "feedback", "forecast", "framework", "governance", "hiring",
+    "improvement", "incident", "integration", "interview", "interpretation", "learning", "legal", "management", "mentoring", "migration",
+    "mitigation", "mobility", "model", "modelling", "negotiation", "observability", "opportunity", "optimisation", "optimization", "pathway",
+    "performance", "pipeline", "planning", "policy", "process", "product", "profile", "proposal", "quality", "reasoning", "regulatory",
+    "reliability", "remediation", "retention", "review", "risk", "sales", "security", "service", "software", "sql", "strategy", "structured",
+    "support", "systems", "talent", "technical", "training", "workforce"
+  ]);
+  const personContextTokens = new Set([
+    "approved", "assigned", "called", "commented", "confirmed", "contacted", "emailed", "met", "notified", "reviewed", "said", "sent", "signed"
+  ]);
+  const common = ["Professional Evidence", "Chat Gpt", "New York", "San Francisco"];
+  redacted = redacted.replace(/\b([A-Z][a-z]{2,}\s+[A-Z][a-z]{2,})\b/g, (match, fullName, offset, source) => {
     if (common.includes(match)) return match;
+    const normalizedName = String(fullName || "").toLowerCase();
+    const parts = normalizedName.split(/\s+/).filter(Boolean);
+    if (parts.some(part => professionalLabelTokens.has(part))) return match;
+    const tail = String(source || "").slice(Number(offset) + String(match).length, Number(offset) + String(match).length + 40).toLowerCase();
+    const head = String(source || "").slice(Math.max(0, Number(offset) - 20), Number(offset)).toLowerCase();
+    const hasPersonContext =
+      /\b(mr|mrs|ms|dr)\.?\s*$/i.test(head) ||
+      /\b(by|from|with|to)\s*$/i.test(head) ||
+      Array.from(personContextTokens).some(token => tail.startsWith(` ${token}`));
+    if (!hasPersonContext && parts.length === 2) {
+      return match;
+    }
     replacements.push({ type: "PERSON_REDACTED", sample_length: match.length });
-    return "[PERSON_1]";
+    return "PERSON_1";
   });
   redacted = redacted.replace(/\b([A-Z][A-Za-z0-9&.-]{2,}\s+(?:Srl|SRL|Spa|SpA|Ltd|Inc|GmbH|LLC))\b/g, match => {
     replacements.push({ type: "COMPANY_REDACTED", sample_length: match.length });
-    return "[COMPANY_1]";
+    return "COMPANY_1";
   });
-  return { text: redacted, replacements };
+  return {
+    text: redacted,
+    replacements,
+    redaction_applied: replacements.length > 0,
+    redaction_scope: "free_text",
+    redaction_reason: replacements.length > 0 ? "sensitive_or_personal_data_masked" : "no_sensitive_data_detected"
+  };
+}
+
+function redactEvidenceField(value, fieldName) {
+  if (value == null) {
+    return {
+      text: value,
+      replacements: [],
+      redaction_applied: false,
+      redaction_scope: "structured_metadata",
+      redaction_reason: "empty_value"
+    };
+  }
+  const preserveStructuredMetadataFields = new Set([
+    "display_label",
+    "candidate_concept",
+    "professional_domain_object",
+    "domain_cluster",
+    "professional_category",
+    "dimension",
+    "transversal_behaviours"
+  ]);
+  if (preserveStructuredMetadataFields.has(fieldName)) {
+    return {
+      text: value,
+      replacements: [],
+      redaction_applied: false,
+      redaction_scope: "structured_metadata",
+      redaction_reason: "structured_professional_metadata_preserved"
+    };
+  }
+  const redacted = redactText(value);
+  return {
+    ...redacted,
+    redaction_scope: "free_text",
+    redaction_reason: redacted.redaction_applied
+      ? "structured_field_contains_sensitive_free_text"
+      : "structured_field_free_text_no_sensitive_data"
+  };
+}
+
+function resolveConversationSelection(conversation, decision) {
+  const selection = {
+    classification: decision && decision.classification ? decision.classification : conversation.classification,
+    approved: decision ? Boolean(decision.include) : Boolean(conversation.approved),
+    user_selected: decision ? Boolean(decision.include) : Boolean(conversation.selection && conversation.selection.user_selected),
+    automatically_selected: false,
+    excluded: false,
+    exclusion_reason: null,
+    reason_codes: []
+  };
+
+  const classification = selection.classification || "uncertain";
+  const confidence = Number(conversation.confidence || 0);
+  const hasContent = Array.isArray(conversation.messages) && conversation.messages.some(message => String(message.text || "").trim().length > 0);
+  const explicitProfessional = classification === "professional";
+  const explicitExcluded = Boolean(conversation.selection && conversation.selection.explicitly_excluded);
+  const lowConfidenceThreshold = 0.42;
+
+  if (explicitExcluded) {
+    selection.excluded = true;
+    selection.exclusion_reason = selectionReasonCodes.excluded_user_choice;
+    selection.reason_codes.push(selectionReasonCodes.excluded_user_choice);
+    return selection;
+  }
+  if (!hasContent) {
+    selection.excluded = true;
+    selection.exclusion_reason = selectionReasonCodes.excluded_invalid_content;
+    selection.reason_codes.push(selectionReasonCodes.excluded_invalid_content);
+    return selection;
+  }
+  if (classification === "personal") {
+    selection.excluded = true;
+    selection.exclusion_reason = selectionReasonCodes.excluded_personal;
+    selection.reason_codes.push(selectionReasonCodes.excluded_personal);
+    return selection;
+  }
+  if (classification === "excluded_sensitive") {
+    selection.excluded = true;
+    selection.exclusion_reason = selectionReasonCodes.excluded_sensitive;
+    selection.reason_codes.push(selectionReasonCodes.excluded_sensitive);
+    return selection;
+  }
+
+  if (decision && decision.include === false) {
+    selection.excluded = true;
+    selection.exclusion_reason = selectionReasonCodes.excluded_user_choice;
+    selection.reason_codes.push(selectionReasonCodes.excluded_user_choice);
+    return selection;
+  }
+
+  if (explicitProfessional && confidence >= lowConfidenceThreshold) {
+    selection.automatically_selected = true;
+    selection.reason_codes.push(selectionReasonCodes.selected_professional_explicit);
+    return selection;
+  }
+  if (selection.approved && classification === "professional" && confidence >= lowConfidenceThreshold) {
+    selection.automatically_selected = true;
+    selection.reason_codes.push(selectionReasonCodes.selected_professional_classification);
+    return selection;
+  }
+  if (confidence < lowConfidenceThreshold) {
+    selection.excluded = true;
+    selection.exclusion_reason = selectionReasonCodes.excluded_low_confidence;
+    selection.reason_codes.push(selectionReasonCodes.excluded_low_confidence);
+    return selection;
+  }
+
+  selection.excluded = true;
+  selection.exclusion_reason = selectionReasonCodes.excluded_ambiguous;
+  selection.reason_codes.push(selectionReasonCodes.excluded_ambiguous);
+  return selection;
 }
 
 function buildNormalized(conversations, decisions) {
@@ -1183,18 +1571,49 @@ function buildNormalized(conversations, decisions) {
   const selected = [];
   for (const conversation of conversations) {
     const decision = decisionMap.get(conversation.id);
-    const approved = decision ? decision.include : conversation.approved;
-    const classification = decision && decision.classification ? decision.classification : conversation.classification;
-    if (!approved || ["personal", "excluded_sensitive"].includes(classification)) continue;
+    const resolvedSelection = resolveConversationSelection(conversation, decision);
+    if (resolvedSelection.excluded) continue;
     const redactedMessages = conversation.messages.map(message => {
       const redacted = redactText(message.text);
       return { ...message, text: redacted.text, redactions: redacted.replacements };
     });
+    const redactedEvidenceItems = Array.isArray(conversation.evidence_items)
+      ? conversation.evidence_items.map(item => {
+        const claimRedaction = redactEvidenceField(item.claim, "claim");
+        const excerptRedaction = redactEvidenceField(item.supporting_excerpt, "supporting_excerpt");
+        const labelRedaction = redactEvidenceField(item.display_label, "display_label");
+        const conceptRedaction = redactEvidenceField(item.candidate_concept, "candidate_concept");
+        const redactedClaim = claimRedaction.text;
+        const redactedExcerpt = excerptRedaction.text;
+        const redactedLabel = labelRedaction.text;
+        const redactedConcept = conceptRedaction.text;
+        return {
+          ...item,
+          claim: redactedClaim,
+          supporting_excerpt: redactedExcerpt,
+          display_label: redactedLabel,
+          candidate_concept: redactedConcept,
+          redaction_applied: Boolean(claimRedaction.redaction_applied || excerptRedaction.redaction_applied),
+          redaction_scope: "structured_evidence_item",
+          redaction_reason: claimRedaction.redaction_applied || excerptRedaction.redaction_applied
+            ? "free_text_fields_redacted_structured_metadata_preserved"
+            : "no_sensitive_data_detected",
+          semantic_text: [redactedConcept, redactedLabel, redactedClaim, redactedExcerpt].filter(Boolean).join(" | "),
+          normalized_text: normalizeDomainTerm([redactedConcept, redactedLabel, redactedClaim, redactedExcerpt].filter(Boolean).join(" "))
+        };
+      })
+      : [];
     selected.push({
       ...conversation,
-      classification,
+      classification: resolvedSelection.classification,
       approved: true,
+      automatically_selected: resolvedSelection.automatically_selected,
+      user_selected: resolvedSelection.user_selected,
+      selection_reason_codes: resolvedSelection.reason_codes,
+      exclusion_reason: null,
       messages: redactedMessages
+      ,
+      evidence_items: redactedEvidenceItems
     });
   }
   return selected;
@@ -2876,7 +3295,440 @@ function buildRadarCapabilities(normalized, temporalMaturity, primaryArchetype, 
   };
 }
 
+function hasStructuredEvidence(normalized) {
+  return Array.isArray(normalized) && normalized.some(conversation => Array.isArray(conversation.evidence_items) && conversation.evidence_items.length > 0);
+}
+
+function collectAtomicEvidenceItems(normalized) {
+  const atomic = [];
+  for (const conversation of normalized || []) {
+    const items = Array.isArray(conversation.evidence_items) ? conversation.evidence_items : [];
+    for (const item of items) {
+      const behaviours = inferTransversalBehavioursFromEvidence(item, conversation);
+      const domain = inferDomainObjectAndCluster(item, conversation);
+      atomic.push({
+        evidence_id: item.evidence_id || identityEvidenceId("atomic", conversation.id, { id: "evidence" }, conversation),
+        conversation_id: conversation.id,
+        source_field: item.source_field || "structured_evidence",
+        original_text: item.original_text || [item.claim, item.supporting_excerpt].filter(Boolean).join("\n"),
+        normalized_text: item.normalized_text || normalizeDomainTerm(item.original_text || ""),
+        claim: item.claim || null,
+        supporting_excerpt: item.supporting_excerpt || null,
+        candidate_concept: item.candidate_concept || null,
+        display_label: item.display_label || null,
+        candidate_type: item.candidate_type || null,
+        dimension: item.dimension || null,
+        confidence: item.confidence || "medium",
+        counter_evidence: item.counter_evidence || null,
+        attribution: item.attribution || { source: sourceValue((conversation.messages || [])[0] || {}), score: sourceWeight((conversation.messages || [])[0] || {}) },
+        provenance: item.provenance || null,
+        date: item.date || conversation.created_at || null,
+        professional_category: conversation.professional_category || null,
+        source_role: item.source_role || "user",
+        user_approved: item.user_approved,
+        synthetic: item.synthetic,
+        duplicate_group_id: item.duplicate_group_id || null,
+        inclusion_status: "included",
+        reason_codes: [],
+        transversal_behaviours: behaviours,
+        professional_domain_object: domain.professional_domain_object,
+        domain_cluster: domain.domain_cluster
+      });
+    }
+  }
+  return atomic;
+}
+
+function buildStructuredEvidenceMetrics(atomicEvidence, capabilityAssessment, excludedEvidenceCount = 0) {
+  const list = Array.isArray(atomicEvidence) ? atomicEvidence : [];
+  const atomicKeySet = new Set();
+  let mappedBehaviourCount = 0;
+  for (const item of list) {
+    const evidenceId = item && item.evidence_id ? String(item.evidence_id) : "missing_evidence_id";
+    const conversationId = item && item.conversation_id ? String(item.conversation_id) : "missing_conversation_id";
+    atomicKeySet.add(`${conversationId}:${evidenceId}`);
+    mappedBehaviourCount += Array.isArray(item && item.transversal_behaviours) ? item.transversal_behaviours.length : 0;
+  }
+  const capabilityLinkCount = capabilityAssessment && Array.isArray(capabilityAssessment.all)
+    ? capabilityAssessment.all.reduce((sum, item) => sum + Number(item.atomic_evidence_count || item.evidence_count || 0), 0)
+    : atomicKeySet.size;
+  return {
+    atomic_evidence_count: atomicKeySet.size,
+    capability_link_count: capabilityLinkCount,
+    mapped_behaviour_count: mappedBehaviourCount,
+    excluded_evidence_count: Math.max(0, Number(excludedEvidenceCount || 0))
+  };
+}
+
+function specificCapabilityLabelFromAtomic(item) {
+  const candidate = cleanCapabilityLabelText(item.display_label || item.candidate_concept || "");
+  if (candidate && isValidCapabilityLabel(candidate, { allowGenericSingleWord: false }) && !isGenericOnlyCapability(candidate)) return candidate;
+  const fallback = cleanCapabilityLabelText(item.claim || item.supporting_excerpt || item.professional_domain_object || "Capability");
+  if (isValidCapabilityLabel(fallback, { allowGenericSingleWord: false }) && !isGenericOnlyCapability(fallback)) return fallback;
+  return cleanCapabilityLabelText(item.professional_domain_object || "Capability");
+}
+
+function structuredCapabilityState(stats) {
+  if (stats.attested) return "attested";
+  if (stats.counter_evidence_count >= 2 && stats.atomic_evidence_count <= 2) return "signal";
+  if (stats.atomic_evidence_count >= 4 && stats.distinct_conversation_count >= 3 && stats.confidence_score >= 0.72 && stats.counter_evidence_count === 0) return "strongly_demonstrated";
+  if (stats.atomic_evidence_count >= 3 && stats.distinct_conversation_count >= 2 && stats.confidence_score >= 0.55 && stats.counter_evidence_count === 0 && stats.attribution_score >= 0.2) return "demonstrated";
+  if (stats.atomic_evidence_count >= 2 && stats.distinct_conversation_count >= 2 && stats.confidence_score >= 0.45) return "emerging";
+  return "signal";
+}
+
+function structuredDominanceScore(stats) {
+  const atomicEvidenceWeight = Number(stats.atomic_evidence_count || 0) * 1.4;
+  const distinctConversationWeight = Number(stats.distinct_conversation_count || 0) * 1.35;
+  const confidenceWeightValue = Number(stats.confidence_score || 0.5) * 2.2;
+  const specificityWeight = Number(stats.specificity_score || 0) * 0.95;
+  const domainCoherenceWeight = Number(stats.domain_coherence_score || 0) * 1.4;
+  const recurrenceWeight = Number(stats.temporal_recurrence_score || 0) * 0.8;
+  const attributionWeight = Number(stats.attribution_score || 0) * 1.6;
+  const counterEvidencePenalty = Number(stats.counter_evidence_count || 0) * 1.5;
+  const duplicatePenalty = Number(stats.duplicate_penalty || 0) * 0.9;
+  const ambiguityPenalty = Number(stats.ambiguity_penalty || 0) * 0.8;
+  const genericPenalty = stats.generic_only ? 1.2 : 0;
+  const categoryOnlyPenalty = stats.category_only ? 1.0 : 0;
+  return Math.round((
+    atomicEvidenceWeight +
+    distinctConversationWeight +
+    confidenceWeightValue +
+    specificityWeight +
+    domainCoherenceWeight +
+    recurrenceWeight +
+    attributionWeight -
+    counterEvidencePenalty -
+    duplicatePenalty -
+    ambiguityPenalty -
+    genericPenalty -
+    categoryOnlyPenalty
+  ) * 1000) / 1000;
+}
+
+function aggregateStructuredCapabilities(atomicEvidence) {
+  const groups = new Map();
+  for (const item of atomicEvidence) {
+    const label = specificCapabilityLabelFromAtomic(item);
+    const key = normalizeLabelForKey(`${label}|${item.professional_domain_object}|${item.domain_cluster}`);
+    const row = groups.get(key) || {
+      full_label: label,
+      resolved_label: label,
+      label_source: item.display_label ? "display_label" : item.candidate_concept ? "candidate_concept" : "fallback",
+      parent_transversal_behaviour: item.transversal_behaviours[0] || "execution",
+      professional_domain_object: item.professional_domain_object,
+      domain_cluster: item.domain_cluster,
+      canonical_dimension: item.transversal_behaviours[0] || "execution",
+      parent_dimension: item.transversal_behaviours[0] || "execution",
+      atomic_evidence_count: 0,
+      distinct_conversations: new Set(),
+      confidence_values: [],
+      attribution_values: [],
+      counter_evidence_count: 0,
+      evidence_ids: [],
+      reason_codes: [],
+      behaviours: new Set(),
+      sources: new Set()
+    };
+    row.atomic_evidence_count += 1;
+    row.distinct_conversations.add(item.conversation_id);
+    row.confidence_values.push(confidenceValue(item.confidence));
+    row.attribution_values.push(Number(item.attribution && item.attribution.score != null ? item.attribution.score : 0.3));
+    row.counter_evidence_count += item.counter_evidence ? 1 : 0;
+    row.evidence_ids.push(item.evidence_id);
+    for (const behaviour of item.transversal_behaviours || []) row.behaviours.add(behaviour);
+    if (item.source_field) row.sources.add(item.source_field);
+    groups.set(key, row);
+  }
+
+  const capabilities = Array.from(groups.values()).map(row => {
+    const distinctCount = row.distinct_conversations.size;
+    const confidenceScore = row.confidence_values.length
+      ? row.confidence_values.reduce((sum, value) => sum + value, 0) / row.confidence_values.length
+      : 0.55;
+    const attributionScore = row.attribution_values.length
+      ? row.attribution_values.reduce((sum, value) => sum + value, 0) / row.attribution_values.length
+      : 0.3;
+    const specificityScore = Math.max(0.2, capabilitySpecificityScore({
+      full_label: row.full_label,
+      canonical_dimension: row.parent_dimension,
+      sources: Array.from(row.sources)
+    }));
+    const state = structuredCapabilityState({
+      atomic_evidence_count: row.atomic_evidence_count,
+      distinct_conversation_count: distinctCount,
+      confidence_score: confidenceScore,
+      attribution_score: attributionScore,
+      counter_evidence_count: row.counter_evidence_count,
+      attested: false
+    });
+    const domainCoherence = row.domain_cluster && row.domain_cluster !== "mixed_unknown" ? 1 : 0.35;
+    const recurrence = distinctCount >= 3 ? 1 : distinctCount >= 2 ? 0.7 : 0.35;
+    const dominance = structuredDominanceScore({
+      atomic_evidence_count: row.atomic_evidence_count,
+      distinct_conversation_count: distinctCount,
+      confidence_score: confidenceScore,
+      specificity_score: specificityScore,
+      domain_coherence_score: domainCoherence,
+      temporal_recurrence_score: recurrence,
+      attribution_score: attributionScore,
+      counter_evidence_count: row.counter_evidence_count,
+      duplicate_penalty: 0,
+      ambiguity_penalty: row.domain_cluster === "mixed_unknown" ? 1 : 0,
+      generic_only: isGenericOnlyCapability(row.full_label),
+      category_only: false
+    });
+    const supported = ["demonstrated", "strongly_demonstrated", "attested"].includes(state);
+    return {
+      label: row.full_label,
+      full_label: row.full_label,
+      resolved_label: row.resolved_label,
+      label_source: row.label_source,
+      capability_state: state,
+      level: capabilityStateToLegacyLevel(state),
+      parent_transversal_behaviour: row.parent_transversal_behaviour,
+      professional_domain_object: row.professional_domain_object,
+      domain_cluster: row.domain_cluster,
+      canonical_dimension: row.canonical_dimension,
+      parent_dimension: row.parent_dimension,
+      atomic_evidence_count: row.atomic_evidence_count,
+      evidence_count: row.atomic_evidence_count,
+      distinct_conversation_count: distinctCount,
+      counter_evidence_count: row.counter_evidence_count,
+      confidence_score: Number(confidenceScore.toFixed(3)),
+      attribution_score: Number(attributionScore.toFixed(3)),
+      specificity_score: Number(specificityScore.toFixed(3)),
+      dominance_score: dominance,
+      recurring_strength: false,
+      is_supported: supported,
+      supported,
+      emerging: !supported,
+      excluded: false,
+      reason_codes: row.reason_codes,
+      sources: Array.from(row.sources),
+      evidence_ids: row.evidence_ids.slice(0, 20),
+      transversal_behaviours: Array.from(row.behaviours)
+    };
+  }).sort((a, b) => Number(b.dominance_score || 0) - Number(a.dominance_score || 0) || Number(b.specificity_score || 0) - Number(a.specificity_score || 0));
+
+  const recurring = capabilities
+    .filter(item => ["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state))
+    .filter(item => item.distinct_conversation_count >= 2)
+    .filter(item => item.atomic_evidence_count >= 2)
+    .filter(item => item.counter_evidence_count === 0)
+    .filter(item => !isGenericOnlyCapability(item.full_label))
+    .slice(0, 6);
+  const recurringKeys = new Set(recurring.map(item => normalizeLabelForKey(item.full_label)));
+  for (const item of capabilities) item.recurring_strength = recurringKeys.has(normalizeLabelForKey(item.full_label));
+
+  return {
+    all: capabilities,
+    supported: capabilities.filter(item => item.is_supported).slice(0, 8),
+    emerging: capabilities.filter(item => item.emerging).slice(0, 12),
+    recurring_strengths: recurring,
+    excluded: capabilities.filter(item => item.excluded),
+    suppressed_duplicates: []
+  };
+}
+
+function inferFamilyFromStructured(atomicEvidence, capabilities, normalized) {
+  const familyRows = capabilityFamilies.map(family => {
+    const familyCluster = familyToClusterMap[family.id] || "mixed_unknown";
+    const domainEvidence = atomicEvidence.filter(item => item.domain_cluster === familyCluster);
+    const domainCoverageScore = domainEvidence.length;
+    const distinctConversationScore = new Set(domainEvidence.map(item => item.conversation_id)).size;
+    const demonstratedCapabilityScore = capabilities.filter(item => item.domain_cluster === familyCluster && ["demonstrated", "strongly_demonstrated", "attested"].includes(item.capability_state)).length;
+    const contextAlignmentScore = normalized.filter(conversation => professionalCategoryClusterMap[conversation.professional_category] === familyCluster).length;
+    const categoryAlignmentScore = normalized.filter(conversation => {
+      const category = normalizeDomainTerm(conversation.professional_category || "");
+      return family.keywords.some(keyword => category.includes(normalizeDomainTerm(keyword)));
+    }).length;
+    const transversalSupport = domainEvidence.reduce((sum, item) => sum + Math.min(2, (item.transversal_behaviours || []).length), 0);
+    const ambiguityPenalty = domainCoverageScore ? 0 : 1.2;
+    const mixedDomainPenalty = familyCluster === "mixed_unknown" ? 0.4 : 0;
+
+    const totalScore =
+      domainCoverageScore * 1.25 +
+      distinctConversationScore * 1.35 +
+      demonstratedCapabilityScore * 2.4 +
+      contextAlignmentScore * 0.8 +
+      categoryAlignmentScore * 0.35 +
+      transversalSupport * 0.08 -
+      ambiguityPenalty -
+      mixedDomainPenalty;
+
+    return {
+      family_name: family.label,
+      family_id: family.id,
+      total_score: Number(totalScore.toFixed(3)),
+      domain_coverage_score: domainCoverageScore,
+      distinct_conversation_score: distinctConversationScore,
+      demonstrated_capability_score: demonstratedCapabilityScore,
+      context_alignment_score: contextAlignmentScore,
+      category_alignment_score: categoryAlignmentScore,
+      transversal_score: Number((transversalSupport * 0.08).toFixed(3)),
+      penalties: {
+        ambiguity_penalty: ambiguityPenalty,
+        mixed_domain_penalty: mixedDomainPenalty
+      },
+      score_contributions: {
+        domain_object_coverage: Number((domainCoverageScore * 1.25).toFixed(3)),
+        distinct_conversations_in_cluster: Number((distinctConversationScore * 1.35).toFixed(3)),
+        demonstrated_capabilities_in_cluster: Number((demonstratedCapabilityScore * 2.4).toFixed(3)),
+        professional_context_alignment: Number((contextAlignmentScore * 0.8).toFixed(3)),
+        category_alignment: Number((categoryAlignmentScore * 0.35).toFixed(3)),
+        transversal_behaviour_support: Number((transversalSupport * 0.08).toFixed(3))
+      }
+    };
+  }).sort((a, b) => b.total_score - a.total_score);
+
+  const top = familyRows[0];
+  const second = familyRows[1];
+  if (!top || top.total_score < 2.4) {
+    return {
+      professional_family: { id: "mixed_cross_functional", label: "mixed/cross-functional" },
+      score_breakdown: familyRows,
+      signature_mode: "insufficient_evidence"
+    };
+  }
+  if (second && top.total_score < second.total_score * 1.15) {
+    return {
+      professional_family: { id: "mixed_cross_functional", label: "mixed/cross-functional" },
+      score_breakdown: familyRows,
+      signature_mode: "mixed_cross_functional"
+    };
+  }
+  return {
+    professional_family: { id: top.family_id, label: top.family_name },
+    score_breakdown: familyRows,
+    signature_mode: "domain_driven"
+  };
+}
+
+function composeStructuredPattern(family, recurringStrengths) {
+  if (!recurringStrengths.length) {
+    if (!family || family.id === "mixed_cross_functional") {
+      return "Available evidence indicates emerging professional patterns, but coverage is not yet sufficient to define a stable professional profile.";
+    }
+    return `Evidence suggests a ${family.label} profile, although available evidence is not yet sufficient to define stable recurring strengths.`;
+  }
+  const labels = recurringStrengths.slice(0, 4).map(item => String(item.full_label || item.label).toLowerCase());
+  return `Evidence suggests a ${family.label} profile with recurring strength in ${joinHuman(labels)}.`;
+}
+
+function composeStructuredContribution(family, capabilities, behaviours) {
+  const topCapabilities = capabilities.filter(item => item.is_supported).slice(0, 3).map(item => String(item.full_label || item.label).toLowerCase());
+  const topBehaviours = Array.from(behaviours.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(entry => entry[0].replace(/_/g, " "));
+  if (!topCapabilities.length) return "Available evidence is not yet sufficient to define a stable typical contribution.";
+  if (!family || family.id === "mixed_cross_functional") {
+    return `Typically applies ${joinHuman(topBehaviours)} to advance work across ${joinHuman(topCapabilities)}.`;
+  }
+  return `Typically applies ${joinHuman(topBehaviours)} to deliver ${joinHuman(topCapabilities)} in ${family.label} contexts.`;
+}
+
+function buildStructuredProfessionalPattern(normalized) {
+  if (!hasStructuredEvidence(normalized)) return null;
+
+  const atomicEvidence = collectAtomicEvidenceItems(normalized);
+  const capabilityAssessment = aggregateStructuredCapabilities(atomicEvidence);
+  const evidenceMetrics = buildStructuredEvidenceMetrics(atomicEvidence, capabilityAssessment, 0);
+  const recurring = capabilityAssessment.recurring_strengths || [];
+  const fallbackStrengths = recurring.length >= 2
+    ? recurring
+    : capabilityAssessment.all
+      .filter(item => Number(item.atomic_evidence_count || item.evidence_count || 0) >= 2)
+      .filter(item => Number(item.specificity_score || 0) >= 2.6)
+      .slice(0, 5);
+  const patternStrengths = recurring.length >= 2 ? recurring : fallbackStrengths;
+
+  const family = inferFamilyFromStructured(atomicEvidence, capabilityAssessment.all, normalized);
+  const observedPattern = composeStructuredPattern(family.professional_family, recurring.length ? recurring : patternStrengths);
+
+  const behaviourCounts = new Map();
+  for (const evidence of atomicEvidence) {
+    for (const behaviour of evidence.transversal_behaviours || []) {
+      behaviourCounts.set(behaviour, (behaviourCounts.get(behaviour) || 0) + 1);
+    }
+  }
+
+  const typicalContribution = composeStructuredContribution(family.professional_family, capabilityAssessment.all, behaviourCounts);
+
+  const clusterRows = domainClusterCatalog.map(cluster => {
+    const evidence = atomicEvidence.filter(item => item.domain_cluster === cluster);
+    return {
+      domain: cluster,
+      weighted_score: evidence.length,
+      weighted_share: atomicEvidence.length ? evidence.length / atomicEvidence.length : 0,
+      supporting_evidence_items: evidence.length,
+      distinct_conversations: new Set(evidence.map(item => item.conversation_id)).size,
+      direct_user_items: 0,
+      attributable_items: evidence.length,
+      diversity_count: new Set(evidence.map(item => item.professional_domain_object)).size,
+      recurrence_factor: evidence.length >= 4 ? 1.2 : evidence.length >= 2 ? 1.05 : 0.85,
+      average_recency: 0.8,
+      attribution_penalty: 0,
+      passes_threshold: evidence.length >= 2,
+      evidence_ids: evidence.map(item => item.evidence_id).slice(0, 20)
+    };
+  }).filter(row => row.supporting_evidence_items > 0)
+    .sort((a, b) => b.weighted_score - a.weighted_score);
+
+  return {
+    hierarchy: ["conversation", "atomic_evidence_item", "transversal_behaviour", "specific_capability", "professional_domain_object", "professional_domain_cluster", "professional_family", "professional_pattern"],
+    signature_text: observedPattern,
+    signature_mode: family.signature_mode,
+    dominant_domain: clusterRows[0] ? clusterRows[0].domain : "mixed_unknown",
+    secondary_domains: clusterRows.slice(1, 4).map(item => item.domain),
+    dominant_domain_share: clusterRows[0] ? Number(clusterRows[0].weighted_share.toFixed(4)) : 0,
+    main_capabilities: patternStrengths.map(item => item.full_label || item.label),
+    attribution_note: "Attribution is preserved from source metadata and kept separate from provenance; unknown attribution does not automatically discard valid capabilities.",
+    thresholds: {
+      min_atomic_evidence_items: 2,
+      min_distinct_conversations: 2,
+      min_demonstrated_capabilities_for_family: 1,
+      min_family_score: 2.4
+    },
+    domain_scores: clusterRows.map(row => ({
+      domain: row.domain,
+      weighted_score: Number(row.weighted_score.toFixed(4)),
+      weighted_share: Number(row.weighted_share.toFixed(4)),
+      supporting_evidence_items: row.supporting_evidence_items,
+      distinct_conversations: row.distinct_conversations,
+      direct_user_items: row.direct_user_items,
+      attributable_items: row.attributable_items,
+      diversity_count: row.diversity_count,
+      recurrence_factor: Number(row.recurrence_factor.toFixed(3)),
+      average_recency: Number(row.average_recency.toFixed(3)),
+      attribution_penalty: Number(row.attribution_penalty.toFixed(3)),
+      passes_threshold: row.passes_threshold,
+      evidence_ids: row.evidence_ids
+    })),
+    primary_archetype: null,
+    secondary_archetypes: [],
+    observed_professional_pattern: observedPattern,
+    professional_family: family.professional_family,
+    professional_family_breakdown: family.score_breakdown,
+    professional_domains_observed: clusterRows.slice(0, 5).map(item => item.domain),
+    typical_professional_contribution: typicalContribution,
+    radar_capabilities: capabilityAssessment.supported,
+    emerging_signals: capabilityAssessment.emerging,
+    excluded_capabilities: capabilityAssessment.excluded,
+    recurring_strengths: recurring,
+    suppressed_generic_duplicates: capabilityAssessment.suppressed_duplicates,
+    capability_assessments: capabilityAssessment.all,
+    atomic_evidence_items: atomicEvidence,
+    diagnostics: evidenceMetrics,
+    limitations: []
+  };
+}
+
 function buildProfessionalPattern(normalized, temporalMaturity, language = "en") {
+  const structuredPattern = buildStructuredProfessionalPattern(normalized);
+  if (structuredPattern) return structuredPattern;
+
   const domainWeighting = buildDomainWeighting(normalized, temporalMaturity);
   const dominant = domainWeighting.dominant_domain;
   const secondaryDomains = domainWeighting.secondary_domains;
@@ -3720,6 +4572,9 @@ function extractTemporalEvidence(normalized, publicOnly = false) {
 function buildEvidenceCoverage(normalized, temporalMaturity) {
   const messages = normalized.flatMap(conversation => conversation.messages.map(message => ({ ...message, conversation })));
   const userMessages = messages.filter(message => message.author === "user");
+  const atomicEvidence = hasStructuredEvidence(normalized) ? collectAtomicEvidenceItems(normalized) : [];
+  const capabilityAssessment = atomicEvidence.length ? aggregateStructuredCapabilities(atomicEvidence) : null;
+  const evidenceMetrics = buildStructuredEvidenceMetrics(atomicEvidence, capabilityAssessment, 0);
   const sourceCounts = {
     direct_user_inputs: 0,
     mixed_content_items: 0,
@@ -3739,7 +4594,11 @@ function buildEvidenceCoverage(normalized, temporalMaturity) {
   return {
     period_covered: dateRange(normalized),
     total_professional_conversations: normalized.length,
-    total_evidence_items: dimensions.reduce((sum, dimension) => sum + dimension.positive_count + dimension.negative_count + dimension.uncertain_count, 0),
+    total_evidence_items: evidenceMetrics.atomic_evidence_count || dimensions.reduce((sum, dimension) => sum + dimension.positive_count + dimension.negative_count + dimension.uncertain_count, 0),
+    atomic_evidence_count: evidenceMetrics.atomic_evidence_count,
+    mapped_behaviour_count: evidenceMetrics.mapped_behaviour_count,
+    capability_link_count: evidenceMetrics.capability_link_count,
+    excluded_evidence_count: evidenceMetrics.excluded_evidence_count,
     ...sourceCounts,
     uncertain_evidence: dimensions.reduce((sum, dimension) => sum + dimension.uncertain_count, 0),
     dimensions_with_sufficient_evidence: dimensions.filter(dimension => !["insufficient_evidence", "counter_evidence_only"].includes(dimension.status)).length,

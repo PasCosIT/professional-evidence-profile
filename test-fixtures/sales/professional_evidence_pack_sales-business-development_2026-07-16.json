@@ -1,0 +1,273 @@
+{
+  "schema": "professional_evidence_pack_v1",
+  "generated_for": "EviLayer Multi-Profile Test B",
+  "generated_at": "2026-07-16",
+  "period": {
+    "from": "2026-04-16",
+    "to": "2026-07-16"
+  },
+  "source": {
+    "type": "synthetic_ai_assisted_work_test",
+    "verification": "synthetic_not_verified",
+    "limitations": [
+      "Synthetic profile for EviLayer validation",
+      "Includes strong, weak and counter-evidence",
+      "Infer profile from evidence, not file name"
+    ],
+    "expected_profile_note": "Commercial and growth profile; no people leadership or finance expertise should be inferred"
+  },
+  "conversations": [
+    {
+      "id": "sales_001",
+      "title": "Enterprise discovery preparation",
+      "date": "2026-04-18",
+      "professional_category": "sales",
+      "classification": "professional",
+      "summary": "Prepared enterprise discovery around priorities, impact and decision criteria.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "customer_understanding",
+          "candidate_concept": "Enterprise discovery",
+          "candidate_type": "capability",
+          "display_label": "Customer Discovery",
+          "claim": "Structured discovery around current process, impact, urgency and decision criteria.",
+          "supporting_excerpt": "Do not start from features; first understand workflow, business impact, urgency and decision path.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "sales_002",
+      "title": "Opportunity qualification",
+      "date": "2026-04-29",
+      "professional_category": "sales",
+      "classification": "professional",
+      "summary": "Assessed whether an opportunity was qualified enough to advance.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "decision_making",
+          "candidate_concept": "Opportunity qualification",
+          "candidate_type": "capability",
+          "display_label": "Opportunity Qualification",
+          "claim": "Evaluated need, authority, urgency and commercial fit.",
+          "supporting_excerpt": "Interest is not qualification; confirm a material problem, decision path and realistic timeline.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "sales_003",
+      "title": "Value proposition for telecom partner",
+      "date": "2026-05-08",
+      "professional_category": "business_development",
+      "classification": "professional",
+      "summary": "Tailored a value proposition for a distribution partner.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "commercial",
+          "candidate_concept": "Partner value proposition",
+          "candidate_type": "capability",
+          "display_label": "Value Proposition Design",
+          "claim": "Connected product value to partner economics, retention and differentiation.",
+          "supporting_excerpt": "Frame the proposition around retention, differentiation and revenue potential.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "sales_004",
+      "title": "Pricing negotiation strategy",
+      "date": "2026-05-19",
+      "professional_category": "sales",
+      "classification": "professional",
+      "summary": "Prepared target, walk-away point and tradeable variables.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "negotiation",
+          "candidate_concept": "Commercial negotiation planning",
+          "candidate_type": "capability",
+          "display_label": "Commercial Negotiation",
+          "claim": "Separated price from other variables and defined concession logic.",
+          "supporting_excerpt": "Do not concede on price without receiving term length, volume commitment or scope.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "sales_005",
+      "title": "Proposal structure",
+      "date": "2026-05-31",
+      "professional_category": "sales",
+      "classification": "professional",
+      "summary": "Structured a decision-oriented commercial proposal.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "communication",
+          "candidate_concept": "Commercial proposal design",
+          "candidate_type": "capability",
+          "display_label": "Commercial Proposal Development",
+          "claim": "Organised a proposal around customer problem, economics and next step.",
+          "supporting_excerpt": "Open with the agreed problem, quantify impact and close with a clear decision path.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "sales_006",
+      "title": "Account growth plan",
+      "date": "2026-06-09",
+      "professional_category": "account_management",
+      "classification": "professional",
+      "summary": "Built an expansion plan for an existing account.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "planning",
+          "candidate_concept": "Account expansion planning",
+          "candidate_type": "capability",
+          "display_label": "Strategic Account Planning",
+          "claim": "Mapped stakeholders, current footprint, whitespace and expansion hypotheses.",
+          "supporting_excerpt": "Map current use, unmet need, sponsor strength and the next credible expansion motion.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "sales_007",
+      "title": "Pipeline review",
+      "date": "2026-06-17",
+      "professional_category": "sales_operations",
+      "classification": "professional",
+      "summary": "Reviewed pipeline quality using buyer progress.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "data_reasoning",
+          "candidate_concept": "Pipeline quality analysis",
+          "candidate_type": "capability",
+          "display_label": "Sales Pipeline Analysis",
+          "claim": "Distinguished seller activity from verified buyer commitment.",
+          "supporting_excerpt": "A large pipeline is misleading if stages reflect seller activity instead of buyer commitment.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "sales_008",
+      "title": "Partner objection handling",
+      "date": "2026-06-25",
+      "professional_category": "business_development",
+      "classification": "professional",
+      "summary": "Prepared responses to margin, implementation and ownership objections.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "communication",
+          "candidate_concept": "Commercial objection handling",
+          "candidate_type": "capability",
+          "display_label": "Objection Handling",
+          "claim": "Clarified the underlying concern before answering objections.",
+          "supporting_excerpt": "Identify whether the objection concerns economics, risk, effort or ownership.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "sales_009",
+      "title": "Forecast confidence",
+      "date": "2026-07-01",
+      "professional_category": "sales_operations",
+      "classification": "professional",
+      "summary": "Challenged an optimistic forecast.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "risk_awareness",
+          "candidate_concept": "Forecast quality evaluation",
+          "candidate_type": "capability",
+          "display_label": "Commercial Forecast Evaluation",
+          "claim": "Evaluated forecast confidence using decision events and buyer-confirmed milestones.",
+          "supporting_excerpt": "Probability should reflect verified buyer progress, not seller confidence.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "sales_010",
+      "title": "Team motivation message",
+      "date": "2026-07-06",
+      "professional_category": "leadership",
+      "classification": "professional",
+      "summary": "Drafted a motivational note for a sales team.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "communication",
+          "candidate_concept": "Sales team communication",
+          "candidate_type": "capability",
+          "display_label": "Team Communication",
+          "claim": "Created a message focused on priorities and momentum.",
+          "supporting_excerpt": "Recognise progress, restate the immediate priority and clarify the next action.",
+          "counter_evidence": "A single motivational message does not demonstrate team leadership or people management.",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "sales_011",
+      "title": "Market sizing request",
+      "date": "2026-07-11",
+      "professional_category": "strategy",
+      "classification": "professional",
+      "summary": "Requested a market estimate with limited data.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "research",
+          "candidate_concept": "Market sizing exploration",
+          "candidate_type": "activity",
+          "display_label": "Market Sizing Exploration",
+          "claim": "Explored market sizing.",
+          "supporting_excerpt": "Estimate the market for this product in Europe.",
+          "counter_evidence": "No segmentation, pricing assumptions or source validation were provided.",
+          "confidence": "low"
+        }
+      ]
+    },
+    {
+      "id": "sales_012",
+      "title": "Renewal risk plan",
+      "date": "2026-07-15",
+      "professional_category": "account_management",
+      "classification": "professional",
+      "summary": "Created a renewal risk plan.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "risk_awareness",
+          "candidate_concept": "Renewal risk management",
+          "candidate_type": "capability",
+          "display_label": "Account Retention Planning",
+          "claim": "Identified adoption, sponsor and commercial risks and assigned mitigations.",
+          "supporting_excerpt": "Separate adoption risk, sponsor risk and pricing risk, then assign one owner and proof point.",
+          "counter_evidence": null,
+          "confidence": "high"
+        }
+      ]
+    }
+  ]
+}

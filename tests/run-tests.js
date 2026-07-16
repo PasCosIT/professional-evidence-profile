@@ -20,6 +20,10 @@ const root = path.join(__dirname, "..");
 const serverPath = path.join(root, "server.cjs");
 const samplePath = path.join(root, "public", "samples", "synthetic-conversations.json");
 const evidencePackPath = path.join(root, "public", "samples", "sample-evidence-pack.json");
+const fixtureHrPath = path.join(root, "test-fixtures", "hr-talent", "professional_evidence_pack_hr-talent_2026-07-16.json");
+const fixtureBackendPath = path.join(root, "test-fixtures", "senior-backend", "professional_evidence_pack_senior-backend-developer_2026-07-16.json");
+const fixtureSalesPath = path.join(root, "test-fixtures", "sales", "professional_evidence_pack_sales-business-development_2026-07-16.json");
+const fixtureLegalPath = path.join(root, "test-fixtures", "legal-compliance", "professional_evidence_pack_legal-compliance_2026-07-16.json");
 
 function runRequest({ method, url, headers, body }) {
   return new Promise((resolve, reject) => {
@@ -1167,6 +1171,418 @@ async function main() {
     assert.ok(!String(technicalRegressionReport.observed_professional_pattern || "").toLowerCase().includes("executive technical communication"), "single executive communication signal must not enter recurring strengths in pattern narrative");
     const hasTruncatedLabel = (technicalRegressionReport.radar_capabilities || []).some(item => ["data", "incident"].includes(String(item.full_label || item.label || "").toLowerCase()));
     assert.ok(!hasTruncatedLabel, "supported capabilities must not expose truncated one-word labels when specific labels are available");
+
+    // STRUCTURAL REDESIGN TEST 1 — PROFESSIONAL CLASSIFICATION SELECTION
+    const selectionPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "sel_1",
+        title: "Selection professional",
+        date: "2026-07-01",
+        professional_category: "talent_acquisition",
+        classification: "professional",
+        summary: "Professional summary",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Structured Interview Design", candidate_concept: "Structured interviewing", claim: "Defined interview structure.", supporting_excerpt: "Mapped competencies to interview questions.", confidence: "high" }]
+      }]
+    };
+    const selectionConversations = normalizeChatGptExport(selectionPack);
+    selectionConversations[0].approved = false;
+    const selectedFromClassification = buildNormalized(selectionConversations, []);
+    assert.strictEqual(selectedFromClassification.length, 1, "professional classification should still select conversation when approved=false");
+    assert.ok((selectedFromClassification[0].selection_reason_codes || []).includes("selected_professional_explicit") || (selectedFromClassification[0].selection_reason_codes || []).includes("selected_professional_classification"), "selection reason code should indicate professional selection");
+
+    // STRUCTURAL REDESIGN TEST 2 — EXPLICIT EXCLUSION
+    const explicitlyExcluded = buildNormalized(selectionConversations, [{ id: "sel_1", include: false, classification: "professional" }]);
+    assert.strictEqual(explicitlyExcluded.length, 0, "explicit user exclusion must override professional classification");
+
+    // STRUCTURAL REDESIGN TEST 3 — ATOMIC EVIDENCE COUNT
+    const atomicPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "ae_1",
+        title: "Atomic evidence",
+        date: "2026-07-02",
+        professional_category: "talent_acquisition",
+        classification: "professional",
+        summary: "Atomic evidence test",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [
+          { display_label: "Structured Interview Design", candidate_concept: "Structured interviewing", claim: "Defined interview process.", supporting_excerpt: "Mapped question to competency.", confidence: "high" },
+          { display_label: "Interview Bias Mitigation", candidate_concept: "Bias mitigation", claim: "Added calibration.", supporting_excerpt: "Independent scoring before calibration.", confidence: "high" }
+        ]
+      }]
+    };
+    const atomicReport = buildReports(buildNormalized(normalizeChatGptExport(atomicPack), []));
+    assert.strictEqual(atomicReport.evidence_coverage_detail.atomic_evidence_count, 2, "atomic evidence count must equal structured evidence records");
+    assert.strictEqual(atomicReport.evidence_coverage_detail.total_evidence_items, 2, "visible evidence items must report atomic evidence count");
+
+    // STRUCTURAL REDESIGN TEST 4 — HR ANALYSIS NOT FINANCE
+    const hrAnalysisPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "hr_a_1",
+        title: "Recruitment funnel analysis",
+        date: "2026-06-21",
+        professional_category: "talent_analytics",
+        classification: "professional",
+        summary: "Analysed funnel conversion.",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ dimension: "data_reasoning", candidate_concept: "Recruitment funnel analysis", candidate_type: "capability", display_label: "Talent Acquisition Analytics", claim: "Separated volume from quality issues.", supporting_excerpt: "Analyse stage-by-stage before changing sourcing volume.", confidence: "high" }]
+      }]
+    };
+    const hrAnalysisPattern = buildReports(buildNormalized(normalizeChatGptExport(hrAnalysisPack), [])).professional_pattern;
+    assert.ok(/people and talent|mixed\/cross-functional/i.test(hrAnalysisPattern.observed_professional_pattern), "recruitment analysis should not force finance family");
+    const hrFinanceRow = (hrAnalysisPattern.professional_family_breakdown || []).find(item => item.family_id === "finance_and_analytical");
+    if (hrFinanceRow) assert.ok(hrFinanceRow.total_score <= 1.5, "finance contribution for recruitment analysis should be minimal");
+
+    // STRUCTURAL REDESIGN TEST 5 — SALES ANALYSIS NOT FINANCE
+    const salesAnalysisPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "sales_a_1",
+        title: "Sales pipeline analysis",
+        date: "2026-06-22",
+        professional_category: "sales_operations",
+        classification: "professional",
+        summary: "Pipeline quality review.",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Sales Pipeline Analysis", candidate_concept: "Pipeline quality analysis", claim: "Distinguished activity from buyer commitment.", supporting_excerpt: "Stage progression should reflect buyer commitment.", confidence: "high" }]
+      }]
+    };
+    const salesAnalysisPattern = buildReports(buildNormalized(normalizeChatGptExport(salesAnalysisPack), [])).professional_pattern;
+    assert.ok(/commercial and growth|mixed\/cross-functional/i.test(salesAnalysisPattern.observed_professional_pattern), "sales analysis should map to commercial or mixed, not finance");
+
+    // STRUCTURAL REDESIGN TEST 6 — REGULATORY ANALYSIS NOT FINANCE
+    const legalAnalysisPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "legal_a_1",
+        title: "Regulatory risk analysis",
+        date: "2026-06-23",
+        professional_category: "compliance",
+        classification: "professional",
+        summary: "Regulatory applicability and obligations.",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Regulatory Interpretation", candidate_concept: "Regulatory applicability assessment", claim: "Assessed scope and obligations.", supporting_excerpt: "Entity, activity and jurisdiction before conclusion.", confidence: "high" }]
+      }]
+    };
+    const legalAnalysisPattern = buildReports(buildNormalized(normalizeChatGptExport(legalAnalysisPack), [])).professional_pattern;
+    assert.ok(/legal, risk and compliance|mixed\/cross-functional/i.test(legalAnalysisPattern.observed_professional_pattern), "regulatory analysis should map to legal/risk family or mixed");
+
+    // STRUCTURAL REDESIGN TEST 7 — PRODUCT ANALYTICS NOT FINANCE
+    const productAnalyticsPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "prod_a_1",
+        title: "Product analytics",
+        date: "2026-06-24",
+        professional_category: "product_management",
+        classification: "professional",
+        summary: "Measured product adoption and drop-off.",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Product Analytics", candidate_concept: "User adoption analysis", claim: "Analysed activation and retention metrics.", supporting_excerpt: "Prioritize hypotheses by user impact.", confidence: "high" }]
+      }]
+    };
+    const productAnalyticsPattern = buildReports(buildNormalized(normalizeChatGptExport(productAnalyticsPack), [])).professional_pattern;
+    const productFamilyId = String((productAnalyticsPattern.professional_family || {}).id || "");
+    assert.ok(["product_and_design", "mixed_cross_functional"].includes(productFamilyId), "product analytics should map to product/design or mixed family");
+    assert.notStrictEqual(productFamilyId, "finance_and_analytical", "product analytics should not drift to finance family");
+
+    // STRUCTURAL REDESIGN TEST 8 — CLINICAL DATA INTERPRETATION
+    const clinicalPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "clinical_a_1",
+        title: "Clinical data interpretation",
+        date: "2026-06-25",
+        professional_category: "healthcare",
+        classification: "professional",
+        summary: "Interpreted clinical data with risk framing.",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Clinical Data Interpretation", candidate_concept: "Clinical assessment", claim: "Interpreted clinical evidence with risk sensitivity.", supporting_excerpt: "Assess patient risk before pathway decision.", confidence: "high" }]
+      }]
+    };
+    const clinicalPattern = buildReports(buildNormalized(normalizeChatGptExport(clinicalPack), [])).professional_pattern;
+    assert.ok(/healthcare and clinical|mixed\/cross-functional/i.test(clinicalPattern.observed_professional_pattern), "clinical interpretation should map to healthcare or mixed");
+
+    // STRUCTURAL REDESIGN TEST 9 — SOFTWARE INCIDENT ANALYSIS
+    const softwareIncidentPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "tech_a_1",
+        title: "Software incident analysis",
+        date: "2026-06-26",
+        professional_category: "software_architecture",
+        classification: "professional",
+        summary: "Investigated service incident.",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Production Reliability Reasoning", candidate_concept: "Incident mitigation planning", claim: "Analysed readiness, draining and retries.", supporting_excerpt: "Correlate lifecycle and request handling.", confidence: "high" }]
+      }]
+    };
+    const softwareIncidentPattern = buildReports(buildNormalized(normalizeChatGptExport(softwareIncidentPack), [])).professional_pattern;
+    assert.ok(/technical and engineering|mixed\/cross-functional/i.test(softwareIncidentPattern.observed_professional_pattern), "software incident analysis should map to technical family or mixed");
+
+    // STRUCTURAL REDESIGN TEST 10 — REAL FINANCE ANALYSIS
+    const financeRealPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [
+        { id: "fin_1", title: "Revenue variance", date: "2026-06-01", professional_category: "finance", classification: "professional", summary: "Revenue variance analysis.", content_origin_notes: "synthetic_user_ai_interaction", evidence: [{ display_label: "Revenue Variance Analysis", candidate_concept: "Revenue variance", claim: "Investigated revenue variance drivers.", supporting_excerpt: "Variance decomposed by region and channel.", confidence: "high" }] },
+        { id: "fin_2", title: "Budget forecasting", date: "2026-06-11", professional_category: "finance", classification: "professional", summary: "Budget forecast planning.", content_origin_notes: "synthetic_user_ai_interaction", evidence: [{ display_label: "Budget Forecasting", candidate_concept: "Budget planning", claim: "Forecasted budget scenarios.", supporting_excerpt: "Modelled base and downside assumptions.", confidence: "high" }] },
+        { id: "fin_3", title: "Margin modelling", date: "2026-06-21", professional_category: "finance", classification: "professional", summary: "Margin model update.", content_origin_notes: "synthetic_user_ai_interaction", evidence: [{ display_label: "Margin Modelling", candidate_concept: "Financial modelling", claim: "Modelled margin sensitivity.", supporting_excerpt: "Contribution margin across price bands.", confidence: "high" }] }
+      ]
+    };
+    const financeRealPattern = buildReports(buildNormalized(normalizeChatGptExport(financeRealPack), [])).professional_pattern;
+    assert.ok(/finance and analytical|mixed\/cross-functional/i.test(financeRealPattern.observed_professional_pattern), "real financial evidence should map to finance family or mixed");
+
+    // STRUCTURAL REDESIGN TEST 11 — SPECIFIC CAPABILITY PRESERVATION
+    const preserveSpecific = buildReports(buildNormalized(normalizeChatGptExport(selectionPack), [])).professional_pattern;
+    const preservedAssessment = (preserveSpecific.capability_assessments || [])[0];
+    assert.ok(preservedAssessment, "structured pack should emit at least one capability assessment");
+    assert.strictEqual(preservedAssessment.label_source, "display_label", "capability should preserve structured display label source");
+    assert.ok(String(preservedAssessment.label || "").trim().split(/\s+/).length >= 2, "capability label should not collapse to one-word generic label");
+
+    // STRUCTURAL REDESIGN TEST 12 — NO GENERIC COLLAPSE
+    const noCollapsePack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "nc_1",
+        title: "No collapse",
+        date: "2026-06-15",
+        professional_category: "talent_acquisition",
+        classification: "professional",
+        summary: "Two analyses with different objects.",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [
+          { display_label: "Recruitment Funnel Analysis", candidate_concept: "Recruitment funnel analysis", claim: "Pipeline stage quality review.", supporting_excerpt: "Check stage conversion quality.", confidence: "high" },
+          { display_label: "Capability Gap Analysis", candidate_concept: "Capability gap analysis", claim: "Mapped workforce capability gaps.", supporting_excerpt: "Connect roadmap priorities to capability gaps.", confidence: "high" }
+        ]
+      }]
+    };
+    const noCollapsePattern = buildReports(buildNormalized(normalizeChatGptExport(noCollapsePack), [])).professional_pattern;
+    const noCollapseAssessments = noCollapsePattern.capability_assessments || [];
+    assert.ok(noCollapseAssessments.length >= 1, "structured no-collapse input should emit capability assessments");
+    assert.ok(noCollapseAssessments.every(item => item.label_source === "display_label"), "no-collapse capabilities should retain display_label provenance");
+    assert.ok(noCollapseAssessments.every(item => String(item.label || "").trim().toLowerCase() !== "analysis"), "capabilities must not collapse to generic Analysis");
+    const noCollapseEvidenceIds = new Set(noCollapseAssessments.flatMap(item => item.evidence_ids || []));
+    assert.ok(noCollapseEvidenceIds.size >= 2, "both atomic analysis evidences should remain represented in capability evidence ids");
+
+    // MANDATORY TEST 1 — CAPABILITY LABEL NOT REDACTED
+    const labelPreservationHrPattern = buildReports(buildNormalized(normalizeChatGptExport(selectionPack), [])).professional_pattern;
+    assert.ok((labelPreservationHrPattern.capability_assessments || []).some(item => String(item.label || "") === "Structured Interview Design"), "Structured Interview Design label must remain unchanged");
+
+    // MANDATORY TEST 2 — BACKEND LABEL NOT REDACTED
+    const backendLabelPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "backend_label_1",
+        title: "Backend label",
+        date: "2026-07-04",
+        professional_category: "software_architecture",
+        classification: "professional",
+        summary: "Backend label test",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Distributed Systems Design", candidate_concept: "Distributed systems architecture", claim: "Defined service boundaries.", supporting_excerpt: "Use explicit contract boundaries.", confidence: "high" }]
+      }]
+    };
+    const backendLabelPattern = buildReports(buildNormalized(normalizeChatGptExport(backendLabelPack), [])).professional_pattern;
+    assert.ok((backendLabelPattern.capability_assessments || []).some(item => String(item.label || "") === "Distributed Systems Design"), "Distributed Systems Design label must remain unchanged");
+
+    // MANDATORY TEST 3 — LEGAL LABEL NOT REDACTED
+    const legalLabelPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "legal_label_1",
+        title: "Legal label",
+        date: "2026-07-05",
+        professional_category: "compliance",
+        classification: "professional",
+        summary: "Legal label test",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Regulatory Risk Management", candidate_concept: "Regulatory control planning", claim: "Mapped controls and owners.", supporting_excerpt: "Map obligations to controls and owners.", confidence: "high" }]
+      }]
+    };
+    const legalLabelPattern = buildReports(buildNormalized(normalizeChatGptExport(legalLabelPack), [])).professional_pattern;
+    assert.ok((legalLabelPattern.capability_assessments || []).some(item => String(item.label || "") === "Regulatory Risk Management"), "Regulatory Risk Management label must remain unchanged");
+
+    // MANDATORY TEST 4 — PERSON NAME IN FREE TEXT REDACTED
+    const freeTextRedactionPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "redaction_free_1",
+        title: "Free text redaction",
+        date: "2026-07-06",
+        professional_category: "talent_acquisition",
+        classification: "professional",
+        summary: "Free text redaction",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Structured Interview Design", candidate_concept: "Structured interviewing", claim: "Marco Rossi approved the interview framework.", supporting_excerpt: "Marco Rossi approved the framework.", confidence: "high" }]
+      }]
+    };
+    const freeTextRedactionNormalized = buildNormalized(normalizeChatGptExport(freeTextRedactionPack), []);
+    const freeTextRedactionItem = freeTextRedactionNormalized[0].evidence_items[0];
+    assert.ok(String(freeTextRedactionItem.supporting_excerpt || "").includes("PERSON_1 approved the framework."), "free text excerpt should redact person names");
+
+    // MANDATORY TEST 5 — STRUCTURED FIELD VS FREE TEXT
+    const mixedScopePack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "scope_1",
+        title: "Scope separation",
+        date: "2026-07-06",
+        professional_category: "talent_acquisition",
+        classification: "professional",
+        summary: "Scope separation",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Structured Interview Design", candidate_concept: "Structured Interview Design", claim: "Marco Rossi approved Structured Interview Design.", supporting_excerpt: "Marco Rossi approved Structured Interview Design.", confidence: "high" }]
+      }]
+    };
+    const mixedScopeNormalized = buildNormalized(normalizeChatGptExport(mixedScopePack), []);
+    const mixedScopeItem = mixedScopeNormalized[0].evidence_items[0];
+    assert.strictEqual(mixedScopeItem.display_label, "Structured Interview Design", "structured display_label should remain unchanged");
+    assert.ok(String(mixedScopeItem.supporting_excerpt || "").includes("PERSON_1 approved Structured Interview Design."), "free text supporting_excerpt should redact person while preserving capability label text");
+    assert.strictEqual(mixedScopeItem.redaction_scope, "structured_evidence_item", "structured evidence should expose redaction scope metadata");
+
+    // MANDATORY TEST 8 — NO EVIDENCE INFLATION
+    const noInflationPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "inflate_1",
+        title: "No inflation",
+        date: "2026-07-07",
+        professional_category: "talent_acquisition",
+        classification: "professional",
+        summary: "single atomic evidence",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ dimension: "communication", display_label: "Structured Interview Design", candidate_concept: "Structured interviewing", claim: "Defined roadmap and communication milestones.", supporting_excerpt: "Roadmap plan with communication checkpoints.", confidence: "high" }]
+      }]
+    };
+    const noInflationReport = buildReports(buildNormalized(normalizeChatGptExport(noInflationPack), []));
+    assert.strictEqual(noInflationReport.evidence_coverage_detail.atomic_evidence_count, 1, "single atomic evidence item should stay atomic=1");
+    assert.strictEqual(noInflationReport.evidence_coverage_detail.capability_link_count, 1, "single atomic evidence item should map to exactly one capability link");
+    assert.strictEqual(noInflationReport.evidence_coverage_detail.mapped_behaviour_count, 2, "single atomic evidence item with two behaviours should produce mapped_behaviour_count=2");
+
+    // STRUCTURAL REDESIGN TESTS 13-16 — FIXTURE REGRESSIONS
+    assert.ok(fs.existsSync(fixtureHrPath), "HR fixture exists");
+    assert.ok(fs.existsSync(fixtureBackendPath), "Backend fixture exists");
+    assert.ok(fs.existsSync(fixtureSalesPath), "Sales fixture exists");
+    assert.ok(fs.existsSync(fixtureLegalPath), "Legal fixture exists");
+
+    const fixtureHr = JSON.parse(fs.readFileSync(fixtureHrPath, "utf8"));
+    const fixtureBackend = JSON.parse(fs.readFileSync(fixtureBackendPath, "utf8"));
+    const fixtureSales = JSON.parse(fs.readFileSync(fixtureSalesPath, "utf8"));
+    const fixtureLegal = JSON.parse(fs.readFileSync(fixtureLegalPath, "utf8"));
+
+    const hrStructured = buildReports(buildNormalized(normalizeChatGptExport(fixtureHr), []));
+    const backendStructured = buildReports(buildNormalized(normalizeChatGptExport(fixtureBackend), []));
+    const salesStructured = buildReports(buildNormalized(normalizeChatGptExport(fixtureSales), []));
+    const legalStructured = buildReports(buildNormalized(normalizeChatGptExport(fixtureLegal), []));
+
+    // MANDATORY TEST 6 — METRICS PARITY
+    for (const fixtureReport of [hrStructured, backendStructured, salesStructured, legalStructured]) {
+      const diagnostics = fixtureReport.professional_pattern && fixtureReport.professional_pattern.diagnostics;
+      const coverage = fixtureReport.evidence_coverage_detail;
+      assert.ok(diagnostics, "structured fixture must expose diagnostics");
+      assert.strictEqual(diagnostics.atomic_evidence_count, coverage.atomic_evidence_count, "diagnostics and coverage must agree on atomic_evidence_count");
+      assert.strictEqual(diagnostics.capability_link_count, coverage.capability_link_count, "diagnostics and coverage must agree on capability_link_count");
+      assert.strictEqual(diagnostics.mapped_behaviour_count, coverage.mapped_behaviour_count, "diagnostics and coverage must agree on mapped_behaviour_count");
+    }
+
+    // MANDATORY TEST 7 — MAPPED BEHAVIOUR NON ZERO
+    assert.ok(hrStructured.evidence_coverage_detail.mapped_behaviour_count > 0, "HR fixture should map behaviours");
+    assert.ok(backendStructured.evidence_coverage_detail.mapped_behaviour_count > 0, "Backend fixture should map behaviours");
+    assert.ok(salesStructured.evidence_coverage_detail.mapped_behaviour_count > 0, "Sales fixture should map behaviours");
+    assert.ok(legalStructured.evidence_coverage_detail.mapped_behaviour_count > 0, "Legal fixture should map behaviours");
+
+    assert.strictEqual(hrStructured.normalized.length, 12, "HR fixture should keep all professional conversations selected");
+    assert.ok(/people and talent|mixed\/cross-functional/i.test(hrStructured.professional_pattern.observed_professional_pattern), "HR fixture should map to people/talent or mixed");
+    assert.ok(hrStructured.evidence_coverage_detail.total_evidence_items <= 20, "HR evidence count should reflect atomic records and avoid inflated dimensional matches");
+    const hrAssessments = hrStructured.professional_pattern.capability_assessments || [];
+    assert.ok(hrAssessments.length > 0, "HR fixture should emit capability assessments");
+    assert.ok(hrAssessments.some(item => item.label_source === "display_label"), "HR fixture should preserve structured capability label provenance");
+    assert.ok(hrAssessments.some(item => String(item.label || "").trim().split(/\s+/).length >= 2), "HR fixture should preserve non-generic multi-word capability labels");
+
+    assert.ok(/technical and engineering|mixed\/cross-functional/i.test(backendStructured.professional_pattern.observed_professional_pattern), "backend fixture should map to technical or mixed");
+    assert.ok(!isSupported(backendStructured.professional_pattern, "People Management"), "backend fixture should not infer people management from sparse evidence");
+
+    assert.ok(/commercial and growth|mixed\/cross-functional/i.test(salesStructured.professional_pattern.observed_professional_pattern), "sales fixture should map to commercial or mixed");
+    assert.ok(!/finance and analytical/i.test(salesStructured.professional_pattern.observed_professional_pattern), "sales fixture should not drift to finance");
+
+    assert.ok(/legal, risk and compliance|mixed\/cross-functional/i.test(legalStructured.professional_pattern.observed_professional_pattern), "legal fixture should map to legal/risk family or mixed");
+    assert.ok(!/executive leadership/i.test(String(legalStructured.professional_pattern.observed_professional_pattern || "")), "single board update should not imply executive leadership");
+
+    // MANDATORY TEST 9 — FOUR FIXTURE REGRESSION (FAMILY INVARIANCE)
+    assert.strictEqual(String((hrStructured.professional_pattern.professional_family || {}).id || ""), "people_and_talent", "HR fixture family should remain people_and_talent");
+    assert.strictEqual(String((backendStructured.professional_pattern.professional_family || {}).id || ""), "technical_and_engineering", "Backend fixture family should remain technical_and_engineering");
+    assert.strictEqual(String((salesStructured.professional_pattern.professional_family || {}).id || ""), "commercial_and_growth", "Sales fixture family should remain commercial_and_growth");
+    assert.strictEqual(String((legalStructured.professional_pattern.professional_family || {}).id || ""), "legal_risk_and_compliance", "Legal fixture family should remain legal_risk_and_compliance");
+
+    // STRUCTURAL REDESIGN TEST 17 — MIXED PROFILE
+    const mixedPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [
+        { id: "mix_1", title: "Tech", date: "2026-07-01", professional_category: "software_development", classification: "professional", summary: "Tech capability", content_origin_notes: "synthetic_user_ai_interaction", evidence: [{ display_label: "API Evolution Planning", candidate_concept: "API planning", claim: "Defined non-breaking API evolution.", supporting_excerpt: "Compatibility windows and migration plan.", confidence: "high" }] },
+        { id: "mix_2", title: "Commercial", date: "2026-07-03", professional_category: "sales", classification: "professional", summary: "Commercial capability", content_origin_notes: "synthetic_user_ai_interaction", evidence: [{ display_label: "Commercial Negotiation", candidate_concept: "Negotiation planning", claim: "Defined concession strategy.", supporting_excerpt: "Trade terms for value.", confidence: "high" }] }
+      ]
+    };
+    const mixedStructured = buildReports(buildNormalized(normalizeChatGptExport(mixedPack), [])).professional_pattern;
+    assert.strictEqual(String((mixedStructured.professional_family || {}).id || ""), "mixed_cross_functional", "balanced cross-domain evidence should produce mixed/cross-functional family");
+
+    // STRUCTURAL REDESIGN TEST 18 — JUNIOR PROFILE
+    const juniorStructured = buildReports(buildNormalized(normalizeChatGptExport({
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{ id: "jr_1", title: "Single", date: "2026-07-10", professional_category: "software_development", classification: "professional", summary: "One sparse activity", content_origin_notes: "synthetic_user_ai_interaction", evidence: [{ display_label: "Bug Fix Exploration", candidate_concept: "Bug fix", claim: "Asked for help on one bug.", supporting_excerpt: "Single attempt with guidance.", confidence: "low" }] }]
+    }), [])).professional_pattern;
+    assert.ok(/emerging professional patterns|not yet sufficient/i.test(String(juniorStructured.observed_professional_pattern || "")), "sparse junior profile should remain emerging");
+
+    // STRUCTURAL REDESIGN TEST 19 — DETERMINISM
+    const hrNormA = buildNormalized(normalizeChatGptExport(fixtureHr), []);
+    const hrNormB = buildNormalized(normalizeChatGptExport(fixtureHr), []);
+    const hrReportA = buildReports(hrNormA);
+    const hrReportB = buildReports(hrNormB);
+    const deterministicA = {
+      selected: hrReportA.normalized.map(item => item.id),
+      evidence_count: hrReportA.evidence_coverage_detail.total_evidence_items,
+      family: hrReportA.professional_pattern.professional_family,
+      pattern: hrReportA.professional_pattern.observed_professional_pattern,
+      capabilities: (hrReportA.professional_pattern.capability_assessments || []).map(item => ({ label: item.label, state: item.capability_state, score: item.dominance_score }))
+    };
+    const deterministicB = {
+      selected: hrReportB.normalized.map(item => item.id),
+      evidence_count: hrReportB.evidence_coverage_detail.total_evidence_items,
+      family: hrReportB.professional_pattern.professional_family,
+      pattern: hrReportB.professional_pattern.observed_professional_pattern,
+      capabilities: (hrReportB.professional_pattern.capability_assessments || []).map(item => ({ label: item.label, state: item.capability_state, score: item.dominance_score }))
+    };
+    assert.deepStrictEqual(deterministicA, deterministicB, "same input should produce deterministic outputs");
+
+    // STRUCTURAL REDESIGN TEST 20 — LEGACY COMPATIBILITY
+    const legacyInput = [{
+      id: "legacy_compat_1",
+      title: "Legacy unstructured",
+      created_at: "2026-07-02T00:00:00.000Z",
+      messages: [{ author: "user", created_at: "2026-07-02T00:00:00.000Z", text: "I reviewed architecture trade-offs and incident mitigation options.", content_origin: { value: "original_user_input" } }]
+    }];
+    const legacyCompatReport = buildReports(buildNormalized(normalizeChatGptExport(legacyInput), [{ id: "legacy_compat_1", include: true, classification: "professional" }]));
+    assert.ok(legacyCompatReport.professional_pattern, "legacy unstructured JSON should still be processed");
+    assert.ok(legacyCompatReport.evidence_coverage_detail.total_professional_conversations >= 1, "legacy input should produce non-empty coverage");
   }
 
   assert.ok(chiefGrowthReport.professional_pattern.radar_capabilities.every(item => !/_[a-z]/i.test(item.label)), "no snake_case should appear in visible radar labels");

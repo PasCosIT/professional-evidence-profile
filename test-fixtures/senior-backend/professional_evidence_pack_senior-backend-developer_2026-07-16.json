@@ -1,0 +1,352 @@
+{
+  "schema": "professional_evidence_pack_v1",
+  "generated_for": "EviLayer - Senior Backend Developer Test",
+  "generated_at": "2026-07-16",
+  "period": {
+    "from": "2026-04-16",
+    "to": "2026-07-16"
+  },
+  "source": {
+    "type": "synthetic_ai_assisted_work_test",
+    "verification": "synthetic_not_verified",
+    "limitations": [
+      "Synthetic professional profile created exclusively to validate the EviLayer analysis engine",
+      "Not derived from a real individual or original AI account export",
+      "Evidence includes intentionally mixed strengths, ambiguities and counter-evidence",
+      "The expected profile is a senior backend developer with strong engineering and problem-solving capability but limited demonstrated people leadership",
+      "The test should not infer capabilities that are unsupported by repeated evidence"
+    ]
+  },
+  "conversations": [
+    {
+      "id": "pack_conv_001",
+      "title": "Payment API idempotency redesign",
+      "date": "2026-04-22",
+      "professional_category": "software_development",
+      "classification": "professional",
+      "summary": "The user analysed duplicate payment events in a distributed system and designed an idempotent processing strategy using request keys, database constraints and retry-safe state transitions.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "problem_solving",
+          "candidate_concept": "Distributed transaction failure analysis",
+          "candidate_type": "capability",
+          "display_label": "Distributed Systems Problem Solving",
+          "claim": "The user decomposed duplicate payment processing into retry, concurrency and persistence failure modes before selecting a solution.",
+          "supporting_excerpt": "Before changing the handler, separate duplicates caused by client retries, queue redelivery and concurrent workers; each path needs a different control.",
+          "counter_evidence": null,
+          "time_period": "2026-04-22",
+          "confidence": "high"
+        },
+        {
+          "dimension": "technical_execution",
+          "candidate_concept": "Idempotent API and worker design",
+          "candidate_type": "capability",
+          "display_label": "Idempotent Processing Design",
+          "claim": "The user proposed a layered idempotency design combining idempotency keys, unique constraints and deterministic state transitions.",
+          "supporting_excerpt": "Use the request key as a business-level identifier, enforce uniqueness in the database and make every worker transition conditional on the current state.",
+          "counter_evidence": "The conversation documents the design but not production deployment metrics.",
+          "time_period": "2026-04-22",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_002",
+      "title": "PostgreSQL query performance investigation",
+      "date": "2026-05-03",
+      "professional_category": "data_engineering",
+      "classification": "professional",
+      "summary": "The user investigated a slow reporting query, interpreted an execution plan and proposed indexing and query-shape changes while considering write overhead.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "data_reasoning",
+          "candidate_concept": "Execution plan interpretation",
+          "candidate_type": "capability",
+          "display_label": "SQL Performance Analysis",
+          "claim": "The user used row estimates, join order and scan type to identify the likely source of query latency.",
+          "supporting_excerpt": "The sequential scan is not automatically the problem; the important mismatch is the estimated 800 rows versus 1.4 million actual rows after the date filter.",
+          "counter_evidence": null,
+          "time_period": "2026-05-03",
+          "confidence": "high"
+        },
+        {
+          "dimension": "decision_making",
+          "candidate_concept": "Index trade-off evaluation",
+          "candidate_type": "behavior",
+          "display_label": "Database Trade-off Evaluation",
+          "claim": "The user compared read-performance gains with write amplification and index maintenance costs.",
+          "supporting_excerpt": "A wide covering index may speed this report but it would penalise a table receiving continuous writes; test a narrower composite index first.",
+          "counter_evidence": null,
+          "time_period": "2026-05-03",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_003",
+      "title": "Kubernetes deployment incident",
+      "date": "2026-05-15",
+      "professional_category": "devops",
+      "classification": "professional",
+      "summary": "The user diagnosed intermittent 503 errors after a deployment by examining readiness behaviour, connection draining and pod termination timing.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "risk_awareness",
+          "candidate_concept": "Production deployment risk analysis",
+          "candidate_type": "capability",
+          "display_label": "Production Reliability Reasoning",
+          "claim": "The user connected application readiness, load-balancer routing and graceful termination rather than treating the incident as a single configuration error.",
+          "supporting_excerpt": "The pod can be removed from the service endpoints before existing requests finish, so readiness, preStop and terminationGracePeriodSeconds must be evaluated together.",
+          "counter_evidence": null,
+          "time_period": "2026-05-15",
+          "confidence": "high"
+        },
+        {
+          "dimension": "execution",
+          "candidate_concept": "Incident mitigation planning",
+          "candidate_type": "responsibility",
+          "display_label": "Incident Mitigation Planning",
+          "claim": "The user proposed a reversible mitigation followed by controlled verification.",
+          "supporting_excerpt": "First increase termination grace and add a preStop delay, then deploy to one canary pod and compare 503 rates before changing the full rollout.",
+          "counter_evidence": "No final incident report or measured result was included.",
+          "time_period": "2026-05-15",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_004",
+      "title": "Authentication service refactoring",
+      "date": "2026-05-29",
+      "professional_category": "software_architecture",
+      "classification": "professional",
+      "summary": "The user evaluated whether to split an authentication module into a separate service and argued against premature decomposition.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "architecture",
+          "candidate_concept": "Service boundary evaluation",
+          "candidate_type": "capability",
+          "display_label": "Architecture Boundary Design",
+          "claim": "The user assessed coupling, operational ownership, scaling needs and failure isolation before recommending a modular monolith boundary.",
+          "supporting_excerpt": "The code boundary is justified, but an independently deployed service is not yet justified because scaling, ownership and release cadence are still shared.",
+          "counter_evidence": null,
+          "time_period": "2026-05-29",
+          "confidence": "high"
+        },
+        {
+          "dimension": "critical_evaluation",
+          "candidate_concept": "Resistance to fashionable architecture choices",
+          "candidate_type": "behavior",
+          "display_label": "Pragmatic Architecture Evaluation",
+          "claim": "The user challenged the assumption that microservices were automatically the more mature design.",
+          "supporting_excerpt": "Do not convert organisational uncertainty into network calls; keep the interface explicit and extract only when operational independence becomes real.",
+          "counter_evidence": null,
+          "time_period": "2026-05-29",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_005",
+      "title": "Code review of asynchronous order processing",
+      "date": "2026-06-07",
+      "professional_category": "software_development",
+      "classification": "professional",
+      "summary": "The user reviewed asynchronous processing code, identifying unbounded concurrency, missing cancellation propagation and incomplete error handling.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "quality_improvement",
+          "candidate_concept": "Concurrency code review",
+          "candidate_type": "capability",
+          "display_label": "Concurrency and Reliability Review",
+          "claim": "The user identified reliability risks beyond syntax and suggested bounded concurrency and explicit failure aggregation.",
+          "supporting_excerpt": "Promise.all over the entire batch can overwhelm the downstream service and one rejection hides partial completion; use a bounded pool and persist per-item outcomes.",
+          "counter_evidence": null,
+          "time_period": "2026-06-07",
+          "confidence": "high"
+        },
+        {
+          "dimension": "communication",
+          "candidate_concept": "Actionable technical feedback",
+          "candidate_type": "behavior",
+          "display_label": "Technical Review Communication",
+          "claim": "The review explained the failure mechanism and proposed an implementable alternative.",
+          "supporting_excerpt": "The problem is not only performance: without cancellation propagation the job continues after the caller has abandoned it, producing invisible work.",
+          "counter_evidence": null,
+          "time_period": "2026-06-07",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_006",
+      "title": "API versioning discussion",
+      "date": "2026-06-18",
+      "professional_category": "software_architecture",
+      "classification": "professional",
+      "summary": "The user compared URI, header and compatibility-based API evolution approaches for a partner-facing integration.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "planning",
+          "candidate_concept": "Backward-compatible API evolution",
+          "candidate_type": "capability",
+          "display_label": "API Evolution Planning",
+          "claim": "The user prioritised compatibility policy, deprecation windows and consumer communication over version-number mechanics.",
+          "supporting_excerpt": "The key decision is what constitutes a breaking change and how long consumers can remain on the previous contract; the URL format is secondary.",
+          "counter_evidence": null,
+          "time_period": "2026-06-18",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_007",
+      "title": "Security review for file upload endpoint",
+      "date": "2026-06-24",
+      "professional_category": "security",
+      "classification": "professional",
+      "summary": "The user reviewed a document upload flow and identified content-type spoofing, decompression bombs, malware scanning and storage isolation risks.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "risk_awareness",
+          "candidate_concept": "Secure file processing",
+          "candidate_type": "capability",
+          "display_label": "Application Security Awareness",
+          "claim": "The user identified multiple attack paths and proposed validation at content, size, processing and storage layers.",
+          "supporting_excerpt": "Do not trust the extension or request content type; inspect the file signature, cap expanded size, scan asynchronously and keep uploads outside the application execution path.",
+          "counter_evidence": "The evidence shows security-aware engineering, not specialist penetration-testing expertise.",
+          "time_period": "2026-06-24",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_008",
+      "title": "Mentoring a junior developer",
+      "date": "2026-07-01",
+      "professional_category": "collaboration",
+      "classification": "professional",
+      "summary": "The user prepared feedback for a junior developer on debugging methodology and code ownership.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "collaboration",
+          "candidate_concept": "Developer mentoring",
+          "candidate_type": "behavior",
+          "display_label": "Technical Mentoring",
+          "claim": "The user structured developmental feedback around observable behaviour and a repeatable debugging process.",
+          "supporting_excerpt": "Instead of giving the fix, ask them to state the expected invariant, reproduce the failure and narrow the first point where reality diverges.",
+          "counter_evidence": "A single mentoring example does not demonstrate formal people management or sustained team leadership.",
+          "time_period": "2026-07-01",
+          "confidence": "medium"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_009",
+      "title": "Observability strategy for a new service",
+      "date": "2026-07-05",
+      "professional_category": "devops",
+      "classification": "professional",
+      "summary": "The user defined initial logs, metrics and traces for a new order service, linking telemetry to user-visible failure modes.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "planning",
+          "candidate_concept": "Service observability design",
+          "candidate_type": "capability",
+          "display_label": "Observability Design",
+          "claim": "The user selected telemetry based on service-level behaviour rather than collecting generic infrastructure metrics.",
+          "supporting_excerpt": "Start from the customer-visible outcomes: accepted order, processing delay and failed fulfilment; then define traces and metrics that explain each state transition.",
+          "counter_evidence": null,
+          "time_period": "2026-07-05",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_010",
+      "title": "Initial response to unfamiliar machine learning task",
+      "date": "2026-07-08",
+      "professional_category": "learning",
+      "classification": "professional",
+      "summary": "The user asked the AI to design a complete recommendation model but supplied little domain context and initially accepted the proposed architecture without validation.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "learning",
+          "candidate_concept": "Exploration of an unfamiliar ML domain",
+          "candidate_type": "activity",
+          "display_label": "Machine Learning Exploration",
+          "claim": "The user explored a machine learning recommendation problem outside the strongest demonstrated domain.",
+          "supporting_excerpt": "Create the best recommendation algorithm for our users and choose the model, features and evaluation approach.",
+          "counter_evidence": "The request lacked dataset characteristics, business objectives, baseline metrics and critical evaluation of the generated proposal.",
+          "time_period": "2026-07-08",
+          "confidence": "low"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_011",
+      "title": "Migration plan from synchronous calls to events",
+      "date": "2026-07-12",
+      "professional_category": "software_architecture",
+      "classification": "professional",
+      "summary": "The user designed an incremental migration from synchronous service calls to event-driven integration while preserving rollback and auditability.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "planning",
+          "candidate_concept": "Incremental architecture migration",
+          "candidate_type": "capability",
+          "display_label": "Incremental Migration Planning",
+          "claim": "The user proposed a staged migration using dual publication, reconciliation and consumer cutover rather than a big-bang replacement.",
+          "supporting_excerpt": "Publish the event alongside the current call, compare both paths through reconciliation, move one consumer at a time and retain a rollback switch until parity is demonstrated.",
+          "counter_evidence": null,
+          "time_period": "2026-07-12",
+          "confidence": "high"
+        },
+        {
+          "dimension": "risk_awareness",
+          "candidate_concept": "Migration rollback and consistency controls",
+          "candidate_type": "behavior",
+          "display_label": "Migration Risk Control",
+          "claim": "The user explicitly addressed duplicate delivery, ordering, observability and rollback.",
+          "supporting_excerpt": "The migration is incomplete without replay safety, correlation identifiers and a way to detect divergence between the old and new paths.",
+          "counter_evidence": null,
+          "time_period": "2026-07-12",
+          "confidence": "high"
+        }
+      ]
+    },
+    {
+      "id": "pack_conv_012",
+      "title": "Executive status update draft",
+      "date": "2026-07-15",
+      "professional_category": "communication",
+      "classification": "professional",
+      "summary": "The user converted a technical delivery update into a concise executive summary covering impact, risk, decision and next step.",
+      "content_origin_notes": "synthetic_user_ai_interaction",
+      "evidence": [
+        {
+          "dimension": "communication",
+          "candidate_concept": "Executive technical communication",
+          "candidate_type": "capability",
+          "display_label": "Executive Technical Communication",
+          "claim": "The user translated technical complexity into decision-oriented communication for non-technical stakeholders.",
+          "supporting_excerpt": "Lead with the customer impact and decision required; implementation detail belongs in the appendix unless it changes the risk.",
+          "counter_evidence": "One communication example does not establish broad executive leadership responsibility.",
+          "time_period": "2026-07-15",
+          "confidence": "medium"
+        }
+      ]
+    }
+  ]
+}
