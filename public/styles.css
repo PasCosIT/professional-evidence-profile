@@ -61,6 +61,11 @@ button:disabled {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 22px;
+  padding: 14px 18px;
+  border: 1px solid #cfdbff;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(47, 91, 255, 0.08);
 }
 
 .eyebrow {
@@ -90,9 +95,12 @@ h1 {
   grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.7fr);
   gap: 24px;
   align-items: end;
-  padding: 24px 0 28px;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  padding: 28px 22px;
+  border: 1px solid #ccdaff;
+  border-radius: 14px;
+  background:
+    radial-gradient(1200px 280px at 110% -30%, rgba(47, 91, 255, 0.2), transparent 60%),
+    linear-gradient(180deg, #f8faff 0%, #eef3ff 100%);
 }
 
 .hero h2 {
@@ -133,9 +141,10 @@ h1 {
   display: block;
   padding: 10px 12px;
   border-left: 4px solid var(--accent);
-  background: var(--soft);
+  background: #f5f8ff;
   border-radius: 4px;
   font-weight: 650;
+  color: #1f3f9e;
 }
 
 .explain {
@@ -190,9 +199,10 @@ h1 {
 
 .info-block {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 16px;
   background: var(--panel);
+  box-shadow: 0 4px 14px rgba(47, 91, 255, 0.05);
 }
 
 .info-block h4 {
@@ -465,7 +475,7 @@ h1 {
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 22px;
 }
 
@@ -534,8 +544,21 @@ input[type="file"] {
 
 .primary-action {
   min-width: 180px;
-  background: var(--accent);
+  background: linear-gradient(180deg, #3b67ff 0%, #2f5bff 100%);
+  border-color: #2f5bff;
   color: #fff;
+  box-shadow: 0 8px 18px rgba(47, 91, 255, 0.25);
+}
+
+.secondary-action {
+  border-color: #b8c9ff;
+  color: #2449b6;
+  background: #f5f8ff;
+}
+
+.secondary-action:hover:not(:disabled) {
+  border-color: #2f5bff;
+  background: #eef3ff;
 }
 
 .sample-row span {
@@ -586,8 +609,8 @@ input[type="file"] {
   margin-top: 16px;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfcfa;
+  border-radius: 12px;
+  background: #f8faff;
 }
 
 .review-summary-panel h4 {
@@ -659,9 +682,9 @@ input[type="file"] {
   gap: 14px;
   align-items: start;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 14px;
-  background: #fbfcfa;
+  background: #f8faff;
 }
 
 .cluster h4 {
@@ -1902,7 +1925,7 @@ input[type="file"] {
   gap: 16px;
   border-radius: 14px;
   padding: 16px 18px;
-  background: #132a66;
+  background: linear-gradient(90deg, #132a66 0%, #1f3d8f 100%);
   color: #fff;
 }
 
