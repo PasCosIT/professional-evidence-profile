@@ -87,12 +87,13 @@
     }
     if (!/[.!?]$/.test(candidate)) candidate += ".";
 
-    // Remove dangling short tail fragments like "The." after truncation.
+    // Remove dangling short tail fragments after truncation.
     var chunks = candidate.split(/(?<=[.!?])\s+/).filter(Boolean);
     if (chunks.length > 1) {
       var tail = chunks[chunks.length - 1].replace(/[.!?]+$/g, "").trim();
       var tailWordCount = tail ? tail.split(/\s+/).length : 0;
-      if (tailWordCount <= 2) {
+      var tailStartsLikeFragment = /^(the|this|these|those|il|lo|la|i|gli|le|questo|questa|questi|queste)\b/i.test(tail);
+      if (tailWordCount <= 2 || (tailStartsLikeFragment && tailWordCount <= 5)) {
         chunks.pop();
         candidate = chunks.join(" ").trim();
         if (candidate && !/[.!?]$/.test(candidate)) candidate += ".";
@@ -168,6 +169,13 @@
     if (key === "strongly_supported") return "Strongly supported";
     if (key === "recurring" || key === "observed") return "Supported";
     return "Emerging";
+  }
+
+  function attributionNarrative(attribution) {
+    var key = normalizeKey(attribution);
+    if (key === "direct") return "mostly user-authored evidence";
+    if (key === "mixed") return "a mix of user-authored and contextual evidence";
+    return "mostly contextual or AI-assisted evidence";
   }
 
   function coverageLabel(coverage) {
@@ -254,21 +262,21 @@
        kpiPrimary = {
         key: "attribution_quality",
          value: attribution.directPercent + "%",
-        label: "Direct user evidence",
-        helper: attribution.mixedPercent + "% mixed · " + attribution.contextualPercent + "% external/AI"
+        label: "User-authored evidence",
+        helper: attribution.mixedPercent + "% co-authored/contextual · " + attribution.contextualPercent + "% external/AI"
        };
      } else if (attribution.mixedPercent > 0) {
        kpiPrimary = {
         key: "attribution_quality",
          value: attribution.mixedPercent + "%",
         label: "Mixed attribution",
-        helper: attribution.directPercent + "% direct · " + attribution.contextualPercent + "% external/AI"
+        helper: attribution.directPercent + "% user-authored · " + attribution.contextualPercent + "% external/AI"
        };
      } else {
        kpiPrimary = {
         key: "attribution_quality",
         value: attribution.directPercent + "%",
-        label: "Direct user evidence",
+        label: "User-authored evidence",
         helper: "Limited attribution quality in selected evidence"
        };
      }
@@ -426,9 +434,9 @@
       '    <article class="vm-card"><h3>Supported Capabilities</h3><div class="vm-caps">' +
       (vm.capabilities || []).map(function (c) {
         var evidenceLine = (c.evidenceItemCount && c.conversationCount)
-          ? ('Supported by ' + c.evidenceItemCount + ' evidence items across ' + c.conversationCount + ' conversations')
-          : 'Supported by recurring attributable evidence';
-        var qualityLine = 'Strength: ' + c.evidenceStrength + ' · Coverage: ' + c.evidenceCoverage + ' · Attribution: ' + c.attribution;
+          ? (c.evidenceStrength + ' by ' + c.conversationCount + ' conversations and ' + c.evidenceItemCount + ' evidence items')
+          : (c.evidenceStrength + ' by recurring attributable evidence');
+        var qualityLine = 'Coverage: ' + c.evidenceCoverage + ' · Attribution: ' + attributionNarrative(c.attribution) + '.';
         return '<div class="vm-cap"><strong>' + escapeHtml(c.label) + '</strong><span>' + escapeHtml(evidenceLine) + '</span><p>' + escapeHtml(qualityLine) + '</p></div>';
       }).join("") +
       '    </div></article>' +

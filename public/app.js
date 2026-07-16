@@ -4,7 +4,8 @@ let state = {
   summary: null,
   reports: null,
   reportMode: "private",
-  reportConfig: null
+  reportConfig: null,
+  reviewExpanded: true
 };
 
 const PROMPT_PREFS_KEY = "aiWorkPassportPromptPrefsV1";
@@ -329,13 +330,20 @@ function renderReview() {
       </div>
       ${categories.length ? `<p class="review-categories">${categories.map(category => `<span>${escapeHtml(category)}</span>`).join("")}</p>` : ""}
     </section>
-    <details class="advanced-review">
+    <details class="advanced-review" ${state.reviewExpanded ? "open" : ""}>
       <summary>Review selected conversations</summary>
       <div class="conversation-detail compact-review-list">
         ${state.conversations.map(conversation => renderConversationCard(conversation)).join("")}
       </div>
     </details>
   `;
+  const details = $(".advanced-review");
+  if (details) {
+    details.addEventListener("toggle", () => {
+      state.reviewExpanded = details.open;
+      persistState();
+    });
+  }
   bindConversationControls();
   bindClusterControls();
   $("#analyzeBtn").disabled = false;
@@ -1763,7 +1771,8 @@ function restoreState() {
       summary: restored.summary || null,
       reports: restored.reports || null,
       reportMode: restored.reportMode || "private",
-      reportConfig: restored.reportConfig || null
+      reportConfig: restored.reportConfig || null,
+      reviewExpanded: restored.reviewExpanded !== false
     };
     if (state.reportConfig) {
       if ($("#profileNameInput")) $("#profileNameInput").value = "";

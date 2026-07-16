@@ -3466,6 +3466,13 @@ function pdfCoverageMeta(value, language = "en") {
   return { label: language === "it" ? "Limitata" : "Limited", color: "#b64f35" };
 }
 
+function attributionNarrativeLabel(value) {
+  const key = String(value || "").toLowerCase();
+  if (key === "direct") return "mostly user-authored evidence";
+  if (key === "mixed") return "a mix of user-authored and contextual evidence";
+  return "mostly contextual or AI-assisted evidence";
+}
+
 function strengthLabel(level, language = "en") {
   const map = language === "it"
     ? { emerging: "Emergente", observed: "Supportata", recurring: "Supportata", strongly_supported: "Fortemente supportata" }
@@ -3609,10 +3616,10 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
         const cardW = capW - 20;
         drawRoundedPanel(doc, cardX, cardY, cardW, rowHeight, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 6 });
         drawFittedText(doc, sanitizeReportText(row.label, { maxChars: 48, isTitle: true, fallback: "Capability" }), cardX + 6, cardY + 4, 250, 10, { font: "Helvetica-Bold", maxFontSize: 8.4, minFontSize: 7.6, color: "#163331" });
-        const countLine = row.evidenceItemCount && row.conversationCount
-          ? `Supported by ${row.evidenceItemCount} evidence items across ${row.conversationCount} conversations`
-          : "Supported by recurring attributable evidence";
-        drawFittedText(doc, countLine, cardX + 6, cardY + 15, cardW - 12, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.5, color: "#4f6763" });
+        const evidenceLine = row.evidenceItemCount && row.conversationCount
+          ? `${row.evidenceStrength} by ${row.conversationCount} conversations and ${row.evidenceItemCount} evidence items · ${row.evidenceCoverage} · ${row.attribution} attribution`
+          : `${row.evidenceStrength} by recurring attributable evidence · ${row.evidenceCoverage} · ${row.attribution} attribution`;
+        drawFittedText(doc, evidenceLine, cardX + 6, cardY + 15, cardW - 12, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.5, color: "#4f6763" });
       });
     }
 
