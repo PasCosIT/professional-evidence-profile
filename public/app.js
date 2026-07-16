@@ -2506,6 +2506,7 @@ async function uploadFile(file) {
   state.sessionId = payload.sessionId;
   state.conversations = payload.conversations;
   state.summary = payload.summary;
+  state.reports = null;
   if (payload.report_config) applyReportConfig(payload.report_config);
   $("#deleteBtn").disabled = false;
   renderSummary();
