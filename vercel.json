@@ -5,19 +5,10 @@
       "includeFiles": "server.cjs"
     }
   },
-  "routes": [
+  "rewrites": [
     {
-      "methods": ["GET", "POST", "DELETE", "OPTIONS"],
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "methods": ["GET", "HEAD"],
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
     }
   ]
 }
