@@ -1645,6 +1645,107 @@ async function main() {
     const legacyCompatReport = buildReports(buildNormalized(normalizeChatGptExport(legacyInput), [{ id: "legacy_compat_1", include: true, classification: "professional" }]));
     assert.ok(legacyCompatReport.professional_pattern, "legacy unstructured JSON should still be processed");
     assert.ok(legacyCompatReport.evidence_coverage_detail.total_professional_conversations >= 1, "legacy input should produce non-empty coverage");
+
+    // PARITY TESTS — CANONICAL RESULT / SNAPSHOT / REPORT / PDF
+    const parityFixtures = [
+      { name: "hr", report: hrStructured },
+      { name: "backend", report: backendStructured },
+      { name: "sales", report: salesStructured },
+      { name: "legal", report: legalStructured }
+    ];
+
+    for (const fixture of parityFixtures) {
+      const canonical = fixture.report.canonical_analysis_result;
+      const semantic = fixture.report.semantic_view_model;
+      assert.ok(canonical, `${fixture.name}: canonical analysis result must exist`);
+      assert.ok(semantic, `${fixture.name}: semantic view model must exist`);
+      assert.strictEqual(String(canonical.evidence_metrics.atomic_evidence_count), String(semantic.totalEvidenceItemCount), `${fixture.name}: atomic evidence parity canonical vs semantic`);
+      assert.strictEqual(String(canonical.professional_family.id), String((fixture.report.professional_pattern.professional_family || {}).id), `${fixture.name}: family parity canonical vs pattern`);
+      const vmParity = ReportViewModel.validateReportViewModel(ReportViewModel.buildSnapshotViewModel(semantic)).model;
+      assert.strictEqual(String(vmParity.professionalPattern || ""), String(canonical.professional_pattern || ""), `${fixture.name}: pattern parity canonical vs VM`);
+      assert.strictEqual(String(vmParity.typicalContribution || ""), String(canonical.typical_contribution || ""), `${fixture.name}: contribution parity canonical vs VM`);
+      assert.strictEqual(String(vmParity.metrics[1] && vmParity.metrics[1].value), String(canonical.evidence_metrics.atomic_evidence_count), `${fixture.name}: evidence metric parity canonical vs VM`);
+    }
+
+    // TEST 5 — STRUCTURED MODE NO LEGACY SEMANTICS
+    assert.strictEqual(hrStructured.analysis_mode, "structured", "HR structured mode should be explicit");
+    assert.ok(Array.isArray(hrStructured.canonical_analysis_result.routing_reason_codes) && hrStructured.canonical_analysis_result.routing_reason_codes.includes("structured_evidence_path"), "structured mode should expose structured path reason code");
+    assert.strictEqual(hrStructured.fallback_reason, null, "structured mode should not expose legacy fallback reason");
+
+    // TEST 6 — LEGACY MODE COMPATIBILITY
+    assert.strictEqual(legacyCompatReport.analysis_mode, "legacy", "legacy payload should route to legacy mode");
+    assert.ok(String(legacyCompatReport.fallback_reason || "").length > 0, "legacy mode should expose fallback reason");
+
+    // TEST 7 — EMPTY STRUCTURED RESULT NO LEGACY PROMOTION
+    const sparseStructuredPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "sparse_1",
+        title: "Sparse structured",
+        date: "2026-07-09",
+        professional_category: "technology",
+        classification: "professional",
+        summary: "Sparse evidence",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Single Weak Signal", candidate_concept: "Single weak signal", claim: "One weak claim", supporting_excerpt: "one weak excerpt", confidence: "low" }]
+      }]
+    };
+    const sparseStructuredReport = buildReports(buildNormalized(normalizeChatGptExport(sparseStructuredPack), []));
+    assert.strictEqual(sparseStructuredReport.analysis_mode, "structured", "sparse structured payload should remain structured mode");
+    assert.ok(Array.isArray(sparseStructuredReport.canonical_analysis_result.supported_capabilities), "supported capabilities array should exist");
+    assert.ok(Array.isArray(sparseStructuredReport.canonical_analysis_result.recurring_strengths), "recurring strengths array should exist");
+
+    // TEST 8 — EVIDENCE COUNT PARITY
+    for (const fixture of parityFixtures) {
+      const canonical = fixture.report.canonical_analysis_result;
+      const semantic = fixture.report.semantic_view_model;
+      const vmParity = ReportViewModel.validateReportViewModel(ReportViewModel.buildSnapshotViewModel(semantic)).model;
+      assert.strictEqual(String(canonical.evidence_metrics.atomic_evidence_count), String(semantic.totalEvidenceItemCount), `${fixture.name}: canonical = semantic evidence count`);
+      assert.strictEqual(String(canonical.evidence_metrics.atomic_evidence_count), String(vmParity.metrics[1] && vmParity.metrics[1].value), `${fixture.name}: canonical = VM evidence count`);
+    }
+
+    // TEST 9 — FAMILY PARITY
+    for (const fixture of parityFixtures) {
+      const canonical = fixture.report.canonical_analysis_result;
+      assert.strictEqual(String(canonical.professional_family.id), String((fixture.report.professional_pattern.professional_family || {}).id), `${fixture.name}: canonical family equals report family`);
+    }
+
+    // TEST 10 — CAPABILITY STATE PARITY
+    const hrCanonicalSupported = (hrStructured.canonical_analysis_result.supported_capabilities || []).map(item => String(item.capability_state || ""));
+    assert.ok(hrCanonicalSupported.every(state => ["demonstrated", "strongly_demonstrated", "attested"].includes(state)), "supported capabilities must keep supported states only");
+
+    // TEST 11 — DETERMINISM (semantic model)
+    const deterministicSemanticA = JSON.stringify(hrReportA.semantic_view_model);
+    const deterministicSemanticB = JSON.stringify(hrReportB.semantic_view_model);
+    assert.strictEqual(deterministicSemanticA, deterministicSemanticB, "semantic view model should be deterministic across identical runs");
+
+    // TEST 12 — NO DOMAIN-SPECIFIC BRANCHING (guardrail text scan)
+    const appJsContent = fs.readFileSync(path.join(root, "public", "app.js"), "utf8").toLowerCase();
+    assert.ok(!appJsContent.includes("if hr") && !appJsContent.includes("if recruitment") && !appJsContent.includes("if backend") && !appJsContent.includes("if sales") && !appJsContent.includes("if legal"), "no domain-specific branching should be introduced");
+
+    // TEST 13 — MIXED PROFILE PARITY
+    const mixedStructuredReport = buildReports(buildNormalized(normalizeChatGptExport(mixedPack), []));
+    assert.strictEqual(String((mixedStructuredReport.canonical_analysis_result.professional_family || {}).id || ""), "mixed_cross_functional", "mixed profile canonical family should remain mixed_cross_functional");
+
+    // TEST 14 — FUTURE UNKNOWN DOMAIN
+    const unknownDomainPack = {
+      schema: "professional_evidence_pack_v1",
+      generated_at: "2026-07-16",
+      conversations: [{
+        id: "unknown_1",
+        title: "Unknown domain",
+        date: "2026-07-12",
+        professional_category: "future_unknown_cluster",
+        classification: "professional",
+        summary: "Unknown domain test",
+        content_origin_notes: "synthetic_user_ai_interaction",
+        evidence: [{ display_label: "Unknown Domain Capability", candidate_concept: "Unknown domain capability", claim: "Unknown domain capability claim", supporting_excerpt: "Unknown domain capability evidence", confidence: "high" }]
+      }]
+    };
+    const unknownDomainReport = buildReports(buildNormalized(normalizeChatGptExport(unknownDomainPack), []));
+    assert.ok(unknownDomainReport.canonical_analysis_result, "unknown domain should still produce canonical result");
+    assert.ok(unknownDomainReport.semantic_view_model, "unknown domain should still produce semantic view model without legacy semantic fallback");
   }
 
   assert.ok(chiefGrowthReport.professional_pattern.radar_capabilities.every(item => !/_[a-z]/i.test(item.label)), "no snake_case should appear in visible radar labels");

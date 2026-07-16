@@ -981,6 +981,30 @@ function buildSnapshotData() {
     ...(state.reportConfig || {}),
     report_language: currentConfig.report_language || (state.reportConfig && state.reportConfig.report_language) || (reports.report_config && reports.report_config.report_language) || "en"
   };
+
+  if (reports.semantic_view_model && typeof reports.semantic_view_model === "object") {
+    const semantic = reports.semantic_view_model;
+    const semanticLanguage = semantic.language || config.report_language || getReportLanguage();
+    const semanticTexts = reportText(semanticLanguage);
+    const semanticSnapshot = {
+      ...semantic,
+      language: semanticLanguage,
+      texts: semanticTexts,
+      professionalPattern: reports.professional_pattern || null,
+      professionalIdentity: reports.professional_identity || {},
+      technicalSignalsObserved: reports.technical_signals_observed || null,
+      roleSpecificCapabilities: reports.role_specific_capabilities || [],
+      differentiators: reports.differentiators || [],
+      watchOuts: reports.watch_outs || [],
+      categoryBreakdown: Array.isArray(semantic.categoryBreakdown) ? semantic.categoryBreakdown : [],
+      observedDomains: Array.isArray(semantic.observedDomains) ? semantic.observedDomains : [],
+      analyzedConversations: Array.isArray(semantic.analyzedConversations) ? semantic.analyzedConversations : [],
+      evidenceHighlights: Array.isArray(semantic.evidenceHighlights) ? semantic.evidenceHighlights : [],
+      evidenceMix: semantic.evidenceMix || buildEvidenceMix(reports.evidence_coverage_detail || {}, Number(semantic.totalEvidenceItemCount || 0), 0)
+    };
+    return semanticSnapshot;
+  }
+
   const language = config.report_language || getReportLanguage();
   const texts = reportText(language);
   const professionalIdentity = reports.professional_identity || (reports.private_report && reports.private_report.professional_identity) || {};

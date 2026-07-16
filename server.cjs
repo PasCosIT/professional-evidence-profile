@@ -3745,7 +3745,11 @@ function buildStructuredProfessionalPattern(normalized) {
     capability_assessments: capabilityAssessment.all,
     atomic_evidence_items: atomicEvidence,
     diagnostics: evidenceMetrics,
-    limitations: []
+    limitations: [],
+    analysis_mode: "structured",
+    methodology_version: "structured-evidence-engine-v1",
+    fallback_reason: null,
+    routing_reason_codes: ["structured_evidence_path"]
   };
 }
 
@@ -3882,7 +3886,11 @@ function buildProfessionalPattern(normalized, temporalMaturity, language = "en")
       ? capabilityAssessment.suppressed_duplicates
       : undefined,
     capability_assessments: capabilityAssessment.all.slice(0, 20),
-    limitations
+    limitations,
+    analysis_mode: "legacy",
+    methodology_version: "legacy-evidence-engine-v1",
+    fallback_reason: hasStructuredEvidence(normalized) ? "structured_invalid_fallback" : "legacy_unstructured_path",
+    routing_reason_codes: [hasStructuredEvidence(normalized) ? "structured_invalid_fallback" : "legacy_unstructured_path"]
   };
 }
 
@@ -4833,6 +4841,222 @@ function buildVisualProfile(normalized, insights, publicOnly = false) {
   };
 }
 
+function buildCanonicalAnalysisResult(normalized, professionalPattern, evidenceCoverage) {
+  const structuredEvidenceAvailable = hasStructuredEvidence(normalized);
+  const analysisMode = professionalPattern && professionalPattern.analysis_mode
+    ? professionalPattern.analysis_mode
+    : structuredEvidenceAvailable
+      ? "structured"
+      : "legacy";
+  const methodologyVersion = professionalPattern && professionalPattern.methodology_version
+    ? professionalPattern.methodology_version
+    : analysisMode === "structured"
+      ? "structured-evidence-engine-v1"
+      : "legacy-evidence-engine-v1";
+  const routingReasonCodes = Array.isArray(professionalPattern && professionalPattern.routing_reason_codes) && professionalPattern.routing_reason_codes.length
+    ? professionalPattern.routing_reason_codes
+    : [analysisMode === "structured" ? "structured_evidence_path" : "legacy_unstructured_path"];
+  const fallbackReason = professionalPattern && Object.prototype.hasOwnProperty.call(professionalPattern, "fallback_reason")
+    ? professionalPattern.fallback_reason
+    : analysisMode === "structured"
+      ? null
+      : "legacy_unstructured_path";
+
+  const family = professionalPattern && professionalPattern.professional_family
+    ? professionalPattern.professional_family
+    : { id: "mixed_cross_functional", label: "mixed/cross-functional" };
+
+  const familyScoreBreakdown = Array.isArray(professionalPattern && professionalPattern.professional_family_breakdown)
+    ? professionalPattern.professional_family_breakdown
+    : [];
+
+  const capabilityPool = Array.isArray(professionalPattern && professionalPattern.radar_capabilities)
+    ? professionalPattern.radar_capabilities
+    : [];
+  const supportedCapabilities = capabilityPool
+    .filter(item => ["demonstrated", "strongly_demonstrated", "attested"].includes(String(item && item.capability_state || "")))
+    .map(item => ({ ...item }))
+    .slice(0, 12);
+  const emergingCapabilities = Array.isArray(professionalPattern && professionalPattern.emerging_signals)
+    ? professionalPattern.emerging_signals.map(item => ({ ...item }))
+    : [];
+  const recurringStrengths = Array.isArray(professionalPattern && professionalPattern.recurring_strengths)
+    ? professionalPattern.recurring_strengths.map(item => ({ ...item }))
+    : [];
+
+  const evidenceMetrics = {
+    atomic_evidence_count: Number(evidenceCoverage && evidenceCoverage.atomic_evidence_count || evidenceCoverage && evidenceCoverage.total_evidence_items || 0),
+    evidence_items_count: Number(evidenceCoverage && evidenceCoverage.atomic_evidence_count || evidenceCoverage && evidenceCoverage.total_evidence_items || 0),
+    capability_link_count: Number(evidenceCoverage && evidenceCoverage.capability_link_count || 0),
+    mapped_behaviour_count: Number(evidenceCoverage && evidenceCoverage.mapped_behaviour_count || 0),
+    excluded_evidence_count: Number(evidenceCoverage && evidenceCoverage.excluded_evidence_count || 0),
+    professional_conversations_count: Number(evidenceCoverage && evidenceCoverage.total_professional_conversations || 0)
+  };
+
+  return {
+    analysis_mode: analysisMode,
+    professional_family: family,
+    professional_family_key: family.id || "mixed_cross_functional",
+    family_score_breakdown: familyScoreBreakdown,
+    professional_contexts: Array.isArray(professionalPattern && professionalPattern.professional_domains_observed)
+      ? professionalPattern.professional_domains_observed.slice(0, 8)
+      : [],
+    supported_capabilities: supportedCapabilities,
+    emerging_capabilities: emergingCapabilities,
+    recurring_strengths: recurringStrengths,
+    professional_pattern: String(professionalPattern && professionalPattern.observed_professional_pattern || professionalPattern && professionalPattern.signature_text || ""),
+    typical_contribution: String(professionalPattern && professionalPattern.typical_professional_contribution || ""),
+    evidence_metrics: evidenceMetrics,
+    diagnostics: {
+      structured_evidence_available: structuredEvidenceAvailable,
+      analysis_mode: analysisMode,
+      methodology_version: methodologyVersion,
+      fallback_reason: fallbackReason,
+      routing_reason_codes: routingReasonCodes,
+      demonstrated_capabilities_count: supportedCapabilities.length,
+      professional_contexts: Array.isArray(professionalPattern && professionalPattern.professional_domains_observed)
+        ? professionalPattern.professional_domains_observed.slice(0, 8)
+        : [],
+      ...evidenceMetrics
+    },
+    methodology_version: methodologyVersion,
+    fallback_reason: fallbackReason,
+    routing_reason_codes: routingReasonCodes
+  };
+}
+
+function snapshotLevelFromCapabilityState(state) {
+  const key = String(state || "");
+  if (key === "attested" || key === "strongly_demonstrated") return "strongly_supported";
+  if (key === "demonstrated") return "recurring";
+  if (key === "emerging") return "observed";
+  return "emerging";
+}
+
+function buildSemanticViewModel(canonicalAnalysisResult, normalized, evidenceCoverage, reportConfig) {
+  const config = reportConfig || {};
+  const family = canonicalAnalysisResult && canonicalAnalysisResult.professional_family || { id: "mixed_cross_functional", label: "mixed/cross-functional" };
+  const evidenceMetrics = canonicalAnalysisResult && canonicalAnalysisResult.evidence_metrics || {};
+  const supported = Array.isArray(canonicalAnalysisResult && canonicalAnalysisResult.supported_capabilities)
+    ? canonicalAnalysisResult.supported_capabilities
+    : [];
+
+  const axes = supported.slice(0, 6).map(item => {
+    const coverage = Number(item.coverage || item.evidence_coverage || Math.min(100, Math.round(Number(item.atomic_evidence_count || item.evidence_count || 0) * 20)));
+    const strength = Number(item.strength || item.dominance_score || coverage || 0);
+    const confidenceScore = Number(item.confidence_score || 0.55);
+    const confidence = confidenceScore >= 0.72 ? "high" : confidenceScore >= 0.5 ? "medium" : "low";
+    return {
+      label: String(item.resolved_label || item.full_label || item.label || "Capability"),
+      resolved_label: String(item.resolved_label || item.full_label || item.label || "Capability"),
+      full_label: String(item.full_label || item.resolved_label || item.label || "Capability"),
+      level: item.level || snapshotLevelFromCapabilityState(item.capability_state),
+      capability_state: item.capability_state || "emerging",
+      coverage,
+      strength,
+      confidence,
+      assessed: true,
+      positive_count: Number(item.atomic_evidence_count || item.evidence_count || 0),
+      unique_conversation_count: Number(item.distinct_conversation_count || 0)
+    };
+  });
+
+  const direct = Number(evidenceCoverage && evidenceCoverage.direct_user_inputs || 0);
+  const mixed = Number(evidenceCoverage && evidenceCoverage.mixed_content_items || 0);
+  const external = Number(evidenceCoverage && evidenceCoverage.external_documents || 0);
+  const ai = Number(evidenceCoverage && evidenceCoverage.ai_generated_items || 0);
+  const unknown = Number(evidenceCoverage && evidenceCoverage.unknown_items || 0);
+  const sourceTotal = Math.max(1, direct + mixed + external + ai + unknown);
+  const directPercent = Math.round((direct / sourceTotal) * 100);
+  const mixedPercent = Math.round((mixed / sourceTotal) * 100);
+  const externalPercent = Math.max(0, 100 - directPercent - mixedPercent);
+  const attributable = Math.round(((direct + mixed * 0.5) / sourceTotal) * 100);
+
+  const analyzedConversations = (normalized || []).slice(0, 4).map(conversation => {
+    const firstUser = (conversation.messages || []).find(message => message.author === "user");
+    const excerpt = String(firstUser && firstUser.text || "No attributable user excerpt available.")
+      .replace(/\s+/g, " ")
+      .trim();
+    return {
+      id: conversation.id,
+      title: conversation.title,
+      category: conversation.professional_category || "other",
+      date: String(conversation.created_at || conversation.updated_at || "").slice(0, 10) || "-",
+      excerpt: excerpt.length > 170 ? `${excerpt.slice(0, 170)}...` : excerpt,
+      summary: excerpt.length > 220 ? `${excerpt.slice(0, 220)}...` : excerpt,
+      provenance: "Unclear provenance",
+      classification: conversation.classification || "professional"
+    };
+  });
+
+  const evidenceHighlights = supported.slice(0, 4).map(item => ({
+    group: String(item.parent_dimension || item.canonical_dimension || "professional_capability"),
+    skill: String(item.resolved_label || item.full_label || item.label || "Capability"),
+    confidence: String(item.confidence || "medium"),
+    confidenceScore: Number(item.dominance_score || 0),
+    evidenceType: "supporting",
+    excerpt: String(item.resolved_label || item.full_label || item.label || "Capability evidence"),
+    claim: String(item.resolved_label || item.full_label || item.label || "Capability evidence"),
+    supportingExcerpt: String(item.resolved_label || item.full_label || item.label || "Capability evidence"),
+    counterEvidence: null,
+    attribution: "Mixed attribution",
+    candidateConcept: String(item.resolved_label || item.full_label || item.label || "Capability"),
+    title: "Conversation",
+    date: ""
+  }));
+
+  const rawSemantic = {
+    language: config.report_language || "en",
+    personName: config.profile_name || "Professional profile",
+    extractedDate: config.generated_at || new Date().toISOString().slice(0, 10),
+    dataRange: config.period_from && config.period_to ? `${config.period_from} - ${config.period_to}` : "-",
+    observationPeriod: `${Number(config.selected_months || 6)} month${Number(config.selected_months || 6) === 1 ? "" : "s"}`,
+    summary: String(canonicalAnalysisResult && canonicalAnalysisResult.professional_pattern || ""),
+    professionalSignature: String(canonicalAnalysisResult && canonicalAnalysisResult.professional_pattern || ""),
+    typicalContribution: String(canonicalAnalysisResult && canonicalAnalysisResult.typical_contribution || ""),
+    observedDomains: Array.isArray(canonicalAnalysisResult && canonicalAnalysisResult.professional_contexts)
+      ? canonicalAnalysisResult.professional_contexts.slice(0, 5)
+      : [],
+    axes,
+    kpis: [
+      { value: String(evidenceMetrics.professional_conversations_count || 0), label: "Professional conversations", note: "Work contexts included in this analysis" },
+      { value: String(evidenceMetrics.atomic_evidence_count || 0), label: "Evidence items", note: "Attributable excerpts used in the profile" },
+      { value: String(supported.length), label: "Demonstrated capabilities", note: "Capabilities with sufficient evidence" },
+      { value: `${attributable}%`, label: directPercent > 0 ? "User-authored evidence" : "Mixed attribution", note: `${mixedPercent}% mixed · ${externalPercent}% external/AI` }
+    ],
+    evidenceMix: {
+      attributable,
+      segments: [
+        { tone: "direct", label: "Direct", value: directPercent },
+        { tone: "mixed", label: "Mixed", value: mixedPercent },
+        { tone: "external", label: "External", value: externalPercent }
+      ].filter(item => item.value > 0)
+    },
+    analyzedConversationCount: Number(evidenceMetrics.professional_conversations_count || 0),
+    totalEvidenceItemCount: Number(evidenceMetrics.atomic_evidence_count || 0),
+    analyzedConversations,
+    evidenceHighlights,
+    selectedConversationCount: analyzedConversations.length,
+    selectedExcerptCount: evidenceHighlights.length,
+    methodologyVersion: canonicalAnalysisResult && canonicalAnalysisResult.methodology_version || "structured-evidence-engine-v1",
+    analysisMode: canonicalAnalysisResult && canonicalAnalysisResult.analysis_mode || "legacy",
+    fallbackReason: canonicalAnalysisResult && canonicalAnalysisResult.fallback_reason || null,
+    canonicalAnalysisResult: canonicalAnalysisResult || null
+  };
+
+  const vmBuilder = typeof ReportViewModel.buildSnapshotViewModel === "function"
+    ? ReportViewModel.buildSnapshotViewModel
+    : ReportViewModel.buildReportViewModel;
+  const vmCandidate = vmBuilder(rawSemantic);
+  const validatedVm = ReportViewModel.validateReportViewModel(vmCandidate).model;
+
+  return {
+    ...rawSemantic,
+    snapshotViewModel: validatedVm,
+    reportViewModel: validatedVm
+  };
+}
+
 function buildReports(normalized, userInsights, reportConfig) {
   const config = reportConfig ? normalizeReportConfig(reportConfig) : null;
   const range = dateRange(normalized);
@@ -4851,12 +5075,40 @@ function buildReports(normalized, userInsights, reportConfig) {
   const privateEvidenceCoverage = buildEvidenceCoverage(normalized, privateTemporalMaturity);
   const publicEvidenceCoverage = buildEvidenceCoverage(normalized, publicTemporalMaturity);
   const professionalPattern = buildProfessionalPattern(normalized, privateTemporalMaturity);
+  const canonicalAnalysisResult = buildCanonicalAnalysisResult(normalized, professionalPattern, privateEvidenceCoverage);
+  const semanticViewModel = buildSemanticViewModel(canonicalAnalysisResult, normalized, privateEvidenceCoverage, config || {});
+  const structuredMode = canonicalAnalysisResult.analysis_mode === "structured";
   const technicalSignalsObserved = buildTechnicalSignalsObserved(normalized);
-  const professionalIdentity = inferProfessionalIdentity(normalized, privateTemporalMaturity, privateEvidenceCoverage, professionalPattern);
-  const professionalDomains = buildProfessionalDomains(normalized, professionalPattern);
-  const roleSpecificCapabilities = buildRoleSpecificCapabilities(normalized, professionalIdentity);
-  const differentiators = buildDifferentiators(professionalIdentity, roleSpecificCapabilities, professionalDomains, privateEvidenceCoverage);
-  const watchOuts = buildWatchOuts(professionalIdentity, roleSpecificCapabilities, privateTemporalMaturity, privateEvidenceCoverage);
+  const professionalIdentity = structuredMode
+    ? {
+        primary_function: "uncertain",
+        secondary_functions: [],
+        observed_archetype: "uncertain",
+        operating_level: "uncertain",
+        work_mode: "uncertain",
+        confidence: "medium",
+        supporting_evidence_ids: [],
+        limitations: ["Structured evidence path active: role identity inference is intentionally not recalculated by legacy semantic builders."]
+      }
+    : inferProfessionalIdentity(normalized, privateTemporalMaturity, privateEvidenceCoverage, professionalPattern);
+  const professionalDomains = structuredMode
+    ? canonicalAnalysisResult.professional_contexts.slice(0, 5)
+    : buildProfessionalDomains(normalized, professionalPattern);
+  const roleSpecificCapabilities = structuredMode
+    ? (canonicalAnalysisResult.supported_capabilities || []).map(item => ({
+        label: item.full_label || item.label,
+        evidence_status: capabilityStateToLegacyLevel(item.capability_state),
+        coverage: Number(item.coverage || item.evidence_coverage || 0),
+        confidence_score: Number(item.confidence_score || 0.55),
+        supporting_evidence_ids: Array.isArray(item.evidence_ids) ? item.evidence_ids.slice(0, 8) : []
+      }))
+    : buildRoleSpecificCapabilities(normalized, professionalIdentity);
+  const differentiators = structuredMode
+    ? []
+    : buildDifferentiators(professionalIdentity, roleSpecificCapabilities, professionalDomains, privateEvidenceCoverage);
+  const watchOuts = structuredMode
+    ? []
+    : buildWatchOuts(professionalIdentity, roleSpecificCapabilities, privateTemporalMaturity, privateEvidenceCoverage);
   const kpis = {
     evidence_coverage: normalized.length,
     months_covered: range.months_covered,
@@ -4871,10 +5123,15 @@ function buildReports(normalized, userInsights, reportConfig) {
   return {
     normalized,
     insights,
+    analysis_mode: canonicalAnalysisResult.analysis_mode,
+    methodology_version: canonicalAnalysisResult.methodology_version,
+    fallback_reason: canonicalAnalysisResult.fallback_reason,
+    canonical_analysis_result: canonicalAnalysisResult,
+    semantic_view_model: semanticViewModel,
     professional_pattern: professionalPattern,
-    observed_professional_pattern: professionalPattern.observed_professional_pattern,
-    professional_domains_observed: professionalPattern.professional_domains_observed,
-    typical_professional_contribution: professionalPattern.typical_professional_contribution,
+    observed_professional_pattern: canonicalAnalysisResult.professional_pattern,
+    professional_domains_observed: canonicalAnalysisResult.professional_contexts,
+    typical_professional_contribution: canonicalAnalysisResult.typical_contribution,
     professional_identity: professionalIdentity,
     professional_domains: professionalDomains,
     technical_signals_observed: technicalSignalsObserved,
@@ -4902,10 +5159,15 @@ function buildReports(normalized, userInsights, reportConfig) {
         "This profile is not a psychological diagnosis and must not be used as a sole decision criterion."
       ],
       insights,
+      analysis_mode: canonicalAnalysisResult.analysis_mode,
+      methodology_version: canonicalAnalysisResult.methodology_version,
+      fallback_reason: canonicalAnalysisResult.fallback_reason,
+      canonical_analysis_result: canonicalAnalysisResult,
+      semantic_view_model: semanticViewModel,
       professional_pattern: professionalPattern,
-      observed_professional_pattern: professionalPattern.observed_professional_pattern,
-      professional_domains_observed: professionalPattern.professional_domains_observed,
-      typical_professional_contribution: professionalPattern.typical_professional_contribution,
+      observed_professional_pattern: canonicalAnalysisResult.professional_pattern,
+      professional_domains_observed: canonicalAnalysisResult.professional_contexts,
+      typical_professional_contribution: canonicalAnalysisResult.typical_contribution,
       professional_identity: professionalIdentity,
       professional_domains: professionalDomains,
       technical_signals_observed: technicalSignalsObserved,
@@ -4925,10 +5187,15 @@ function buildReports(normalized, userInsights, reportConfig) {
       generated_at: kpis.generated_at,
       period: config ? { from: config.period_from, to: config.period_to, selected_months: config.selected_months } : { first_data: range.first, last_data: range.last },
       kpis,
+      analysis_mode: canonicalAnalysisResult.analysis_mode,
+      methodology_version: canonicalAnalysisResult.methodology_version,
+      fallback_reason: canonicalAnalysisResult.fallback_reason,
+      canonical_analysis_result: canonicalAnalysisResult,
+      semantic_view_model: semanticViewModel,
       professional_pattern: professionalPattern,
-      observed_professional_pattern: professionalPattern.observed_professional_pattern,
-      professional_domains_observed: professionalPattern.professional_domains_observed,
-      typical_professional_contribution: professionalPattern.typical_professional_contribution,
+      observed_professional_pattern: canonicalAnalysisResult.professional_pattern,
+      professional_domains_observed: canonicalAnalysisResult.professional_contexts,
+      typical_professional_contribution: canonicalAnalysisResult.typical_contribution,
       professional_identity: professionalIdentity,
       professional_domains: professionalDomains,
       technical_signals_observed: technicalSignalsObserved,
