@@ -3610,10 +3610,9 @@ async function renderSnapshotPdf(snapshot, reportConfig) {
         drawRoundedPanel(doc, cardX, cardY, cardW, rowHeight, { fill: "#f5faf9", stroke: "#d9e7e4", radius: 6 });
         drawFittedText(doc, sanitizeReportText(row.label, { maxChars: 48, isTitle: true, fallback: "Capability" }), cardX + 6, cardY + 4, 250, 10, { font: "Helvetica-Bold", maxFontSize: 8.4, minFontSize: 7.6, color: "#163331" });
         const countLine = row.evidenceItemCount && row.conversationCount
-          ? `${row.evidenceItemCount} evidence · ${row.conversationCount} conv.`
-          : "";
-        drawFittedText(doc, countLine, cardX + cardW - 140, cardY + 4, 134, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.5, align: "right", color: "#4f6763" });
-        drawFittedText(doc, `${row.evidenceStrength} · ${row.evidenceCoverage} · ${row.attribution} attribution`, cardX + 6, cardY + 15, cardW - 12, 10, { font: "Helvetica", maxFontSize: 7.2, minFontSize: 6.7, color: "#4f6763" });
+          ? `Supported by ${row.evidenceItemCount} evidence items across ${row.conversationCount} conversations`
+          : "Supported by recurring attributable evidence";
+        drawFittedText(doc, countLine, cardX + 6, cardY + 15, cardW - 12, 10, { font: "Helvetica", maxFontSize: 7.1, minFontSize: 6.5, color: "#4f6763" });
       });
     }
 

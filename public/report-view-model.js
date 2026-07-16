@@ -9,7 +9,7 @@
 
   var INVALID_SENTENCE_ENDINGS = new Set([
     "and", "or", "with", "through", "by", "for", "in", "around",
-    "and.", "or.", "with.", "through.", "by.", "for.", "in.", "around."
+    "the", "and.", "or.", "with.", "through.", "by.", "for.", "in.", "around.", "the."
   ]);
 
   var CONTEXT_LABELS = {
@@ -86,6 +86,19 @@
       candidate = (splitAt > 20 ? clipped.slice(0, splitAt) : clipped).trim();
     }
     if (!/[.!?]$/.test(candidate)) candidate += ".";
+
+    // Remove dangling short tail fragments like "The." after truncation.
+    var chunks = candidate.split(/(?<=[.!?])\s+/).filter(Boolean);
+    if (chunks.length > 1) {
+      var tail = chunks[chunks.length - 1].replace(/[.!?]+$/g, "").trim();
+      var tailWordCount = tail ? tail.split(/\s+/).length : 0;
+      if (tailWordCount <= 2) {
+        chunks.pop();
+        candidate = chunks.join(" ").trim();
+        if (candidate && !/[.!?]$/.test(candidate)) candidate += ".";
+      }
+    }
+
     if (candidate.length < Math.max(40, Math.floor(maxChars * 0.45))) return sentenceFallback(fallbackKind);
     if (!validateGeneratedSentence(candidate)) return sentenceFallback(fallbackKind);
     return candidate;
@@ -237,26 +250,26 @@
        .slice(0, 4);
  
      var kpiPrimary;
-     if (attribution.directPercent >= 10) {
+    if (attribution.directPercent >= 10) {
        kpiPrimary = {
-         key: "direct_evidence_share",
+        key: "attribution_quality",
          value: attribution.directPercent + "%",
-         label: "Direct evidence share",
-         helper: "Directly attributable evidence"
+        label: "Direct user evidence",
+        helper: attribution.mixedPercent + "% mixed · " + attribution.contextualPercent + "% external/AI"
        };
      } else if (attribution.mixedPercent > 0) {
        kpiPrimary = {
-         key: "mixed_attribution",
+        key: "attribution_quality",
          value: attribution.mixedPercent + "%",
-         label: "Mixed attribution",
-         helper: "Combination of user and contextual content"
+        label: "Mixed attribution",
+        helper: attribution.directPercent + "% direct · " + attribution.contextualPercent + "% external/AI"
        };
      } else {
        kpiPrimary = {
-         key: "evidence_coverage",
-          value: Number(source.totalEvidenceItemCount || 0) > 0 ? String(source.totalEvidenceItemCount || 0) : "Insufficient evidence",
-         label: "Evidence coverage",
-          helper: "Supported by evidence available in this period"
+        key: "attribution_quality",
+        value: attribution.directPercent + "%",
+        label: "Direct user evidence",
+        helper: "Limited attribution quality in selected evidence"
        };
      }
 
@@ -280,19 +293,19 @@
            key: "professional_conversations",
            value: conversationCount > 0 ? String(conversationCount) : "Insufficient evidence",
            label: "Professional conversations",
-           helper: "Included in this explainable analysis"
+          helper: "Work contexts included in this analysis"
          },
          {
            key: "evidence_items",
            value: evidenceCount > 0 ? String(evidenceCount) : "Insufficient evidence",
            label: "Evidence items",
-           helper: "Supported by evidence and source attribution"
+          helper: "Attributable excerpts used in the profile"
          },
          {
            key: "supported_capabilities",
            value: capabilities.length > 0 ? String(capabilities.length) : "Insufficient evidence",
            label: "Demonstrated capabilities",
-           helper: "Capability signals supported by evidence"
+          helper: "Capabilities with sufficient evidence"
          },
          kpiPrimary
        ],
@@ -412,10 +425,11 @@
       '  <section class="vm-grid vm-grid-bottom">' +
       '    <article class="vm-card"><h3>Supported Capabilities</h3><div class="vm-caps">' +
       (vm.capabilities || []).map(function (c) {
-        var countLine = (c.evidenceItemCount && c.conversationCount)
-          ? (c.evidenceItemCount + ' evidence items across ' + c.conversationCount + ' conversations')
-          : "";
-        return '<div class="vm-cap"><strong>' + escapeHtml(c.label) + '</strong><span>' + escapeHtml(c.evidenceStrength + ' · ' + c.evidenceCoverage + ' · ' + c.attribution + ' attribution') + '</span>' + (countLine ? '<p>' + escapeHtml(countLine) + '</p>' : '') + '</div>';
+        var evidenceLine = (c.evidenceItemCount && c.conversationCount)
+          ? ('Supported by ' + c.evidenceItemCount + ' evidence items across ' + c.conversationCount + ' conversations')
+          : 'Supported by recurring attributable evidence';
+        var qualityLine = 'Strength: ' + c.evidenceStrength + ' · Coverage: ' + c.evidenceCoverage + ' · Attribution: ' + c.attribution;
+        return '<div class="vm-cap"><strong>' + escapeHtml(c.label) + '</strong><span>' + escapeHtml(evidenceLine) + '</span><p>' + escapeHtml(qualityLine) + '</p></div>';
       }).join("") +
       '    </div></article>' +
       '    <article class="vm-card"><h3>Not Assessed</h3><p>' + escapeHtml(notAssessedText) + '</p><h4>Methodology and verification</h4><p>' + escapeHtml(vm.verification) + '</p><p>Direct evidence: ' + escapeHtml(vm.attribution && vm.attribution.directPercent) + '% · Mixed attribution: ' + escapeHtml(vm.attribution && vm.attribution.mixedPercent) + '% · External or AI context: ' + escapeHtml(vm.attribution && vm.attribution.contextualPercent) + '%</p><p>Methodology version: ' + escapeHtml(vm.methodologyVersion) + '</p></article>' +
