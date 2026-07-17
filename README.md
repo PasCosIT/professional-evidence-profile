@@ -53,7 +53,7 @@ http://localhost:4184
 From a terminal, you can also run:
 
 ```powershell
-node server.js
+node server.cjs
 ```
 
 ## Test

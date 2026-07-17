@@ -11,5 +11,5 @@ echo Keep this window open while testing the app.
 echo Press CTRL+C here to stop the server.
 echo.
 
-"%NODE_EXE%" server.js
+"%NODE_EXE%" server.cjs
 pause
